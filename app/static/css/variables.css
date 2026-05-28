@@ -1,0 +1,95 @@
+
+/* ═══════════════════════════════════════════════
+   THEME VARIABLES
+   Tailwind-compatible: .dark on <html> = dark mode
+   Default (no class) = dark mode (IDE default)
+   .light on <html> = light mode
+   ═══════════════════════════════════════════════ */
+
+/* DARK THEME (default) */
+:root,
+html.dark {
+    --ide-bg: #0a0a0f;
+    --ide-panel: #111319;
+    --ide-panel2: #0f1117;
+    --ide-border: #1f2330;
+    --ide-hover: #1a1d27;
+    --ide-text: #c9cdd8;
+    --ide-muted: #5a6070;
+    --ide-accent: #3b82f6;
+    --ide-success: #10b981;
+    --ide-warning: #f59e0b;
+    --ide-error: #ef4444;
+    --ide-surface: #13161f;
+
+    /* Override Tailwind colors for consistency */
+    color-scheme: dark;
+}
+
+/* LIGHT THEME */
+html.light {
+    --ide-bg: #f5f6fa;
+    --ide-panel: #ffffff;
+    --ide-panel2: #f0f1f5;
+    --ide-border: #e1e4ec;
+    --ide-hover: #eef0f6;
+    --ide-text: #1a1d27;
+    --ide-muted: #8892a4;
+    --ide-accent: #2563eb;
+    --ide-success: #059669;
+    --ide-warning: #d97706;
+    --ide-error: #dc2626;
+    --ide-surface: #f8f9fc;
+
+    color-scheme: light;
+}
+
+/* ═══════════════════════════════════════════════
+   TAILWIND CONFIG OVERRIDE
+   Map Tailwind utility classes to our CSS variables
+   ═══════════════════════════════════════════════ */
+
+/* Background colors */
+.bg-ide-bg { background-color: var(--ide-bg) !important; }
+.bg-ide-panel { background-color: var(--ide-panel) !important; }
+.bg-ide-panel2 { background-color: var(--ide-panel2) !important; }
+.bg-ide-hover { background-color: var(--ide-hover) !important; }
+.bg-ide-surface { background-color: var(--ide-surface) !important; }
+.bg-ide-accent { background-color: var(--ide-accent) !important; }
+.bg-ide-success { background-color: var(--ide-success) !important; }
+.bg-ide-warning { background-color: var(--ide-warning) !important; }
+.bg-ide-error { background-color: var(--ide-error) !important; }
+
+/* Text colors */
+.text-ide-text { color: var(--ide-text) !important; }
+.text-ide-muted { color: var(--ide-muted) !important; }
+.text-ide-accent { color: var(--ide-accent) !important; }
+.text-ide-success { color: var(--ide-success) !important; }
+.text-ide-warning { color: var(--ide-warning) !important; }
+.text-ide-error { color: var(--ide-error) !important; }
+
+/* Border colors */
+.border-ide-border { border-color: var(--ide-border) !important; }
+.border-ide-accent { border-color: var(--ide-accent) !important; }
+
+/* Accent with opacity */
+.bg-ide-accent\/10 { background-color: rgba(59, 130, 246, 0.1) !important; }
+.bg-ide-accent\/20 { background-color: rgba(59, 130, 246, 0.2) !important; }
+.bg-ide-warning\/10 { background-color: rgba(245, 158, 11, 0.1) !important; }
+.bg-ide-error\/10 { background-color: rgba(239, 68, 68, 0.1) !important; }
+.bg-ide-success\/10 { background-color: rgba(16, 185, 129, 0.1) !important; }
+
+/* Gradient backgrounds */
+.from-ide-bg { --tw-gradient-from: var(--ide-bg) !important; }
+.via-ide-bg\/95 { --tw-gradient-stops: var(--ide-bg) 95%, transparent !important; }
+
+/* Ensure body and main containers use theme */
+body {
+    background-color: var(--ide-bg) !important;
+    color: var(--ide-text) !important;
+}
+
+/* Fix for Tailwind's bg-opacity utilities */
+[class*="bg-ide-"][class*="/"] {
+    background-color: var(--ide-bg) !important;
+}

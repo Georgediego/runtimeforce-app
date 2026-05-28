@@ -1,0 +1,23 @@
+
+.prose pre {
+    background: var(--ide-panel2); border: 1px solid var(--ide-border);
+    border-radius: 8px; margin: 0.5rem 0 1rem; padding: 0; overflow: hidden;
+}
+.prose p { margin-bottom: 0.65rem; line-height: 1.65; }
+.prose ul, .prose ol { margin: 0.4rem 0 0.8rem 1.2rem; }
+.prose li { margin-bottom: 0.25rem; line-height: 1.6; }
+.prose h1, .prose h2, .prose h3 { color: var(--ide-text); margin: 1rem 0 0.4rem; font-weight: 600; }
+.prose h1 { font-size: 1.2rem; } .prose h2 { font-size: 1.05rem; } .prose h3 { font-size: 0.95rem; }
+.prose code:not(pre code) {
+    background: rgba(59,130,246,0.12); color: #60a5fa;
+    padding: 0.15rem 0.4rem; border-radius: 4px;
+    font-family: "JetBrains Mono", monospace; font-size: 0.82em;
+}
+html.light .prose code:not(pre code) { background: rgba(37,99,235,0.1); color: #1d4ed8; }
+.prose pre code {
+    display: block; padding: 1rem; overflow-x: auto;
+    font-family: "JetBrains Mono", monospace; font-size: 0.82rem;
+    background: transparent !important;
+}
+html.light .prose pre { background: #1e2130; }
+html.light .prose pre code { color: #c9cdd8; }

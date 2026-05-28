@@ -1,0 +1,27 @@
+
+.tree-folder > .tree-folder-children {
+    display: none; padding-left: 12px;
+    border-left: 1px solid var(--ide-border); margin-left: 6px;
+}
+.tree-folder.expanded > .tree-folder-children { display: block; }
+.tree-folder-toggle {
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+    padding: 3px 8px; border-radius: 5px; font-size: 0.8rem;
+    color: var(--ide-muted); user-select: none;
+}
+.tree-folder-toggle:hover { background: var(--ide-hover); color: var(--ide-text); }
+.tree-folder-toggle .tree-chevron { transition: transform 0.15s; flex-shrink: 0; }
+.tree-folder.expanded > .tree-folder-toggle .tree-chevron { transform: rotate(90deg); }
+.tree-file-item { cursor: pointer; }
+.tree-file-item:hover { background: var(--ide-hover); color: var(--ide-text); }
+.file-tree-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 8px; border-radius: 5px; cursor: pointer;
+    font-size: 0.8rem; color: var(--ide-muted);
+}
+.picker-tree-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+    border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+}
+.picker-tree-item:hover { background: var(--ide-hover); }
+.picker-tree-item input[type="checkbox"] { cursor: pointer; accent-color: var(--ide-accent); }

@@ -1,0 +1,41 @@
+# Python & FastAPI cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.cache/
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Databases & local storage (ЖЕЛЕЗНО ИСКЛЮЧАЕТ RUNTIME.DB)
+*.db
+*.sqlite3
+sqlite.db
+
+# Environment secrets, tokens & Keys
+.env
+.env.*
+*.pem
+*.pub
+id_rsa*
+secrets/
+certs/
+
+# Logs & Runtime temp files
+*.log
+logs/
+tmp/
+temp/
+run/
+
+# IDEs and system files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+*.db-*

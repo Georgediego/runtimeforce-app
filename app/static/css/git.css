@@ -1,0 +1,10 @@
+
+.git-modified { color: var(--ide-warning) !important; }
+.git-added { color: var(--ide-success) !important; }
+.git-deleted { color: var(--ide-error) !important; }
+.git-untracked { color: var(--ide-muted) !important; opacity: 0.7; }
+.git-renamed { color: var(--ide-accent) !important; }
+
+.diff-line-added { background: rgba(16,185,129,0.15); color: #34d399; }
+.diff-line-removed { background: rgba(239,68,68,0.15); color: #f87171; }
+.diff-line-hunk { background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 500; }

@@ -1,0 +1,119 @@
+.session-item {
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ide-muted);
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: none;
+    transition: background 0.15s, color 0.15s;
+}
+
+.session-item:hover {
+    background: var(--ide-hover);
+    color: var(--ide-text);
+}
+
+.session-item.active {
+    background: var(--ide-hover);
+    color: var(--ide-text);
+    border-color: var(--ide-border);
+}
+
+.session-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.session-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.session-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+    height: 16px;
+}
+
+.session-time {
+    font-size: 0.65rem;
+    color: var(--ide-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.session-delete-btn {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, background 0.15s, color 0.15s;
+    padding: 2px;
+    border-radius: 4px;
+    color: var(--ide-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.session-item:hover .session-delete-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.session-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--ide-error, #ef4444);
+}
+
+.toggle-history-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    margin-top: 6px;
+    font-size: 0.7rem;
+    color: var(--ide-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    transition: color 0.2s;
+}
+
+.toggle-history-btn:hover {
+    color: var(--ide-text);
+}
+
+.transition-transform {
+    transition: transform 0.2s ease;
+}
+
+#sessions-history {
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.session-match {
+    background: rgba(245, 158, 11, 0.25);
+    color: var(--ide-warning, #f59e0b);
+    border-radius: 2px;
+    padding: 0 2px;
+}
