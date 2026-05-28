@@ -93,19 +93,19 @@
         </div>
         <div id="rf-user-profile" class="relative">
             <button id="open-settings-btn" class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-ide-hover">
-                <div id="rf-user-avatar" class="w-6 h-6 rounded bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-[10px] shrink-0">U</div>
+                <div id="rf-user-avatar" class="w-6 h-6 rounded bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-[10px] shrink-0"></div>
                 <div class="flex flex-col items-start flex-1 min-w-0">
-                    <span id="rf-user-name" class="text-xs font-medium text-ide-text truncate w-full">Local User</span>
-                    <span id="rf-user-plan" class="text-[10px] text-ide-muted">Free</span>
+                    <span id="rf-user-name" class="text-xs font-medium text-ide-text truncate w-full"></span>
+                    <span id="rf-user-plan" class="text-[10px] text-ide-muted"></span>
                 </div>
                 <i data-lucide="settings" class="w-3.5 h-3.5 text-ide-muted shrink-0 cursor-pointer hover:text-ide-text" id="rf-settings-icon"></i>
             </button>
 
             <!-- Dropdown меню пользователя -->
-            <div id="rf-user-menu" class="hidden absolute bottom-full left-0 right-0 mb-2 bg-ide-bg-secondary border border-ide-border rounded-lg shadow-2xl overflow-hidden z-50" style="transition: opacity 0.2s ease, transform 0.2s ease; opacity: 0; transform: translateY(10px);">
+            <div id="rf-user-menu" class="hidden absolute bottom-full left-0 right-0 mb-2 bg-ide-bg-secondary border border-ide-border rounded-lg shadow-2xl overflow-hidden z-50">
                 <div class="px-3 py-2.5 border-b border-ide-border">
-                    <div id="rf-menu-email" class="text-xs font-medium text-ide-text truncate">user@example.com</div>
-                    <div id="rf-menu-plan" class="text-[10px] mt-0.5 text-ide-muted">Free Plan</div>
+                    <div id="rf-menu-email" class="text-xs font-medium text-ide-text truncate"></div>
+                    <div id="rf-menu-plan" class="text-[10px] mt-0.5 text-ide-muted"></div>
                 </div>
                 <div class="p-1">
                     <button id="rf-menu-settings-btn" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-ide-text rounded hover:bg-ide-hover transition">
@@ -270,14 +270,12 @@
         </div>
         <div class="flex flex-1 min-h-0 overflow-hidden">
             <div class="settings-sidebar">
-                <div class="text-[10px] font-semibold text-ide-muted uppercase tracking-widest px-2 mb-2">Общее</div>
                 <button class="settings-nav-btn active" data-tab="general">
                     <i data-lucide="sliders" class="w-3.5 h-3.5"></i> Общие
                 </button>
                 <button class="settings-nav-btn" data-tab="workspace">
                     <i data-lucide="folder" class="w-3.5 h-3.5"></i> Workspace
                 </button>
-                <div class="text-[10px] font-semibold text-ide-muted uppercase tracking-widest px-2 mb-2 mt-4">AI</div>
                 <button class="settings-nav-btn" data-tab="providers">
                     <i data-lucide="cpu" class="w-3.5 h-3.5"></i> Провайдеры
                 </button>
@@ -483,11 +481,11 @@
 </div>
 
 <!-- ===== AUTH OVERLAY (HTML разметка, логика в auth.js) ===== -->
-<div id="rf-auth-overlay" class="fixed inset-0 flex items-center justify-center z-[9999] p-4" style="background: rgba(3, 7, 18, 0.95); backdrop-filter: blur(8px);">
+<div id="rf-auth-overlay" class="fixed inset-0 flex items-center justify-center z-[9999] p-4" class="auth-overlay">
     <div class="bg-gray-900 p-8 rounded-2xl shadow-2xl border border-gray-800 w-full max-w-md">
         <div class="text-center mb-6">
             <img src="/static/runtimeforce.png" alt="RuntimeForce" class="w-full max-w-[200px] mx-auto mb-3 object-contain">
-            <p class="text-gray-400 text-sm">Войдите или зарегистрируйтесь для запуска IDE</p>
+            <p class="text-gray-400 text-sm">Войдите или зарегистрируйтесь для запуска RF</p>
         </div>
         <input id="rf-auth-user" type="email" placeholder="Email" class="w-full p-3 mb-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-blue-500 focus:outline-none transition">
         <input id="rf-auth-pass" type="password" placeholder="Пароль" class="w-full p-3 mb-4 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-blue-500 focus:outline-none transition">
