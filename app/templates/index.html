@@ -332,16 +332,22 @@
                     <div id="ws-list" class="space-y-2 mb-4">
                         <div class="text-center text-xs text-ide-muted py-4">Загрузка...</div>
                     </div>
-                    <div class="settings-section-title">Добавить локальный</div>
-                    <div class="space-y-2">
+                    <div class="settings-section-title cursor-pointer flex items-center justify-between" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <span>Добавить локальный</span>
+                        <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                    <div class="space-y-2 hidden" id="local-ws-form">
                         <input type="text" id="ws-local-name" placeholder="Название" class="ide-input">
                         <div class="flex gap-2">
                             <input type="text" id="ws-path-input" placeholder="~/Projects/my-app" class="ide-input flex-1">
                             <button id="add-local-ws-btn" class="ide-btn ide-btn-primary">Добавить</button>
                         </div>
                     </div>
-                    <div class="settings-section-title mt-4">Добавить Remote SSH</div>
-                    <div class="space-y-2">
+                    <div class="settings-section-title mt-4 cursor-pointer flex items-center justify-between" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <span>Добавить Remote SSH</span>
+                        <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                    <div class="space-y-2 hidden" id="ssh-ws-form">
                         <input type="text" id="ssh-name" placeholder="Название" class="ide-input">
                         <div class="grid grid-cols-2 gap-2">
                             <input type="text" id="ssh-host" placeholder="Host" class="ide-input">
@@ -368,8 +374,13 @@
                 <div class="settings-tab" id="stab-providers">
                     <div class="settings-section-title">Free провайдеры</div>
                     <div class="space-y-2" id="providers-list-free"></div>
-                    <div class="settings-section-title mt-6">Pro провайдеры</div>
-                    <div class="space-y-2" id="providers-list-pro"></div>
+                    <div class="settings-section-title mt-6 cursor-pointer flex items-center justify-between" onclick="document.getElementById('pro-providers-list').classList.toggle('hidden')">
+                        Pro провайдеры
+                        <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                    <div id="pro-providers-list" class="hidden space-y-2 mt-2">
+                        <div class="space-y-2" id="providers-list-pro"></div>
+                    </div>
                     <div class="mt-6 flex justify-between items-center gap-2">
                         <button id="clear-keys-btn" class="ide-btn ide-btn-danger text-xs flex items-center gap-2">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Очистить
@@ -472,7 +483,7 @@
 </div>
 
 <!-- ===== AUTH OVERLAY (HTML разметка, логика в auth.js) ===== -->
-<div id="rf-auth-overlay" class="fixed inset-0 flex items-center justify-center z-[9999] p-4" style="background: rgba(3, 7, 18, 0.8); backdrop-filter: blur(8px);">
+<div id="rf-auth-overlay" class="fixed inset-0 flex items-center justify-center z-[9999] p-4" style="background: rgba(3, 7, 18, 0.95); backdrop-filter: blur(8px);">
     <div class="bg-gray-900 p-8 rounded-2xl shadow-2xl border border-gray-800 w-full max-w-md">
         <div class="text-center mb-6">
             <img src="/static/runtimeforce.png" alt="RuntimeForce" class="w-full max-w-[200px] mx-auto mb-3 object-contain">
