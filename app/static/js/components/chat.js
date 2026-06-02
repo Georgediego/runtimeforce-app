@@ -5,6 +5,7 @@ import { refreshIcons, getFileIcon } from "../utils/icons.js";
 import { showToast } from "./toast.js";
 import { loadSessions } from "./sessions.js";
 import { loadGitStatus } from "./git.js";
+import { loadFileTree } from "./filetree.js"; // <-- Успешно импортировано во избежание ReferenceError
 
 var chatContainer = document.getElementById("chat-container");
 var chatHistoryDOM = document.getElementById("chat-history");
@@ -56,7 +57,7 @@ function appendTrace(badge, badgeClass, content) {
 var activeTools = {};
 
 function updateActiveToolsUI() {
-    var container = document.getElementById("active-tools-list"); // Исправлено на контейнер правого сайдбара
+    var container = document.getElementById("active-tools-list");
     if (!container) return;
     
     var keys = Object.keys(activeTools);
@@ -152,13 +153,17 @@ export function initChat() {
     });
 
     // Кнопка прикрепления файлов контекста (вызов модалки)
-    document.getElementById("context-btn")?.addEventListener("click", function() {
-    openContextPicker();
+    document.getElementById("attach-context-btn")?.addEventListener("click", function() {
+        openContextPicker();
     });
-    document.getElementById("cancel-context-picker-btn")?.addEventListener("click", closeContextPicker);
-    document.getElementById("confirm-context-picker-btn")?.addEventListener("click", confirmContextPicker);
-    document.getElementById("ctx-picker-search")?.addEventListener("input", function(e) {
-    filterContextPicker(e.target.value);
+
+    // Модалка контекста кнопки подтверждения/отмены
+    document.getElementById("ctx-picker-cancel")?.addEventListener("click", closeContextPicker);
+    document.getElementById("ctx-picker-confirm")?.addEventListener("click", confirmContextPicker);
+
+    // Живой поиск в контекст-пикере
+    document.getElementById("ctx-search-input")?.addEventListener("input", function(e) {
+        filterContextPicker(e.target.value);
     });
 
     // Отрисовка пустого или дефолтного стрипа контекста
@@ -198,10 +203,9 @@ export function newChat() {
 export async function loadChatSession(sessionId) {
     if (!sessionId) return;
     try {
-        var data = await sessionsApi.messages(sessionId); // Получаем объект data
-        var messageList = data.messages || []; // Извлекаем из него массив сообщений
+        var data = await sessionsApi.messages(sessionId);
+        var messageList = data.messages || [];
         
-        // Загружаем только реальный диалог
         state.chatHistory = messageList.filter(function(m) {
             return m.role === "user" || m.role === "assistant";
         });
@@ -223,7 +227,6 @@ function renderChatHistory() {
 
 function appendMessageDOM(role, content, traceData = null) {
     var msgDiv = document.createElement("div");
-    // Выравнивание: пользовательские вопросы справа (justify-end), ответы ИИ слева (justify-start)
     msgDiv.className = "message-fade-in flex w-full p-4 " + 
         (role === "user" ? "justify-end" : "justify-start bg-gray-900/20 border-y border-ide-border/50");
 
@@ -238,11 +241,9 @@ function appendMessageDOM(role, content, traceData = null) {
 
     var body = document.createElement("div");
     if (role === "user") {
-        // Компактный пузырь вопроса пользователя
         body.className = "bg-indigo-950/20 border border-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-gray-200 leading-relaxed max-w-full font-sans";
-        body.textContent = content; // Безопасно рендерим plain text пользователя
+        body.textContent = content;
     } else {
-        // Просторная prose-панель ответа ассистента
         body.className = "flex-1 space-y-2 overflow-hidden text-gray-200 leading-relaxed text-sm prose prose-invert font-sans";
         body.innerHTML = window.markdownUtils ? window.markdownUtils.render(content) : escapeHtml(content);
     }
@@ -327,22 +328,23 @@ async function sendMessage() {
     var text = promptInput.value.trim();
     if (!text || state.isGenerating) return;
 
+    var isNewSession = !state.currentSessionId;
+
     promptInput.value = "";
     promptInput.style.height = "auto";
 
     appendMessageDOM("user", text);
     
     state.chatHistory.push({ role: "user", content: text });
-
+    
     var currentSessionId = state.currentSessionId;
     if (!currentSessionId) {
-
         currentSessionId = "session-" + Date.now() + "-" + Math.random().toString(36).slice(2, 11);
         setState("currentSessionId", currentSessionId);
-
+        
         sessionsApi.create(text, currentSessionId)
             .then(function() {
-                loadSessions(); 
+                loadSessions();
             })
             .catch(function(err) {
                 console.error("Не удалось зарегистрировать сессию в сайдбаре:", err);
@@ -368,10 +370,8 @@ async function sendMessage() {
     chatHistoryDOM.appendChild(msgDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    // Собираем контекст для LLM
     var messagesForLLM = [];
     
-    // 1. Прикрепленные файлы/контекст в начале системным промптом
     if (state.attachedContext && state.attachedContext.length) {
         var contextPrompt = "Используй следующий контекст проекта для решения задачи:\n\n";
         state.attachedContext.forEach(function(ctx) {
@@ -380,7 +380,6 @@ async function sendMessage() {
         messagesForLLM.push({ role: "system", content: contextPrompt });
     }
     
-    // 2. Добавляем историю чата, исключая системный мусор и сообщения "[Tools: ...]"
     state.chatHistory.forEach(function(h) {
         if (h.role === "user" || (h.role === "assistant" && h.content && !h.content.startsWith("[Tools:"))) {
             messagesForLLM.push({ role: h.role, content: h.content });
@@ -389,17 +388,14 @@ async function sendMessage() {
 
     var fullAssistantText = "";
     var currentToolCalls = {};
-    var sessionCreatedOnBackend = false;
-    var currentSessionId = state.currentSessionId;
     var streamTraceData = { calls: [] };
 
     try {
-        // Подготавливаем базовый fetch-запрос к SSE-стриму
         var response = await fetch("/api/v1/chat/stream", {
             method: "POST",
             headers: { 
                 "Content-Type": "application/json",
-                "Authorization": "Bearer " + (localStorage.getItem("jwt_token") || localStorage.getItem("access_token") || "")
+                "Authorization": "Bearer " + (localStorage.getItem("jwt_token") || localStorage.getItem("rf_jwt_token") || "")
             },
             signal: currentAbortController.signal,
             body: JSON.stringify({
@@ -424,52 +420,53 @@ async function sendMessage() {
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
-            var lines = buffer.split("\n"); // Читаем по одиночному переносу строки
-            buffer = lines.pop(); // Сохраняем остаток в буфер
+            var lines = buffer.split("\n");
+            buffer = lines.pop();
 
             for (var i = 0; i < lines.length; i++) {
-                var line = lines[i].trim();
-                if (!line) continue;
+                var line = lines[i];
+                var trimmed = line.trim();
+                if (!trimmed) continue;
 
                 try {
-                    if (line.startsWith("SYSTEM_NOTICE:")) {
-                        var msg = line.substring("SYSTEM_NOTICE:".length);
+                    if (trimmed.startsWith("SYSTEM_NOTICE:")) {
+                        var msg = trimmed.substring("SYSTEM_NOTICE:".length);
                         appendTrace("SYSTEM", "error", msg);
                     }
-                    else if (line.startsWith("SYSTEM_ERROR:")) {
-                        var err = line.substring("SYSTEM_ERROR:".length);
+                    else if (trimmed.startsWith("SYSTEM_ERROR:")) {
+                        var err = trimmed.substring("SYSTEM_ERROR:".length);
                         appendTrace("ERROR", "error", err);
                     }
-                    else if (line.startsWith("MODEL_TRY:")) {
-                        var meta = JSON.parse(line.substring("MODEL_TRY:".length));
+                    else if (trimmed.startsWith("MODEL_TRY:")) {
+                        var meta = JSON.parse(trimmed.substring("MODEL_TRY:".length));
                         appendTrace("TRY", "try", meta.model.split("/").pop() + " (" + meta.provider + ")");
                         var rModelEl = document.getElementById("current-model-display");
                         if (rModelEl) rModelEl.textContent = meta.model.split("/").pop();
                     }
-                    else if (line.startsWith("MODEL_ERROR:")) {
-                        var meta = JSON.parse(line.substring("MODEL_ERROR:".length));
+                    else if (trimmed.startsWith("MODEL_ERROR:")) {
+                        var meta = JSON.parse(trimmed.substring("MODEL_ERROR:".length));
                         appendTrace("FAIL", "error", meta.model.split("/").pop() + " failed: " + meta.error);
                     }
-                    else if (line.startsWith("MODEL_SUCCESS:")) {
-                        var meta = JSON.parse(line.substring("MODEL_SUCCESS:".length));
+                    else if (trimmed.startsWith("MODEL_SUCCESS:")) {
+                        var meta = JSON.parse(trimmed.substring("MODEL_SUCCESS:".length));
                         appendTrace("SUCCESS", "success", meta.model.split("/").pop() + " in " + meta.elapsed_ms + "ms");
                     }
-                    else if (line.startsWith("ITERATION:")) {
-                        var meta = JSON.parse(line.substring("ITERATION:".length));
+                    else if (trimmed.startsWith("ITERATION:")) {
+                        var meta = JSON.parse(trimmed.substring("ITERATION:".length));
                         appendTrace("ITER", "iter", "Loop " + meta.iteration + "/" + meta.max);
                     }
-                    else if (line.startsWith("METADATA:")) {
-                        var meta = JSON.parse(line.substring("METADATA:".length));
+                    else if (trimmed.startsWith("METADATA:")) {
+                        var meta = JSON.parse(trimmed.substring("METADATA:".length));
                         var rModelEl = document.getElementById("current-model-display");
                         if (rModelEl) rModelEl.textContent = meta.model.split("/").pop();
                     }
-                    else if (line.startsWith("TOOL_START:")) {
-                        var meta = JSON.parse(line.substring("TOOL_START:".length));
+                    else if (trimmed.startsWith("TOOL_START:")) {
+                        var meta = JSON.parse(trimmed.substring("TOOL_START:".length));
                         appendTrace("TOOL", "tool", "Running: " + meta.tool_name);
                         registerActiveTool(meta.tool_id, meta.tool_name);
                     }
-                    else if (line.startsWith("TOOL_END:")) {
-                        var meta = JSON.parse(line.substring("TOOL_END:".length));
+                    else if (trimmed.startsWith("TOOL_END:")) {
+                        var meta = JSON.parse(trimmed.substring("TOOL_END:".length));
                         appendTrace("DONE", "done", "Finished: " + meta.tool_name);
                         updateActiveTool(meta.tool_id, meta.result?.error ? 'error' : 'success', 1000);
                         
@@ -480,24 +477,21 @@ async function sendMessage() {
                             status: meta.result?.error ? 'error' : 'success'
                         });
                         
-                        // Обновляем файловое дерево при дисковых операциях
                         if (["write_file", "apply_patch", "execute_command"].includes(meta.tool_name)) {
                             loadFileTree();
                             loadGitStatus();
                         }
                     }
                     else if (line.startsWith("CONTENT:")) {
-                        // Сшиваем символы ответа напрямую
                         var textToken = line.substring("CONTENT:".length);
                         if (fullAssistantText === "") {
-                            body.innerHTML = ""; // Стираем заглушку
+                            body.innerHTML = "";
                         }
-                        fullAssistantText += textToken; // Добавляем символ за символом без принудительных пробелов
+                        fullAssistantText += textToken;
                         body.innerHTML = window.markdownUtils ? window.markdownUtils.render(fullAssistantText) : escapeHtml(fullAssistantText);
                         chatContainer.scrollTop = chatContainer.scrollHeight;
                     }
                     else {
-                        // Фолбэк на случай непредвиденных строк
                         if (fullAssistantText === "") {
                             body.innerHTML = "";
                         }
@@ -511,21 +505,19 @@ async function sendMessage() {
             }
         }
 
-        // Фиксация ответа ассистента в истории стейта
         state.chatHistory.push({ 
             role: "assistant", 
             content: fullAssistantText,
             trace: streamTraceData.calls.length ? streamTraceData : null
         });
         
-        // Перерисовываем блок, чтобы сел красивый структурированный трейс плагинов
         if (streamTraceData.calls.length) {
             renderToolTraceBlock(body, streamTraceData);
         }
 
     } catch (e) {
         if (e.name === "AbortError") {
-            // Запрос был отменен пользователем вручную через кнопку Stop
+            // Запрос был отменен пользователем
         } else {
             appendTrace("ERROR", "bg-red-900 text-red-200", "Ошибка стрима: " + e.message);
             body.innerHTML = '<span class="text-red-400 font-medium">⚠️ Ошибка отправки: ' + escapeHtml(e.message) + '</span>';
@@ -533,10 +525,10 @@ async function sendMessage() {
         }
     } finally {
         setGenerating(false);
-        // Стираем и очищаем прикрепленный контекст ПОСЛЕ успешной отправки, как в современных IDE
         state.attachedContext = [];
         setState("attachedContext", []);
         renderContextStrip();
+        loadSessions(); // <-- Перезапрашиваем список сессий, чтобы заголовок обновился на ИИ-сгенерированный
     }
 }
 
@@ -547,11 +539,8 @@ async function sendMessage() {
 var pickerSelection = new Set();
 var allAvailablePaths = [];
 
-// Экспортируем функцию, чтобы её гарантированно видел app.js
 export function initContextPicker(container) {
     if (!container) return;
-    // Отрисовка списка файлов контекста внутри модального окна
-    // Сама модалка управляется через вызовы ниже
 }
 
 function openContextPicker() {
@@ -565,19 +554,16 @@ function openContextPicker() {
     listContainer.innerHTML = '<div class="p-4 text-center text-gray-500 animate-pulse text-xs">Сканирование дерева проекта...</div>';
     pickerSelection.clear();
     document.getElementById("ctx-picker-count").textContent = "Выбрано: 0";
-    document.getElementById("ctx-search-input").value = "";
+    document.getElementById("ctx-picker-search").value = "";
 
-    // Получаем текущее дерево файлов из кэша дерева или напрямую
     workspacesApi.list().then(async function() {
         try {
-            // Просим у бэкенда плоский список или дерево для обхода
             var activeWs = state.activeWorkspace;
             if (!activeWs) {
                 listContainer.innerHTML = '<div class="p-4 text-center text-gray-500 text-xs">Сначала активируйте воркспейс</div>';
                 return;
             }
             
-            // Получаем дерево проекта для пикера
             var res = await fetch("/api/v1/workspaces/tree", {
                 headers: { "Authorization": "Bearer " + (localStorage.getItem("jwt_token") || "") }
             });
@@ -605,7 +591,7 @@ function buildFlatPathsFromTree(nodes, currentPath, acc) {
 }
 
 function renderContextPickerList(paths) {
-    var container = document.getElementById("ctx-picker-files-list");
+    var container = document.getElementById("ctx-picker-tree");
     if (!container) return;
     container.innerHTML = "";
 

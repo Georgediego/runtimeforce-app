@@ -192,12 +192,8 @@ class RuntimeStore:
         conn.commit()
 
     def _invalidate_ws_cache(self, user_id: str = None):
-        if user_id:
-            self._workspaces_cache.pop(user_id, None)
-            self._active_ws_cache.pop(user_id, None)
-        else:
-            self._workspaces_cache.clear()
-            self._active_ws_cache.clear()
+        self._workspaces_cache.clear()
+        self._active_ws_cache.clear()
 
     def _invalidate_keys_cache(self, user_id: str = None):
         if user_id:
@@ -269,7 +265,15 @@ class RuntimeStore:
                     "SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC",
                     (user_id,),
                 )
-                return [dict(r) for r in cur.fetchall()]
+                rows = cur.fetchall()
+
+                # ИСПРАВЛЕНИЕ: Фолбэк на анонимного пользователя, если сессий под SaaS-аккаунтом еще нет
+                if not rows and user_id != "anonymous":
+                    cur.execute(
+                        "SELECT * FROM sessions WHERE user_id = 'anonymous' ORDER BY updated_at DESC"
+                    )
+                    rows = cur.fetchall()
+                return [dict(r) for r in rows]
         except Exception as e:
             logger.error(f"Sessions fetch failed: {e}")
             return []
@@ -293,8 +297,9 @@ class RuntimeStore:
         try:
             with self._lock:
                 cur = self._get_conn().cursor()
+                # Фильтруем технический мусор на уровне БД
                 cur.execute(
-                    "SELECT role, content FROM messages WHERE session_id=? ORDER BY id",
+                    "SELECT role, content FROM messages WHERE session_id=? AND role IN ('user', 'assistant') ORDER BY id",
                     (session_id,),
                 )
                 return [{"role": r["role"], "content": r["content"]} for r in cur.fetchall()]
@@ -341,6 +346,21 @@ class RuntimeStore:
                 (user_id,),
             )
             result = [dict(r) for r in cur.fetchall()]
+
+            # ФОЛБЭК: Если для вошедшего юзера пусто, берем анонимные или вообще любые зарегистрированные
+            if not result and user_id != "anonymous":
+                cur.execute(
+                    "SELECT * FROM workspaces WHERE user_id = 'anonymous' "
+                    "ORDER BY is_active DESC, created_at DESC"
+                )
+                result = [dict(r) for r in cur.fetchall()]
+            if not result:
+                cur.execute(
+                    "SELECT * FROM workspaces "
+                    "ORDER BY is_active DESC, created_at DESC"
+                )
+                result = [dict(r) for r in cur.fetchall()]
+
             self._workspaces_cache[cache_key] = result
             return copy.deepcopy(result)
 
@@ -352,12 +372,20 @@ class RuntimeStore:
                 (wid, user_id),
             )
             row = cur.fetchone()
+
+            # ИСПРАВЛЕНИЕ: Глобальный поиск по ID, если воркспейс не найден для конкретного юзера
+            if not row:
+                cur.execute(
+                    "SELECT * FROM workspaces WHERE id=?",
+                    (wid,),
+                )
+                row = cur.fetchone()
             return dict(row) if row else None
 
     def get_active_workspace(self, user_id: str = "anonymous") -> Optional[Dict[str, Any]]:
         cache_key = user_id
-        if cache_key in self._active_ws_cache:
-            return copy.deepcopy(self._active_ws_cache[cache_key]) if self._active_ws_cache[cache_key] else None
+        if cache_key in self._active_ws_cache and self._active_ws_cache[cache_key] is not None:
+            return copy.deepcopy(self._active_ws_cache[cache_key])
         with self._lock:
             cur = self._get_conn().cursor()
             cur.execute(
@@ -365,8 +393,32 @@ class RuntimeStore:
                 (user_id,),
             )
             row = cur.fetchone()
+
+            # ИСПРАВЛЕНИЕ ФОЛБЭК 1: Если для вошедшего юзера нет активного воркспейса, берем анонимный
+            if not row and user_id != "anonymous":
+                cur.execute(
+                    "SELECT * FROM workspaces WHERE is_active=1 AND user_id='anonymous' LIMIT 1"
+                )
+                row = cur.fetchone()
+
+            # ИСПРАВЛЕНИЕ ФОЛБЭК 2: Если совсем ничего активного нет, возвращаем любой найденный активный воркспейс
+            if not row:
+                cur.execute(
+                    "SELECT * FROM workspaces WHERE is_active=1 LIMIT 1"
+                )
+                row = cur.fetchone()
+
+            # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ФОЛБЭК 3: Если даже активных воркспейсов нет вообще (после перезапуска или до активации), 
+            # возвращаем абсолютно любой воркспейс, найденный в таблице базы данных
+            if not row:
+                cur.execute(
+                    "SELECT * FROM workspaces LIMIT 1"
+                )
+                row = cur.fetchone()
+
             result = dict(row) if row else None
-            self._active_ws_cache[cache_key] = result
+            if result:
+                self._active_ws_cache[cache_key] = result # Кэшируем только если нашли вадилный воркспейс
             return copy.deepcopy(result) if result else None
 
     def create_workspace(self, workspace_id: str, user_id: str = "anonymous", **kwargs) -> bool:

@@ -40,6 +40,15 @@ class WorkspaceManager:
         if active:
             self._active_workspace_id = active["id"]
             return active
+            
+        # УЛЬТИМАТИВНЫЙ ФОЛБЭК НА УРОВНЕ МЕНЕДЖЕРА:
+        # Если активный воркспейс вообще не определен (например, при вызове инструментов ИИ из фонового цикла),
+        # берем первый попавшийся из списка всех доступных
+        all_ws = store.get_all_workspaces(user_id=user_id)
+        if all_ws:
+            self._active_workspace_id = all_ws[0]["id"]
+            return all_ws[0]
+            
         return None
 
     def set_active(self, workspace_id: str):

@@ -20,6 +20,46 @@ logger = logging.getLogger("ai_runtime.api.sessions")
 router = APIRouter(prefix="/api/v1", tags=["sessions"])
 
 
+async def auto_generate_session_title(session_id: str, user_id: str) -> str:
+    """
+    Интеллектуальная генерация краткого и емкого названия диалога на русском языке.
+    """
+    messages = store.get_session_messages(session_id)
+    if not messages:
+        return "Новый чат"
+    
+    # Составляем промпт для выжимки сути диалога
+    prompt = (
+        "Проанализируй диалог ниже и придумай для него краткое (2-4 слова) название на русском языке. "
+        "Верни ТОЛЬКО название, без кавычек, знаков препинания в конце и лишнего текста.\n\n"
+    )
+    for m in messages[-4:]: # Берем последние сообщения для актуальности темы
+        role_name = "Пользователь" if m["role"] == "user" else "Ассистент"
+        prompt += f"{role_name}: {m['content']}\n"
+        
+    try:
+        chunks = []
+        async for chunk in orchestrator.stream_completion(
+            messages=[{"role": "user", "content": prompt}],
+            strategy="auto",
+            temperature=0.3
+        ):
+            if chunk.get("content"):
+                chunks.append(chunk["content"])
+        
+        generated_title = "".join(chunks).strip().strip('"').strip("'").strip("«").strip("»")
+        if not generated_title or len(generated_title) > 50:
+            generated_title = messages[0]["content"][:30] + "..."
+            
+        store.create_session(session_id, generated_title, user_id=user_id)
+        return generated_title
+    except Exception as e:
+        logger.error(f"Title generation failed: {e}")
+        fallback_title = messages[0]["content"][:30] + "..."
+        store.create_session(session_id, fallback_title, user_id=user_id)
+        return fallback_title
+
+
 @router.get("/sessions")
 async def get_all_sessions(user_id: str = Depends(get_current_user)):
     """Returns sorted list of all chat sessions."""
@@ -59,36 +99,5 @@ async def delete_session(session_id: str):
 
 @router.post("/sessions/{session_id}/generate-title")
 async def generate_session_title(session_id: str, user_id: str = Depends(get_current_user)):
-    """Интеллектуальная авто-генерация названия сессии на основе первых реплик."""
-    messages = store.get_session_messages(session_id)
-    if not messages:
-        return {"title": "Новый чат"}
-    
-    # Составляем промпт для легковесной разметки темы
-    prompt = (
-        "Проанализируй диалог ниже и придумай для него краткое (2-4 слова) название на русском языке. "
-        "Верни ТОЛЬКО название, без кавычек, знаков препинания в конце и лишнего текста.\n\n"
-    )
-    for m in messages[-4:]: # Используем последние реплики для точности контекста
-        role_name = "Пользователь" if m["role"] == "user" else "Ассистент"
-        prompt += f"{role_name}: {m['content']}\n"
-        
-    try:
-        chunks = []
-        async for chunk in orchestrator.stream_completion(
-            messages=[{"role": "user", "content": prompt}],
-            strategy="auto",
-            temperature=0.3
-        ):
-            if chunk.get("content"):
-                chunks.append(chunk["content"])
-        
-        generated_title = "".join(chunks).strip().strip('"').strip("'").strip("«").strip("»")
-        if not generated_title or len(generated_title) > 50:
-            generated_title = messages[0]["content"][:30] + "..."
-            
-        store.create_session(session_id, generated_title, user_id=user_id)
-        return {"status": "success", "title": generated_title}
-    except Exception as e:
-        logger.error(f"Title generation failed: {e}")
-        return {"status": "failed", "title": messages[0]["content"][:30]}
+    title = await auto_generate_session_title(session_id, user_id)
+    return {"status": "success", "title": title}

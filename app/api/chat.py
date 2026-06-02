@@ -1,3 +1,6 @@
+"""
+Chat streaming API router.
+"""
 import json
 import logging
 import uuid
@@ -16,8 +19,12 @@ router = APIRouter(prefix="/api/v1", tags=["chat"])
 
 @router.post("/chat/stream")
 async def stream_chat_events(payload: ChatCompletionPayload, user_id: str = Depends(get_current_user)):
+    # Гарантируем наличие session_id: если клиент прислал null, генерируем новый UUID
     session_id = payload.session_id or str(uuid.uuid4())
     
+    # Проверяем, является ли сессия новой (до создания записи в БД)
+    is_new_chat = len(store.get_session_messages(session_id)) == 0
+
     first_msg = payload.messages[0]["content"][:40] if payload.messages else "New Chat"
     store.create_session(session_id, first_msg, user_id=user_id)
 
@@ -94,7 +101,7 @@ async def stream_chat_events(payload: ChatCompletionPayload, user_id: str = Depe
                     meta = {
                         "iteration": event.get("iteration"),
                         "max": event.get("max_iterations"),
-                        "history": event.get("history_len")
+                        "history_len": event.get("history_len")
                     }
                     yield f"ITERATION:{json.dumps(meta, ensure_ascii=False)}\n"
                     continue
@@ -129,6 +136,14 @@ async def stream_chat_events(payload: ChatCompletionPayload, user_id: str = Depe
                         "model": event.get("model"),
                     }
                     yield f"TOOL_END:{json.dumps(meta, ensure_ascii=False)}\n"
+
+            # КОНЕЦ ГЕНЕРАЦИИ: Если это первая итерация нового чата, подбираем умное название на бэкенде
+            if is_new_chat:
+                try:
+                    from app.api.sessions import auto_generate_session_title
+                    await auto_generate_session_title(session_id, user_id=user_id)
+                except Exception as ex:
+                    logger.error(f"Auto title generation inside generator failed: {ex}")
 
         except Exception as e:
             logger.exception(f"Streaming error: {e}")
