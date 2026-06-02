@@ -3,7 +3,8 @@ import { sessionsApi } from "../api.js";
 import { escapeHtml, escapeRegex } from "../utils/escape.js";
 import { formatSessionTime } from "../utils/format.js";
 import { refreshIcons } from "../utils/icons.js";
-import { showToast } from "./toast.js";
+import { showToast, showConfirm } from "./toast.js";
+import { loadChatSession } from "./chat.js"; // <-- Импортируем loadChatSession
 
 export async function loadSessions() {
     const container = document.getElementById("sessions-list");
@@ -12,6 +13,11 @@ export async function loadSessions() {
         const data = await sessionsApi.list();
         setState("allSessions", data.sessions || []);
         renderSessions(state.allSessions);
+        
+        // Автоматически открываем последнюю активную сессию при загрузке страницы, если нет активной
+        if (state.allSessions.length > 0 && !state.currentSessionId) {
+            await openSession(state.allSessions[0].id);
+        }
     } catch (e) {
         container.innerHTML = '<div class="text-center text-xs text-ide-error py-2">Ошибка</div>';
     }
@@ -31,8 +37,13 @@ function sessionItemHTML(s, q) {
                 <span class="session-title">${title}</span>
                 <div class="session-meta">
                     <span class="session-time">${time}</span>
-                    <div class="session-delete-btn" data-delete-id="${s.id}" title="Удалить">
-                        <i data-lucide="trash-2" class="w-2.5 h-2.5"></i>
+                    <div class="flex items-center gap-1.5">
+                        <div class="session-edit-btn" data-edit-id="${s.id}" title="Переименовать">
+                            <i data-lucide="edit-3" class="w-2.5 h-2.5"></i>
+                        </div>
+                        <div class="session-delete-btn" data-delete-id="${s.id}" title="Удалить">
+                            <i data-lucide="trash-2" class="w-2.5 h-2.5"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -46,6 +57,13 @@ function bindSessionEvents(container) {
         if (deleteBtn) {
             e.stopPropagation();
             deleteSession(deleteBtn.dataset.deleteId);
+            return;
+        }
+
+        const editBtn = e.target.closest(".session-edit-btn");
+        if (editBtn) {
+            e.stopPropagation();
+            renameSessionPrompt(editBtn.dataset.editId);
             return;
         }
 
@@ -134,23 +152,39 @@ export async function openSession(id) {
     setState("currentSessionId", id);
     renderSessions(state.allSessions);
     try {
-        const data = await sessionsApi.messages(id);
-        setState("chatHistory", data.messages || []);
-        const chatHistoryDOM = document.getElementById("chat-history");
-        if (chatHistoryDOM) {
-            chatHistoryDOM.innerHTML = "";
-            state.chatHistory.forEach(m => {
-                window.dispatchEvent(new CustomEvent("render-message", { detail: m }));
-            });
-        }
+        // ИСПРАВЛЕНИЕ: Вызываем готовую функцию загрузки истории и рендеринга
+        await loadChatSession(id);
         window.dispatchEvent(new CustomEvent("agent-status", { detail: { status: "Idle" } }));
     } catch (e) {
         showToast("Ошибка загрузки истории", "error");
     }
 }
 
+async function renameSessionPrompt(id) {
+    const s = state.allSessions.find(x => x.id === id);
+    if (!s) return;
+    const newTitle = prompt("Введите новое название сессии:", s.title);
+    if (newTitle === null) return;
+    const cleanTitle = newTitle.trim();
+    if (!cleanTitle) return;
+    try {
+        await sessionsApi.create(cleanTitle, id);
+        showToast("Сессия переименована", "success");
+        loadSessions();
+    } catch (e) {
+        showToast("Ошибка переименования", "error");
+    }
+}
+
 async function deleteSession(id) {
-    if (!confirm("Удалить сессию?")) return;
+    const confirmed = await showConfirm(
+        "Удалить сессию?",
+        "Вы уверены, что хотите удалить эту сессию диалога? Все сообщения будут навсегда стерты.",
+        "Удалить",
+        "Отмена"
+    );
+    if (!confirmed) return;
+
     try {
         await sessionsApi.delete(id);
         if (state.currentSessionId === id) {

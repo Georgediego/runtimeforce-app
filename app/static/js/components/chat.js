@@ -198,9 +198,11 @@ export function newChat() {
 export async function loadChatSession(sessionId) {
     if (!sessionId) return;
     try {
-        var messages = await sessionsApi.messages(sessionId);
+        var data = await sessionsApi.messages(sessionId); // Получаем объект data
+        var messageList = data.messages || []; // Извлекаем из него массив сообщений
+        
         // Загружаем только реальный диалог
-        state.chatHistory = (messages || []).filter(function(m) {
+        state.chatHistory = messageList.filter(function(m) {
             return m.role === "user" || m.role === "assistant";
         });
         setState("currentSessionId", sessionId);
@@ -221,32 +223,41 @@ function renderChatHistory() {
 
 function appendMessageDOM(role, content, traceData = null) {
     var msgDiv = document.createElement("div");
-    msgDiv.className = "message-fade-in flex space-x-4 p-4 " + (role === "user" ? "bg-gray-850/40" : "bg-gray-900/20 border-y border-gray-800/30");
+    // Выравнивание: пользовательские вопросы справа (justify-end), ответы ИИ слева (justify-start)
+    msgDiv.className = "message-fade-in flex w-full p-4 " + 
+        (role === "user" ? "justify-end" : "justify-start bg-gray-900/20 border-y border-ide-border/50");
+
+    var container = document.createElement("div");
+    container.className = "flex space-x-3 max-w-3xl " + 
+        (role === "user" ? "flex-row-reverse space-x-reverse max-w-[80%]" : "w-full");
 
     var avatar = document.createElement("div");
-    avatar.className = "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold shadow-inner " + 
+    avatar.className = "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold shadow-inner " + 
         (role === "user" ? "bg-indigo-600/20 text-indigo-400 border border-indigo-500/30" : "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30");
     avatar.textContent = role === "user" ? "U" : "AI";
 
     var body = document.createElement("div");
-    body.className = "flex-1 space-y-2 overflow-hidden text-gray-200 leading-relaxed";
-    
-    // Рендеринг контента (включая markdown и блоки кода)
-    body.innerHTML = window.markdownUtils ? window.markdownUtils.render(content) : escapeHtml(content);
+    if (role === "user") {
+        // Компактный пузырь вопроса пользователя
+        body.className = "bg-indigo-950/20 border border-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-gray-200 leading-relaxed max-w-full font-sans";
+        body.textContent = content; // Безопасно рендерим plain text пользователя
+    } else {
+        // Просторная prose-панель ответа ассистента
+        body.className = "flex-1 space-y-2 overflow-hidden text-gray-200 leading-relaxed text-sm prose prose-invert font-sans";
+        body.innerHTML = window.markdownUtils ? window.markdownUtils.render(content) : escapeHtml(content);
+    }
 
-    msgDiv.appendChild(avatar);
-    msgDiv.appendChild(body);
+    container.appendChild(avatar);
+    container.appendChild(body);
+    msgDiv.appendChild(container);
 
-    // Если есть скрытый trace или это ответ ассистента с логами инструментов
     if (role === "assistant" && traceData) {
-        // Мы можем отрендерить сворачиваемый блок логов выполнения инструментов
         renderToolTraceBlock(body, traceData);
     }
 
     chatHistoryDOM.appendChild(msgDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
     
-    // Подсветка синтаксиса, если доступен Prism/Highlight
     if (window.Prism) {
         msgDiv.querySelectorAll("pre code").forEach(function(block) {
             window.Prism.highlightElement(block);

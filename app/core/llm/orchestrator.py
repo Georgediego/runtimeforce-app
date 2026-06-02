@@ -204,13 +204,33 @@ class LLMOrchestrator:
                 if env_var and meta.provider in self.provider_keys:
                     os.environ[env_var] = self.provider_keys[meta.provider]
 
+                # Внедряем динамическое знание модели о себе перед отправкой в LiteLLM
+                local_messages = list(messages)
+                short_name = model_id.split("/")[-1]
+                model_awareness = (
+                    f"[System Note: You are RuntimeForce AI. You are currently running on the '{short_name}' model "
+                    f"provided by '{meta.provider}'. If the user asks what model you are, answer openly and honestly that you "
+                    f"are RuntimeForce AI, currently powered by '{short_name}' (via {meta.provider}). Do not say it is a commercial secret.]"
+                )
+                
+                if local_messages and local_messages[0]["role"] == "system":
+                    first_sys = dict(local_messages[0])
+                    first_sys["content"] += f"\n\n{model_awareness}"
+                    local_messages[0] = first_sys
+                else:
+                    local_messages.insert(0, {"role": "system", "content": model_awareness})
+
+                # Безопасно вычисляем лимит токенов, даже если max_output_tokens равен None
+                max_tokens_limit = min(meta.max_output_tokens, 8192) if meta.max_output_tokens else 4096
+
                 kwargs: Dict[str, Any] = {
                     "model": model_id,
-                    "messages": messages,
+                    "messages": local_messages, # <-- Используем локальный массив с внедренной инструкцией
                     "temperature": temperature,
-                    "max_tokens": min(meta.max_output_tokens, 8192),
+                    "max_tokens": max_tokens_limit,
                     "stream": True,
                 }
+
                 if tools:
                     kwargs["tools"] = tools
                     kwargs["tool_choice"] = "auto"

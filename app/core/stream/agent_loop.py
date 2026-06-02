@@ -39,6 +39,20 @@ class AgentLoopCoordinator:
         history = list(messages)
         iteration = 0
 
+        # Внедряем строгие системные инструкции для ИИ-ассистента
+        system_instruction = (
+            "You are RuntimeForce AI, an advanced developer assistant with access to local and SSH workspace tools.\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. Only invoke tools (e.g., execute_command, read_workspace_file, git_status) when strictly "
+            "necessary to fulfill a specific technical task requested by the user.\n"
+            "2. DO NOT call any tools for simple greetings, introductions, or generic conversational queries "
+            "(e.g., 'hello', 'who are you', 'what model are you'). Respond directly with text."
+        )
+
+        # Инжектируем промпт в начало диалога
+        if not any(m.get("role") == "system" and "RuntimeForce AI" in m.get("content", "") for m in history):
+            history.insert(0, {"role": "system", "content": system_instruction})
+
         if messages and messages[-1]["role"] == "user":
             store.append_message(session_id, "user", messages[-1]["content"])
 

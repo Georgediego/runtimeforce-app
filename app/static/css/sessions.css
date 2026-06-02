@@ -117,3 +117,24 @@
     border-radius: 2px;
     padding: 0 2px;
 }
+.session-edit-btn {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, background 0.15s, color 0.15s;
+    padding: 2px;
+    border-radius: 4px;
+    color: var(--ide-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.session-item:hover .session-edit-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.session-edit-btn:hover {
+    background: var(--ide-hover);
+    color: var(--ide-text);
+}
