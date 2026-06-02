@@ -1,11 +1,22 @@
-
 const BASE = "";
 
+/**
+ * Единый шлюз для всех запросов.
+ * Гарантирует, что авторизация (JWT) всегда присутствует, если она есть в хранилище.
+ */
 async function request(path, options = {}) {
-    const res = await fetch(BASE + path, {
-        headers: { "Content-Type": "application/json", ...options.headers },
-        ...options,
-    });
+    const headers = { "Content-Type": "application/json", ...options.headers };
+
+    // Централизованный поиск токена — порядок приоритета зафиксирован
+    const token = localStorage.getItem("rf_jwt_token")
+               || localStorage.getItem("jwt_token")
+               || localStorage.getItem("access_token");
+    if (token) {
+        const cleanToken = token.startsWith("Bearer ") ? token.slice(7) : token;
+        headers["Authorization"] = "Bearer " + cleanToken;
+    }
+
+    const res = await fetch(BASE + path, { ...options, headers });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "HTTP " + res.status }));
         throw new Error(err.detail || ("HTTP " + res.status));
@@ -13,6 +24,7 @@ async function request(path, options = {}) {
     return res.json();
 }
 
+// Сессии
 export const sessionsApi = {
     list: () => request("/api/v1/sessions"),
     create: (title, id = null) => request("/api/v1/sessions", {
@@ -22,8 +34,10 @@ export const sessionsApi = {
     messages: (id) => request("/api/v1/sessions/" + id + "/messages"),
 };
 
+// Workspaces
 export const workspacesApi = {
     list: () => request("/api/v1/workspaces"),
+    active: () => request("/api/v1/workspaces/active"),
     create: (payload) => request("/api/v1/workspaces", {
         method: "POST", body: JSON.stringify(payload)
     }),
@@ -33,9 +47,9 @@ export const workspacesApi = {
     tree: () => request("/api/v1/workspaces/tree"),
     treeChildren: (path) => request("/api/v1/workspaces/tree/children?path=" + encodeURIComponent(path)),
     file: (path) => request("/api/v1/workspaces/file?path=" + encodeURIComponent(path)),
-    saveFile: (path, content) => request("/api/v1/workspaces/file", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, content }) }),
 };
 
+// Git
 export const gitApi = {
     status: () => request("/api/v1/git/status"),
     diff: (path, staged = false) => request("/api/v1/git/diff?path=" + encodeURIComponent(path || "") + "&staged=" + staged),
@@ -49,10 +63,12 @@ export const gitApi = {
     }),
 };
 
+// Модели
 export const modelsApi = {
     list: () => request("/api/v1/models"),
 };
 
+// Ключи
 export const keysApi = {
     update: (keys) => request("/api/v1/keys/update", {
         method: "POST", body: JSON.stringify({ keys })
@@ -60,11 +76,20 @@ export const keysApi = {
     clear: () => request("/api/v1/keys/clear", { method: "POST" }),
 };
 
+// Стриминг чата — авторизация через тот же механизм
 export async function* streamChat(payload) {
+    const headers = { "Content-Type": "application/json" };
+
+    const token = localStorage.getItem("rf_jwt_token")
+               || localStorage.getItem("jwt_token")
+               || localStorage.getItem("access_token");
+    if (token) {
+        const cleanToken = token.startsWith("Bearer ") ? token.slice(7) : token;
+        headers["Authorization"] = "Bearer " + cleanToken;
+    }
+
     const res = await fetch(BASE + "/api/v1/chat/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        method: "POST", headers, body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
 

@@ -1,7 +1,9 @@
-
 export function refreshIcons(root = document.body) {
     if (window.lucide) {
-        window.lucide.createIcons({ root });
+        window.lucide.createIcons({ 
+            root,
+            nameAttr: 'data-lucide' 
+        });
     }
 }
 

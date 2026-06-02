@@ -1,7 +1,7 @@
 import { state, setState } from "../state.js";
 import { workspacesApi } from "../api.js";
 import { escapeHtml } from "../utils/escape.js";
-import { showToast } from "./toast.js";
+import { showToast, showConfirm } from "./toast.js";
 
 let editor = null;            // Monaco editor instance
 let currentPath = null;       // Путь открытого файла
@@ -67,7 +67,14 @@ function detectLanguage(path) {
 
 export async function openFile(path, name) {
     if (isDirty && currentPath) {
-        if (!confirm("Есть несохранённые изменения. Закрыть без сохранения?")) {
+        // Используем кастомный конфирм вместо confirm()
+        const confirmed = await showConfirm(
+            "Несохранённые изменения",
+            "В текущем файле есть несохранённые изменения. Закрыть его без сохранения?",
+            "Закрыть",
+            "Отмена"
+        );
+        if (!confirmed) {
             return;
         }
     }
@@ -248,9 +255,16 @@ function showViewerChrome(name) {
 
 window.addEventListener("close-file", closeFile);
 
-export function closeFile() {
+export async function closeFile() {
     if (isDirty) {
-        if (!confirm("Есть несохранённые изменения. Закрыть?")) return;
+        // Используем кастомный конфирм вместо confirm()
+        const confirmed = await showConfirm(
+            "Несохранённые изменения",
+            "В файле есть несохранённые изменения. Закрыть редактор без сохранения?",
+            "Закрыть",
+            "Отмена"
+        );
+        if (!confirmed) return;
     }
     const modal = document.getElementById("file-viewer-modal");
     if (modal) modal.classList.add("hidden");

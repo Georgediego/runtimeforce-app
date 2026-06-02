@@ -1,32 +1,29 @@
 """
 Tool Router: central dispatch point for all agent tools.
-Integrated with workspace_manager for unified local/SSH access.
 """
 import json
 import logging
 from typing import Dict, Any
-
-from app.core.workspace import workspace_manager
+from app.core.workspace.manager import workspace_manager
 
 logger = logging.getLogger("ai_runtime.tools.router")
-
 
 AGENT_TOOLS_MANIFEST = [
     {
         "type": "function",
         "function": {
             "name": "execute_command",
-            "description": "Safely execute a shell command in the OS terminal (local or SSH workspace).",
+            "description": "Safely execute a shell command in the OS terminal.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "Full command to execute (e.g., 'ls -la' or 'python3 manage.py migrate')."
+                        "description": "Full command to execute."
                     },
                     "cwd": {
                         "type": "string",
-                        "description": "Optional path to working directory inside project."
+                        "description": "Optional working directory."
                     }
                 },
                 "required": ["command"]
@@ -37,18 +34,12 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "apply_code_patch",
-            "description": "Modifies code in an existing file using SEARCH/REPLACE block markup.",
+            "description": "Modifies code using SEARCH/REPLACE block markup.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filepath": {
-                        "type": "string",
-                        "description": "Path to target file."
-                    },
-                    "patch_content": {
-                        "type": "string",
-                        "description": "Patch content with blocks: <<<<<<< SEARCH [old] ======= [new] >>>>>>> REPLACE"
-                    }
+                    "filepath": {"type": "string", "description": "Path to target file."},
+                    "patch_content": {"type": "string", "description": "Patch content."}
                 },
                 "required": ["filepath", "patch_content"]
             }
@@ -58,15 +49,10 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "read_workspace_file",
-            "description": "Reads full contents of specified file for deep context analysis.",
+            "description": "Reads file contents.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "filepath": {
-                        "type": "string",
-                        "description": "Path to file."
-                    }
-                },
+                "properties": {"filepath": {"type": "string"}},
                 "required": ["filepath"]
             }
         }
@@ -75,18 +61,12 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "write_workspace_file",
-            "description": "Writes a brand new file to the project working directory.",
+            "description": "Writes a new file.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filepath": {
-                        "type": "string",
-                        "description": "Path to file to create."
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Full text content of the file."
-                    }
+                    "filepath": {"type": "string"},
+                    "content": {"type": "string"}
                 },
                 "required": ["filepath", "content"]
             }
@@ -96,15 +76,10 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "scan_workspace",
-            "description": "Recursively scans project structure with a search mask.",
+            "description": "Scans project structure.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "pattern": {
-                        "type": "string",
-                        "description": "File search mask (e.g., '**/*.py' or '**' for current folder)."
-                    }
-                },
+                "properties": {"pattern": {"type": "string"}},
                 "required": ["pattern"]
             }
         }
@@ -113,52 +88,35 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "search_grep",
-            "description": "Performs fast string or regex search inside all text files of the project.",
+            "description": "Search inside files.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search string or regex."
-                    },
-                    "file_pattern": {
-                        "type": "string",
-                        "description": "Optional filename filter (e.g., '*.py'). Defaults to everywhere."
-                    }
+                    "query": {"type": "string"},
+                    "file_pattern": {"type": "string"}
                 },
                 "required": ["query"]
             }
         }
     },
-
     {
         "type": "function",
         "function": {
             "name": "git_status",
-            "description": "Get git status of the workspace. Shows modified, added, deleted, untracked files.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            "description": "Get git status.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
     {
         "type": "function",
         "function": {
             "name": "git_diff",
-            "description": "Get unified diff for a specific file or all changes.",
+            "description": "Get unified diff.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Optional file path. If omitted, returns diff for all changes."
-                    },
-                    "staged": {
-                        "type": "boolean",
-                        "description": "If true, show staged (cached) diff instead of working tree diff."
-                    }
+                    "path": {"type": "string"},
+                    "staged": {"type": "boolean"}
                 },
                 "required": []
             }
@@ -168,19 +126,12 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "git_commit",
-            "description": "Create a git commit with the given message. Optionally specify files to commit.",
+            "description": "Create git commit.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "message": {
-                        "type": "string",
-                        "description": "Commit message describing the changes."
-                    },
-                    "paths": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Optional list of file paths to commit. If omitted, commits all changes."
-                    }
+                    "message": {"type": "string"},
+                    "paths": {"type": "array", "items": {"type": "string"}}
                 },
                 "required": ["message"]
             }
@@ -190,15 +141,10 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "git_log",
-            "description": "Get recent git commit history.",
+            "description": "Get commit history.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "n": {
-                        "type": "integer",
-                        "description": "Number of commits to return (default 10)."
-                    }
-                },
+                "properties": {"n": {"type": "integer"}},
                 "required": []
             }
         }
@@ -207,15 +153,10 @@ AGENT_TOOLS_MANIFEST = [
         "type": "function",
         "function": {
             "name": "git_revert_file",
-            "description": "Revert a specific file to its last committed state. Use this to undo bad changes.",
+            "description": "Revert file to last commit.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to the file to revert."
-                    }
-                },
+                "properties": {"path": {"type": "string"}},
                 "required": ["path"]
             }
         }
@@ -226,10 +167,6 @@ AGENT_TOOLS_MANIFEST = [
 class ToolRouter:
     @staticmethod
     async def dispatch(name: str, arguments_json: str) -> Dict[str, Any]:
-        """
-        Parses arguments and routes tool calls to workspace_manager.
-        Returns structured response for LLM context.
-        """
         try:
             args = json.loads(arguments_json) if arguments_json else {}
         except Exception as je:
@@ -241,24 +178,23 @@ class ToolRouter:
             if name == "execute_command":
                 command = args.get("command")
                 cwd = args.get("cwd")
-                return await workspace_manager.execute(command=command, cwd=cwd)
+                return await workspace_manager.execute(cmd=command, cwd=cwd)
 
             elif name == "apply_code_patch":
                 filepath = args.get("filepath")
                 patch_content = args.get("patch_content")
-                return await workspace_manager.apply_patch(
-                    filepath=filepath,
-                    patch_content=patch_content
-                )
+                return await workspace_manager.apply_patch(filepath=filepath, patch_content=patch_content)
 
             elif name == "read_workspace_file":
                 filepath = args.get("filepath")
-                return await workspace_manager.read_file(filepath)
+                content = await workspace_manager.read_file(filepath)
+                return {"path": filepath, "content": content}
 
             elif name == "write_workspace_file":
                 filepath = args.get("filepath")
                 content = args.get("content")
-                return await workspace_manager.write_file(filepath, content)
+                await workspace_manager.write_file(filepath, content)
+                return {"success": True, "path": filepath}
 
             elif name == "scan_workspace":
                 pattern = args.get("pattern", "**/*")
@@ -268,7 +204,6 @@ class ToolRouter:
                 query = args.get("query", "")
                 file_pattern = args.get("file_pattern", "**/*")
                 return await workspace_manager.grep(query, file_pattern)
-
 
             elif name == "git_status":
                 wm = workspace_manager
@@ -321,12 +256,11 @@ class ToolRouter:
                 return result
 
             else:
-                return {"error": f"Tool '{name}' not registered in system."}
+                return {"error": f"Tool '{name}' not registered."}
 
         except Exception as e:
             logger.error(f"Tool execution failed: {str(e)}")
             return {"error": f"Runtime execution error: {str(e)}"}
 
 
-# Global singleton
 router = ToolRouter()

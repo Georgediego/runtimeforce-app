@@ -1,14 +1,21 @@
 import { refreshIcons } from "../utils/icons.js";
 import { loadWorkspaces, addLocalWorkspace, addSshWorkspace, initSshAuthUI } from "./workspace.js";
 import { renderProvidersUI, updateKeyStatusIndicators, saveAllKeys, clearAllKeys } from "./providers.js";
-import { clearChat } from "./chat.js";
 
 export function initSettings() {
     var modal = document.getElementById("settings-modal");
 
-    // Кнопка провайдеров в правом сайдбаре
+    // Открыть настройки (провайдеры в сайдбаре)
     document.getElementById("open-providers-btn")?.addEventListener("click", function() {
         openSettings("providers");
+    });
+
+    // Открыть настройки (из профиля)
+    document.getElementById("open-settings-btn")?.addEventListener("click", function(e) {
+        // Если клик по шестерёнке — открыть настройки
+        if (e.target.closest('[data-lucide="settings"]') || e.target.id === "rf-settings-icon") {
+            openSettings("general");
+        }
     });
 
     // Закрыть настройки
@@ -31,7 +38,7 @@ export function initSettings() {
 
     // Очистить чат
     document.getElementById("clear-chat-btn")?.addEventListener("click", function() {
-        clearChat();
+        if (typeof window.clearChat === "function") window.clearChat();
         closeSettings();
     });
 
@@ -59,7 +66,13 @@ export function openSettings(tab) {
     if (!modal) return;
     modal.classList.remove("hidden");
     switchSettingsTab(tab || "general");
+
+    // КЛЮЧЕВОЕ: рендерим Lucide иконки ПОСЛЕ показа модалки
+    if (typeof lucide !== "undefined") {
+        lucide.createIcons();
+    }
     refreshIcons(document.getElementById("settings-panel"));
+
     if (tab === "providers") {
         renderProvidersUI();
         updateKeyStatusIndicators();
@@ -70,7 +83,7 @@ export function openSettings(tab) {
 }
 
 export function closeSettings() {
-    document.getElementById("settings-modal").classList.add("hidden");
+    document.getElementById("settings-modal")?.classList.add("hidden");
 }
 
 function switchSettingsTab(tab) {
@@ -80,10 +93,20 @@ function switchSettingsTab(tab) {
     document.querySelectorAll(".settings-nav-btn").forEach(function(b) {
         b.classList.remove("active");
     });
-    document.getElementById("stab-" + tab)?.classList.add("active");
-    document.querySelector('.settings-nav-btn[data-tab="' + tab + '"]')?.classList.add("active");
+    var activeTab = document.getElementById("stab-" + tab);
+    if (activeTab) activeTab.classList.add("active");
+    var activeBtn = document.querySelector('.settings-nav-btn[data-tab="' + tab + '"]');
+    if (activeBtn) activeBtn.classList.add("active");
+
+    if (tab === "providers") {
+        renderProvidersUI();
+        updateKeyStatusIndicators();
+    }
+    if (tab === "workspace") {
+        loadWorkspaces();
+    }
 }
 
-// Экспорт в window для вызова из auth.js
+// Глобальный доступ
 window.RFOpenSettings = openSettings;
 window.RFCloseSettings = closeSettings;

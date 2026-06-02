@@ -1,33 +1,23 @@
-"""
-Sessions API router.
-Endpoints:
-  GET    /api/v1/sessions
-  POST   /api/v1/sessions
-  GET    /api/v1/sessions/{session_id}/messages
-  DELETE /api/v1/sessions/{session_id}
-"""
 import uuid
 import logging
-from fastapi import APIRouter, HTTPException
-
+from fastapi import APIRouter, HTTPException, Depends
 from app.api.schemas import SessionCreatePayload
 from app.memory.store import store
+from app.core.auth import get_current_user
 
 logger = logging.getLogger("ai_runtime.api.sessions")
 router = APIRouter(prefix="/api/v1", tags=["sessions"])
 
 
 @router.get("/sessions")
-async def get_all_sessions():
-    """Returns sorted list of all chat sessions."""
-    return {"sessions": store.get_all_sessions()}
+async def get_all_sessions(user_id: str = Depends(get_current_user)):
+    return {"sessions": store.get_all_sessions(user_id=user_id)}
 
 
 @router.post("/sessions")
-async def create_new_session(payload: SessionCreatePayload):
-    """Creates or updates a session."""
+async def create_new_session(payload: SessionCreatePayload, user_id: str = Depends(get_current_user)):
     session_id = payload.id or str(uuid.uuid4())
-    success = store.create_session(session_id, payload.title)
+    success = store.create_session(session_id, payload.title, user_id=user_id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to create session in DB.")
     return {"status": "success", "session_id": session_id, "title": payload.title}

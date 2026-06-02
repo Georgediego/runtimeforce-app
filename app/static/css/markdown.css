@@ -21,3 +21,13 @@ html.light .prose code:not(pre code) { background: rgba(37,99,235,0.1); color: #
 }
 html.light .prose pre { background: #1e2130; }
 html.light .prose pre code { color: #c9cdd8; }
+/* Уменьшение шрифта чата до 14px */
+#chat-history, 
+.prose, 
+.prose p, 
+.prose li,
+.content-div p,
+.content-div li {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+}

@@ -1,6 +1,5 @@
-
 import { state, setState } from "../state.js";
-import { modelsApi, keysApi } from "../api.js";
+import { modelsApi } from "../api.js";
 import { refreshIcons } from "../utils/icons.js";
 import { showToast } from "./toast.js";
 
@@ -27,8 +26,8 @@ const PRO_PROVIDERS = [
 export function renderProvidersUI() {
     const freeList = document.getElementById("providers-list-free");
     const proList = document.getElementById("providers-list-pro");
-    freeList.innerHTML = FREE_PROVIDERS.map(p => providerCardHTML(p, "free")).join("");
-    proList.innerHTML = PRO_PROVIDERS.map(p => providerCardHTML(p, "pro")).join("");
+    if (freeList) freeList.innerHTML = FREE_PROVIDERS.map(p => providerCardHTML(p, "free")).join("");
+    if (proList) proList.innerHTML = PRO_PROVIDERS.map(p => providerCardHTML(p, "pro")).join("");
     refreshIcons(freeList);
     refreshIcons(proList);
 
@@ -41,24 +40,24 @@ export function renderProvidersUI() {
 }
 
 function providerCardHTML(p, tier) {
-    return "<div class=\"provider-card\" data-provider=\"" + p.id + "\">" +
-        "<div class=\"flex items-center justify-between\">" +
-        "<div class=\"flex items-center gap-2\">" +
-        "<div class=\"w-6 h-6 rounded bg-" + p.color + "-500/15 flex items-center justify-center\">" +
-        "<i data-lucide=\"" + p.icon + "\" class=\"w-3.5 h-3.5 text-" + p.color + "-400\"></i>" +
-        "</div>" +
-        "<span class=\"text-sm font-medium text-ide-text\">" + p.name + "</span>" +
-        "<span class=\"provider-badge " + tier + "\">" + (tier === "free" ? "Free" : "Pro") + "</span>" +
-        "<span class=\"key-status-dot empty\" data-status=\"" + p.id + "\"></span>" +
-        "</div>" +
-        "<i data-lucide=\"chevron-down\" class=\"w-4 h-4 text-ide-muted\"></i>" +
-        "</div>" +
-        "<div class=\"provider-key-row\">" +
-        "<label class=\"text-[11px] text-ide-muted block mb-1\">API Key</label>" +
-        "<input type=\"password\" placeholder=\"" + p.placeholder + "\" class=\"ide-input\">" +
-        "<div class=\"key-saved-display mt-1.5 hidden\"></div>" +
-        "</div>" +
-        "</div>";
+    return '<div class="provider-card" data-provider="' + p.id + '">' +
+        '<div class="flex items-center justify-between">' +
+        '<div class="flex items-center gap-2">' +
+        '<div class="w-6 h-6 rounded bg-' + p.color + '-500/15 flex items-center justify-center">' +
+        '<i data-lucide="' + p.icon + '" class="w-3.5 h-3.5 text-' + p.color + '-400"></i>' +
+        '</div>' +
+        '<span class="text-sm font-medium text-ide-text">' + p.name + '</span>' +
+        '<span class="provider-badge ' + tier + '">' + (tier === "free" ? "Free" : "Pro") + '</span>' +
+        '<span class="key-status-dot empty" data-status="' + p.id + '"></span>' +
+        '</div>' +
+        '<i data-lucide="chevron-down" class="w-4 h-4 text-ide-muted"></i>' +
+        '</div>' +
+        '<div class="provider-key-row">' +
+        '<label class="text-[11px] text-ide-muted block mb-1">API Key</label>' +
+        '<input type="password" placeholder="' + p.placeholder + '" class="ide-input">' +
+        '<div class="key-saved-display mt-1.5 hidden"></div>' +
+        '</div>' +
+        '</div>';
 }
 
 function toggleProvider(card) {
@@ -67,25 +66,37 @@ function toggleProvider(card) {
     if (!was) card.classList.add("expanded");
 }
 
-export function updateKeyStatusIndicators() {
-    const saved = getSavedKeys();
+export async function updateKeyStatusIndicators() {
+    let connectedProviders = {};
+    try {
+        const response = await fetch('/api/v1/keys/status');
+        if (response.ok) {
+            const data = await response.json();
+            connectedProviders = data.providers || {};
+        }
+    } catch (e) {
+        console.error("Failed to fetch keys status:", e);
+    }
+
     document.querySelectorAll("[data-status]").forEach(dot => {
         const p = dot.getAttribute("data-status");
-        const has = saved[p]?.trim();
+        const has = connectedProviders[p];
         dot.classList.toggle("saved", !!has);
         dot.classList.toggle("empty", !has);
     });
+
     document.querySelectorAll(".provider-card").forEach(card => {
         const p = card.getAttribute("data-provider");
         const display = card.querySelector(".key-saved-display");
         const input = card.querySelector("input[type=\"password\"]");
         if (!display || !input) return;
-        const key = saved[p];
-        if (key && key.trim()) {
-            display.innerHTML = "<div class=\"key-display\"><i data-lucide=\"check-circle\" class=\"w-3 h-3\"></i><span>" + maskKey(key) + "</span></div>";
+
+        const isConnected = connectedProviders[p];
+        if (isConnected) {
+            display.innerHTML = '<div class="key-display"><i data-lucide="check-circle" class="w-3 h-3"></i><span>•••••••• (connected)</span></div>';
             display.classList.remove("hidden");
             refreshIcons(display);
-            if (!input.value) input.placeholder = "(сохранен — введите новый)";
+            if (!input.value) input.placeholder = "(saved - enter new to replace)";
         } else {
             display.innerHTML = "";
             display.classList.add("hidden");
@@ -93,42 +104,62 @@ export function updateKeyStatusIndicators() {
     });
 }
 
-function getSavedKeys() {
-    try { return JSON.parse(localStorage.getItem("ide:provider_keys") || "{}"); } catch { return {}; }
-}
-function setSavedKeys(k) { try { localStorage.setItem("ide:provider_keys", JSON.stringify(k)); return true; } catch { return false; } }
-function maskKey(k) { return !k ? "" : k.length <= 8 ? "••••••••" : k.slice(0, 4) + "••••••••" + k.slice(-4); }
-
 export async function saveAllKeys() {
-    const saved = getSavedKeys();
-    document.querySelectorAll("#stab-providers .provider-card").forEach(card => {
+    const keysToSave = {};
+    document.querySelectorAll(".provider-card").forEach(card => {
         const p = card.getAttribute("data-provider");
         const input = card.querySelector("input[type=\"password\"]");
         if (!p || !input) return;
         const v = input.value.trim();
-        if (v) { saved[p] = v; input.value = ""; }
+        if (v) {
+            keysToSave[p] = v;
+            input.value = "";
+        }
     });
-    if (!setSavedKeys(saved)) { showToast("Ошибка сохранения", "error"); return; }
-    const toSend = { ...saved };
-    Object.keys(toSend).forEach(k => !toSend[k] && delete toSend[k]);
+
+    if (Object.keys(keysToSave).length === 0) {
+        showToast("No new keys to save", "info");
+        return;
+    }
+
     try {
-        await keysApi.update(toSend);
-        showToast("Ключи сохранены", "success");
+        const response = await fetch('/api/v1/keys/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keys: keysToSave })
+        });
+
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+
+        const data = await response.json();
+        showToast('Saved ' + Object.keys(keysToSave).length + ' keys', "success");
+        await updateKeyStatusIndicators();
         await refreshModelsUI();
     } catch (e) {
-        showToast("Ключи сохранены локально (backend недоступен)", "info");
+        console.error("Failed to save keys:", e);
+        showToast("Failed to save keys", "error");
     }
-    updateKeyStatusIndicators();
 }
 
 export async function clearAllKeys() {
-    if (!confirm("Удалить все ключи?")) return;
-    localStorage.removeItem("ide:provider_keys");
-    document.querySelectorAll("#stab-providers input[type=\"password\"]").forEach(i => i.value = "");
-    updateKeyStatusIndicators();
-    showToast("Ключи удалены", "success");
-    try { await keysApi.update({}); } catch {}
-    await refreshModelsUI();
+    if (!confirm("Delete all keys?")) return;
+    try {
+        const response = await fetch('/api/v1/keys/status');
+        if (response.ok) {
+            const data = await response.json();
+            const providers = Object.keys(data.providers || {});
+            for (const provider of providers) {
+                await fetch('/api/v1/keys/' + provider, { method: 'DELETE' });
+            }
+        }
+        document.querySelectorAll(".provider-card input[type=\"password\"]").forEach(i => i.value = "");
+        await updateKeyStatusIndicators();
+        await refreshModelsUI();
+        showToast("All keys deleted", "success");
+    } catch (e) {
+        console.error("Failed to clear keys:", e);
+        showToast("Failed to clear keys", "error");
+    }
 }
 
 export async function refreshModelsUI() {
@@ -136,35 +167,7 @@ export async function refreshModelsUI() {
         const data = await modelsApi.list();
         setState("models", data.models || {});
         setState("providersWithKeys", data.providers_with_keys || []);
-        populateModelLockSelect();
     } catch (e) {
         console.error("Failed to refresh models:", e);
-    }
-}
-
-function populateModelLockSelect() {
-    const select = document.getElementById("model-lock-select");
-    if (!select) return;
-    select.innerHTML = "<option value=\"\">— Использовать стратегию —</option>";
-    const order = ["groq", "gemini", "sambanova", "cerebras", "openrouter", "openai", "anthropic", "deepseek"];
-    for (const provider of order) {
-        const models = state.models[provider];
-        if (!models || !models.length) continue;
-        const hasKey = state.providersWithKeys.includes(provider);
-        const group = document.createElement("optgroup");
-        group.label = provider.toUpperCase() + " " + (hasKey ? "✓" : "(нет ключа)");
-        for (const m of models) {
-            const opt = document.createElement("option");
-            opt.value = m.id;
-            let label = m.name;
-            const badges = [];
-            if (m.tier === "free") badges.push("🆓");
-            if (m.capabilities.includes("code")) badges.push("💻");
-            if (m.capabilities.includes("reasoning")) badges.push("🧠");
-            if (badges.length) label += " " + badges.join(" ");
-            opt.textContent = label;
-            group.appendChild(opt);
-        }
-        select.appendChild(group);
     }
 }

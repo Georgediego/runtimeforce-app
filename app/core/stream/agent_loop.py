@@ -1,7 +1,7 @@
 import json
 import logging
+import time
 from typing import AsyncGenerator, List, Dict, Any, Optional
-
 from app.core.llm.orchestrator import orchestrator
 from app.tools.router import ToolRouter, AGENT_TOOLS_MANIFEST
 from app.memory.store import store
@@ -10,7 +10,6 @@ logger = logging.getLogger("ai_runtime.stream")
 
 
 class AgentLoopCoordinator:
-
     @staticmethod
     def _reconstruct_tool_calls(acc: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
         calls = []
@@ -47,6 +46,14 @@ class AgentLoopCoordinator:
             iteration += 1
             logger.info(f"Agent Loop {iteration}/{max_iterations}")
 
+            yield {
+                "status": "iteration_start",
+                "iteration": iteration,
+                "max_iterations": max_iterations,
+                "history_len": len(history),
+                "timestamp": time.time()
+            }
+
             text_buf = ""
             tc_acc: Dict[int, Dict[str, Any]] = {}
             cur_model = "auto"
@@ -58,11 +65,12 @@ class AgentLoopCoordinator:
                 model_lock=model_lock,
                 temperature=temperature,
                 tools=AGENT_TOOLS_MANIFEST,
+                session_id=session_id,
             ):
                 status = chunk.get("status")
-                if status in ("fallback", "failed"):
+                if status in ("fallback", "failed", "model_try", "model_error", "model_success", "no_models"):
                     yield chunk
-                    if status == "failed":
+                    if status in ("failed", "no_models"):
                         return
                     continue
 
@@ -102,7 +110,7 @@ class AgentLoopCoordinator:
 
             history.append({
                 "role": "assistant",
-                "content": text_buf if text_buf else None,
+                "content": text_buf if text_buf else "",
                 "tool_calls": fmt_tc,
             })
             names = ", ".join(t["function"]["name"] for t in fmt_tc)
@@ -148,6 +156,6 @@ class AgentLoopCoordinator:
                 )
 
         if iteration >= max_iterations:
-            msg = "\n\n⚠️ Max iterations reached."
+            msg = "\n\nMax iterations reached."
             store.append_message(session_id, "assistant", msg)
             yield {"status": "streaming", "content": msg}
