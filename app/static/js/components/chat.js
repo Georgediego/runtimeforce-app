@@ -165,8 +165,18 @@ export function initChat() {
     document.getElementById("ctx-search-input")?.addEventListener("input", function(e) {
         filterContextPicker(e.target.value);
     });
+    if (strategySelect) {
+        strategySelect.addEventListener("change", handleStrategyChange);
+        handleStrategyChange(); // Инициализация при старте
+    }
 
-    // Отрисовка пустого или дефолтного стрипа контекста
+    // Подписка на обновление моделей для наполнения списка ручного режима
+    import("../state.js").then(function(module) {
+        module.subscribe("models", function(models) {
+            populateModelLockSelect(models);
+        });
+    });
+
     renderContextStrip();
 }
 
@@ -720,4 +730,58 @@ export function clearChat() {
     var history = document.getElementById("chat-history");
     if (history) history.innerHTML = "";
     renderContextStrip();
+}
+
+// Показ/скрытие панелей в зависимости от выбранного режима
+function handleStrategyChange() {
+    var val = strategySelect.value;
+    var settingsPanel = document.getElementById("orchestrator-settings");
+    var manualPanel = document.getElementById("settings-manual-panel");
+    var combinedPanel = document.getElementById("settings-combined-panel");
+    var consiliumPanel = document.getElementById("settings-consilium-panel");
+    
+    if (!settingsPanel) return;
+    
+    settingsPanel.classList.add("hidden");
+    manualPanel?.classList.add("hidden");
+    combinedPanel?.classList.add("hidden");
+    consiliumPanel?.classList.add("hidden");
+    
+    if (val === "manual") {
+        settingsPanel.classList.remove("hidden");
+        manualPanel?.classList.remove("hidden");
+    } else if (val === "combined") {
+        settingsPanel.classList.remove("hidden");
+        combinedPanel?.classList.remove("hidden");
+    } else if (val === "consilium") {
+        settingsPanel.classList.remove("hidden");
+        consiliumPanel?.classList.remove("hidden");
+    }
+}
+
+// Динамическое наполнение выпадающего списка моделей для ручного режима
+function populateModelLockSelect(models) {
+    var select = document.getElementById("model-lock-select");
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">-- выберите модель --</option>';
+    
+    var providers = Object.keys(models || {});
+    if (providers.length === 0) {
+        select.innerHTML = '<option value="">Нет доступных моделей (введите ключи)</option>';
+        return;
+    }
+    
+    providers.forEach(function(provider) {
+        var group = document.createElement("optgroup");
+        group.label = provider.toUpperCase();
+        
+        models[provider].forEach(function(m) {
+            var opt = document.createElement("option");
+            opt.value = m.id;
+            opt.textContent = m.name + " (" + m.tier + ")";
+            group.appendChild(opt);
+        });
+        select.appendChild(group);
+    });
 }

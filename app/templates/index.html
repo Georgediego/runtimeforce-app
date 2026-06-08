@@ -217,25 +217,75 @@
 
             <!-- Маршрутизация -->
             <div>
-                <!-- Маршрутизация -->
-<div>
-    <div class="text-[10px] font-semibold text-ide-muted uppercase tracking-wider mb-2">Маршрутизация</div>
-    <select id="strategy-select" class="ide-select text-xs">
-        <optgroup label="🤖 Основные режимы">
-            <option value="auto" selected>Auto (Рекомендуется)</option>
-            <option value="coding">💻 Программирование</option>
-            <option value="reasoning">🧠 Аналитика</option>
-            <option value="local-first">🏠 Локальный режим</option>
-        </optgroup>
-        <optgroup label="⚡ Продвинутые режимы">
-            <option value="combined">🎯 Комбинированный</option>
-            <option value="consilium">👥 Консилиум</option>
-        </optgroup>
-        <optgroup label="🔧 Ручное управление">
-            <option value="manual">✋ Ручной выбор модели</option>
-        </optgroup>
-    </select>
-</div>
+<!-- ===== МАРШРУТИЗАЦИЯ И НАСТРОЙКИ ОРКЕСТРАТОРА ===== -->
+            <div class="space-y-3">
+                <div class="text-[10px] font-semibold text-ide-muted uppercase tracking-wider">Оркестратор моделей</div>
+                <select id="strategy-select" class="ide-select text-xs">
+                    <option value="auto" selected>🤖 AUTO (Рекомендуемый)</option>
+                    <option value="coding">💻 ПРОГРАММИРОВАНИЕ</option>
+                    <option value="reasoning">🧠 АНАЛИТИКА</option>
+                    <option value="local-first">🏠 ЛОКАЛЬНЫЙ (Local First)</option>
+                    <option value="combined">🎯 КОМБИНИРОВАННЫЙ</option>
+                    <option value="consilium">👥 КОНСИЛИУМ (Дебаты)</option>
+                    <option value="manual">✋ РУЧНОЙ РЕЖИМ</option>
+                </select>
+
+                <!-- Динамическая панель настроек оркестратора -->
+                <div id="orchestrator-settings" class="bg-ide-bg rounded-lg border border-ide-border p-3 text-xs hidden space-y-3">
+                    
+                    <!-- Настройка РУЧНОГО РЕЖИМА -->
+                    <div id="settings-manual-panel" class="hidden space-y-1.5">
+                        <label class="text-[10px] text-ide-muted uppercase font-semibold block">Выберите основную модель</label>
+                        <select id="model-lock-select" class="ide-select text-xs mt-1">
+                            <option value="">Загрузка моделей...</option>
+                        </select>
+                        <p class="text-[9px] text-ide-muted leading-relaxed mt-1">
+                            ИИ будет использовать выбранную модель по умолчанию. При сбоях или исчерпании лимитов оркестратор автоматически переключится на резервные модели без потери контекста.
+                        </p>
+                    </div>
+
+                    <!-- Настройка КОМБИНИРОВАННОГО РЕЖИМА -->
+                    <div id="settings-combined-panel" class="hidden space-y-1.5">
+                        <label class="text-[10px] text-ide-muted uppercase font-semibold block mb-1">Комбинировать стратегии</label>
+                        <div class="space-y-1.5 mt-1">
+                            <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
+                                <input type="checkbox" value="coding" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent">
+                                <span>💻 Программирование</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
+                                <input type="checkbox" value="reasoning" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent">
+                                <span>🧠 Аналитика</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
+                                <input type="checkbox" value="local-first" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent">
+                                <span>🏠 Локальный (Local First)</span>
+                            </label>
+                        </div>
+                        <p class="text-[9px] text-ide-muted leading-relaxed mt-1.5 border-t border-ide-border/40 pt-1.5">
+                            Приоритеты провайдеров будут сбалансированы по среднему рангу среди всех выбранных режимов.
+                        </p>
+                    </div>
+
+                    <!-- Настройка РЕЖИМА КОНСИЛИУМ -->
+                    <div id="settings-consilium-panel" class="hidden space-y-1.5">
+                        <label class="text-[10px] text-ide-muted uppercase font-semibold block mb-1">Участники дебатов</label>
+                        <div class="grid grid-cols-1 gap-1.5 mt-1">
+                            <div class="flex justify-between items-center bg-ide-panel2/60 px-2 py-1.5 rounded border border-ide-border/30">
+                                <span class="text-ide-muted text-[10px]">Шаг 1: Черновик</span>
+                                <span class="font-mono text-[9px] text-ide-accent">Авто-подбор</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-ide-panel2/60 px-2 py-1.5 rounded border border-ide-border/30">
+                                <span class="text-ide-muted text-[10px]">Шаг 2: Критика</span>
+                                <span class="font-mono text-[9px] text-ide-accent">Авто-подбор</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-ide-panel2/60 px-2 py-1.5 rounded border border-ide-border/30">
+                                <span class="text-ide-muted text-[10px]">Шаг 3: Синтез</span>
+                                <span class="font-mono text-[9px] text-ide-accent">Авто-подбор</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
 
             <!-- Runtime Trace -->
