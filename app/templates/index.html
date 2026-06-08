@@ -230,6 +230,58 @@
                     <option value="manual">✋ РУЧНОЙ РЕЖИМ</option>
                 </select>
 
+                <!-- Фильтры моделей (Free, Pro, Провайдеры, Категории) -->
+                <div id="model-filters-container" class="bg-ide-panel2/40 p-2.5 rounded border border-ide-border/40 space-y-2 hidden text-[11px]">
+                    <div class="font-semibold text-[9px] text-ide-muted uppercase tracking-wider">Фильтры моделей</div>
+                    
+                    <!-- Тарифный уровень (Tier) -->
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
+                            <input type="checkbox" id="filter-tier-free" checked class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                            <span>Free</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
+                            <input type="checkbox" id="filter-tier-pro" checked class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                            <span>Pro</span>
+                        </label>
+                    </div>
+
+                    <!-- Способности моделей (Capabilities) -->
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition" title="Модели со способностью к написанию кода">
+                            <input type="checkbox" id="filter-cap-code" class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                            <span>💻 Код</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition" title="Модели со сложными рассуждениями">
+                            <input type="checkbox" id="filter-cap-reason" class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                            <span>🧠 Аналитика</span>
+                        </label>
+                    </div>
+
+                    <!-- Провайдеры -->
+                    <div class="space-y-1">
+                        <div class="text-[8px] text-ide-muted uppercase font-semibold">Провайдеры</div>
+                        <div class="grid grid-cols-2 gap-x-2 gap-y-1">
+                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
+                                <input type="checkbox" value="groq" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                                <span>Groq</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
+                                <input type="checkbox" value="gemini" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                                <span>Gemini</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
+                                <input type="checkbox" value="openrouter" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                                <span>OpenRouter</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
+                                <input type="checkbox" value="ollama" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
+                                <span>Ollama</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Динамическая панель настроек оркестратора -->
                 <div id="orchestrator-settings" class="bg-ide-bg rounded-lg border border-ide-border p-3 text-xs hidden space-y-3">
                     
@@ -249,15 +301,15 @@
                         <label class="text-[10px] text-ide-muted uppercase font-semibold block mb-1">Комбинировать стратегии</label>
                         <div class="space-y-1.5 mt-1">
                             <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="coding" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent">
+                                <input type="checkbox" value="coding" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3.5 w-3.5">
                                 <span>💻 Программирование</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="reasoning" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent">
+                                <input type="checkbox" value="reasoning" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3.5 w-3.5">
                                 <span>🧠 Аналитика</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="local-first" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent">
+                                <input type="checkbox" value="local-first" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3.5 w-3.5">
                                 <span>🏠 Локальный (Local First)</span>
                             </label>
                         </div>
@@ -266,21 +318,27 @@
                         </p>
                     </div>
 
-                    <!-- Настройка РЕЖИМА КОНСИЛИУМ -->
-                    <div id="settings-consilium-panel" class="hidden space-y-1.5">
-                        <label class="text-[10px] text-ide-muted uppercase font-semibold block mb-1">Участники дебатов</label>
-                        <div class="grid grid-cols-1 gap-1.5 mt-1">
-                            <div class="flex justify-between items-center bg-ide-panel2/60 px-2 py-1.5 rounded border border-ide-border/30">
-                                <span class="text-ide-muted text-[10px]">Шаг 1: Черновик</span>
-                                <span class="font-mono text-[9px] text-ide-accent">Авто-подбор</span>
+                    <!-- Настройка РЕЖИМА КОНСИЛИУМ (с ручным выбором моделей) -->
+                    <div id="settings-consilium-panel" class="hidden space-y-2">
+                        <label class="text-[10px] text-ide-muted uppercase font-semibold block mb-1">Настройка участников дебатов</label>
+                        <div class="space-y-2.5">
+                            <div class="space-y-1">
+                                <div class="text-[10px] text-ide-muted font-medium">Шаг 1: Черновик</div>
+                                <select id="consilium-draft-select" class="ide-select text-xs">
+                                    <option value="">-- Авто-подбор --</option>
+                                </select>
                             </div>
-                            <div class="flex justify-between items-center bg-ide-panel2/60 px-2 py-1.5 rounded border border-ide-border/30">
-                                <span class="text-ide-muted text-[10px]">Шаг 2: Критика</span>
-                                <span class="font-mono text-[9px] text-ide-accent">Авто-подбор</span>
+                            <div class="space-y-1">
+                                <div class="text-[10px] text-ide-muted font-medium">Шаг 2: Критика</div>
+                                <select id="consilium-critic-select" class="ide-select text-xs">
+                                    <option value="">-- Авто-подбор --</option>
+                                </select>
                             </div>
-                            <div class="flex justify-between items-center bg-ide-panel2/60 px-2 py-1.5 rounded border border-ide-border/30">
-                                <span class="text-ide-muted text-[10px]">Шаг 3: Синтез</span>
-                                <span class="font-mono text-[9px] text-ide-accent">Авто-подбор</span>
+                            <div class="space-y-1">
+                                <div class="text-[10px] text-ide-muted font-medium">Шаг 3: Синтез</div>
+                                <select id="consilium-synth-select" class="ide-select text-xs">
+                                    <option value="">-- Авто-подбор --</option>
+                                </select>
                             </div>
                         </div>
                     </div>

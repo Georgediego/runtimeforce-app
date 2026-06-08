@@ -35,13 +35,17 @@ class AgentLoopCoordinator:
         model_lock: Optional[str] = None,
         temperature: float = 0.2,
         max_iterations: int = 8,
+        consilium_draft_model: Optional[str] = None,
+        consilium_critic_model: Optional[str] = None,
+        consilium_synth_model: Optional[str] = None,
+        plan: str = "free",
     ) -> AsyncGenerator[Dict[str, Any], None]:
         history = list(messages)
         iteration = 0
 
-        # Внедряем строгие системные инструкции для ИИ-ассистента
+        # Универсальная техническая инструкция на английском языке
         system_instruction = (
-            "You are RuntimeForce AI, an advanced developer assistant with access to local and SSH workspace tools.\n\n"
+            "You are RuntimeForce AI, an advanced developer assistant with access to local workspace tools.\n\n"
             "CRITICAL INSTRUCTIONS:\n"
             "1. Only invoke tools (e.g., execute_command, read_workspace_file, git_status) when strictly "
             "necessary to fulfill a specific technical task requested by the user.\n"
@@ -49,7 +53,6 @@ class AgentLoopCoordinator:
             "(e.g., 'hello', 'who are you', 'what model are you'). Respond directly with text."
         )
 
-        # Инжектируем промпт в начало диалога
         if not any(m.get("role") == "system" and "RuntimeForce AI" in m.get("content", "") for m in history):
             history.insert(0, {"role": "system", "content": system_instruction})
 
@@ -80,6 +83,10 @@ class AgentLoopCoordinator:
                 temperature=temperature,
                 tools=AGENT_TOOLS_MANIFEST,
                 session_id=session_id,
+                consilium_draft_model=consilium_draft_model,
+                consilium_critic_model=consilium_critic_model,
+                consilium_synth_model=consilium_synth_model,
+                plan=plan, # Передаем тариф для жесткой фильтрации бесплатных моделей
             ):
                 status = chunk.get("status")
                 if status in ("fallback", "failed", "model_try", "model_error", "model_success", "no_models"):

@@ -1,11 +1,11 @@
-import { state, setState } from "../state.js";
+import { state, setState, subscribe } from "../state.js";
 import { sessionsApi, workspacesApi } from "../api.js";
 import { escapeHtml } from "../utils/escape.js";
 import { refreshIcons, getFileIcon } from "../utils/icons.js";
 import { showToast } from "./toast.js";
 import { loadSessions } from "./sessions.js";
 import { loadGitStatus } from "./git.js";
-import { loadFileTree } from "./filetree.js"; // <-- Успешно импортировано во избежание ReferenceError
+import { loadFileTree } from "./filetree.js";
 
 var chatContainer = document.getElementById("chat-container");
 var chatHistoryDOM = document.getElementById("chat-history");
@@ -53,7 +53,7 @@ function appendTrace(badge, badgeClass, content) {
     }
 }
 
-// Панель активных инструментов в статус-баре чата
+// Панель активных инструментов
 var activeTools = {};
 
 function updateActiveToolsUI() {
@@ -108,7 +108,6 @@ function updateActiveTool(toolId, status, elapsedMs) {
         activeTools[toolId].elapsedMs = elapsedMs;
         updateActiveToolsUI();
         
-        // Скрываем инструмент через 3 секунды после завершения
         if (status !== 'running') {
             setTimeout(function() {
                 delete activeTools[toolId];
@@ -162,21 +161,27 @@ export function initChat() {
     document.getElementById("ctx-picker-confirm")?.addEventListener("click", confirmContextPicker);
 
     // Живой поиск в контекст-пикере
-    document.getElementById("ctx-search-input")?.addEventListener("input", function(e) {
+    document.getElementById("ctx-picker-search")?.addEventListener("input", function(e) {
         filterContextPicker(e.target.value);
     });
+
+    // Настройка выпадающего списка под стратегии оркестратора
     if (strategySelect) {
         strategySelect.addEventListener("change", handleStrategyChange);
-        handleStrategyChange(); // Инициализация при старте
+        handleStrategyChange();
     }
 
-    // Подписка на обновление моделей для наполнения списка ручного режима
-    import("../state.js").then(function(module) {
-        module.subscribe("models", function(models) {
-            populateModelLockSelect(models);
-        });
+    // При изменении чекбоксов фильтров — мгновенно перестраиваем все списки моделей
+    document.querySelectorAll(".model-filter-checkbox, .model-filter-provider").forEach(function(el) {
+        el.addEventListener("change", filterAllDropdowns);
     });
 
+    // Подписка на обновление моделей
+    subscribe("models", function(models) {
+        filterAllDropdowns();
+    });
+
+    // Отрисовка пустого или дефолтного стрипа контекста
     renderContextStrip();
 }
 
@@ -212,6 +217,9 @@ export function newChat() {
 
 export async function loadChatSession(sessionId) {
     if (!sessionId) return;
+    try {
+        var data = await workspacesApi.file(path); // Неиспользуемый фикс
+    } catch(e) {}
     try {
         var data = await sessionsApi.messages(sessionId);
         var messageList = data.messages || [];
@@ -400,6 +408,21 @@ async function sendMessage() {
     var currentToolCalls = {};
     var streamTraceData = { calls: [] };
 
+    // Вычисляем комбинированную или одиночную стратегию
+    var strategyVal = (strategySelect && strategySelect.value) || "auto";
+    if (strategyVal === "combined") {
+        var checked = [];
+        document.querySelectorAll(".combined-strategy-checkbox:checked").forEach(function(cb) {
+            checked.push(cb.value);
+        });
+        strategyVal = checked.length > 0 ? checked.join(",") : "auto";
+    }
+
+    var modelLockVal = null;
+    if (strategySelect && strategySelect.value === "manual" && modelLockSelect) {
+        modelLockVal = modelLockSelect.value || null;
+    }
+
     try {
         var response = await fetch("/api/v1/chat/stream", {
             method: "POST",
@@ -411,9 +434,13 @@ async function sendMessage() {
             body: JSON.stringify({
                 session_id: currentSessionId,
                 messages: messagesForLLM,
-                strategy: (strategySelect && strategySelect.value) || "auto",
-                model_lock: (modelLockSelect && modelLockSelect.value) || null,
-                temperature: 0.2
+                strategy: strategyVal,
+                model_lock: modelLockVal,
+                temperature: 0.2,
+                // Ручной выбор участников для шагов Консилиума
+                consilium_draft_model: (strategySelect && strategySelect.value === "consilium") ? (document.getElementById("consilium-draft-select")?.value || null) : null,
+                consilium_critic_model: (strategySelect && strategySelect.value === "consilium") ? (document.getElementById("consilium-critic-select")?.value || null) : null,
+                consilium_synth_model: (strategySelect && strategySelect.value === "consilium") ? (document.getElementById("consilium-synth-select")?.value || null) : null,
             })
         });
 
@@ -538,8 +565,113 @@ async function sendMessage() {
         state.attachedContext = [];
         setState("attachedContext", []);
         renderContextStrip();
-        loadSessions(); // <-- Перезапрашиваем список сессий, чтобы заголовок обновился на ИИ-сгенерированный
+        loadSessions(); // <-- Автоматически стягиваем обновленный заголовок от ИИ
     }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ВСПУ ПАНЕЛИ ОРКЕСТРАТОРА И НАСТРОЙКИ С ФИЛЬТРАМИ
+// ═══════════════════════════════════════════════════════════════
+
+function handleStrategyChange() {
+    var val = strategySelect.value;
+    var settingsPanel = document.getElementById("orchestrator-settings");
+    var filterPanel = document.getElementById("model-filters-container");
+    var manualPanel = document.getElementById("settings-manual-panel");
+    var combinedPanel = document.getElementById("settings-combined-panel");
+    var consiliumPanel = document.getElementById("settings-consilium-panel");
+    
+    if (!settingsPanel) return;
+    
+    settingsPanel.classList.add("hidden");
+    filterPanel?.classList.add("hidden");
+    manualPanel?.classList.add("hidden");
+    combinedPanel?.classList.add("hidden");
+    consiliumPanel?.classList.add("hidden");
+    
+    if (val === "manual") {
+        settingsPanel.classList.remove("hidden");
+        filterPanel?.classList.remove("hidden");
+        manualPanel?.classList.remove("hidden");
+        filterAllDropdowns();
+    } else if (val === "combined") {
+        settingsPanel.classList.remove("hidden");
+        combinedPanel?.classList.remove("hidden");
+    } else if (val === "consilium") {
+        settingsPanel.classList.remove("hidden");
+        filterPanel?.classList.remove("hidden");
+        consiliumPanel?.classList.remove("hidden");
+        filterAllDropdowns();
+    }
+}
+
+function filterAllDropdowns() {
+    var models = state.models || {};
+    
+    // Считываем текущее состояние фильтров чекбоксов
+    var filters = {
+        free: document.getElementById("filter-tier-free")?.checked ?? true,
+        pro: document.getElementById("filter-tier-pro")?.checked ?? true,
+        code: document.getElementById("filter-cap-code")?.checked ?? false,
+        reason: document.getElementById("filter-cap-reason")?.checked ?? false,
+        providers: []
+    };
+    
+    document.querySelectorAll(".model-filter-provider:checked").forEach(function(cb) {
+        filters.providers.push(cb.value);
+    });
+    
+    // Реактивно обновляем все четыре выпадающих списка моделей одновременно
+    populateDropdown("model-lock-select", models, filters);
+    populateDropdown("consilium-draft-select", models, filters);
+    populateDropdown("consilium-critic-select", models, filters);
+    populateDropdown("consilium-synth-select", models, filters);
+}
+
+function populateDropdown(selectId, models, filters) {
+    var select = document.getElementById(selectId);
+    if (!select) return;
+    
+    var currentValue = select.value;
+    select.innerHTML = selectId === "model-lock-select" ? '<option value="">-- выберите модель --</option>' : '<option value="">-- Авто-подбор --</option>';
+    
+    var providers = Object.keys(models || {});
+    if (providers.length === 0) {
+        select.innerHTML = '<option value="">Нет доступных моделей (введите ключи)</option>';
+        return;
+    }
+    
+    providers.forEach(function(provider) {
+        // Фильтр по провайдерам
+        if (filters.providers && filters.providers.length > 0 && !filters.providers.includes(provider)) return;
+        
+        var group = document.createElement("optgroup");
+        group.label = provider.toUpperCase();
+        
+        var addedCount = 0;
+        models[provider].forEach(function(m) {
+            // Фильтр по планам (Free / Pro)
+            if (!filters.free && m.tier === "free") return;
+            if (!filters.pro && m.tier !== "free") return;
+            
+            // Фильтр по способностям модели (Код / Аналитика)
+            if (filters.code && !m.capabilities?.includes("code")) return;
+            if (filters.reason && !m.capabilities?.includes("reasoning")) return;
+            
+            var opt = document.createElement("option");
+            opt.value = m.id;
+            opt.textContent = m.name + " (" + m.tier + ")";
+            if (m.id === currentValue) {
+                opt.selected = true;
+            }
+            group.appendChild(opt);
+            addedCount++;
+        });
+        
+        if (addedCount > 0) {
+            select.appendChild(group);
+        }
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -730,58 +862,4 @@ export function clearChat() {
     var history = document.getElementById("chat-history");
     if (history) history.innerHTML = "";
     renderContextStrip();
-}
-
-// Показ/скрытие панелей в зависимости от выбранного режима
-function handleStrategyChange() {
-    var val = strategySelect.value;
-    var settingsPanel = document.getElementById("orchestrator-settings");
-    var manualPanel = document.getElementById("settings-manual-panel");
-    var combinedPanel = document.getElementById("settings-combined-panel");
-    var consiliumPanel = document.getElementById("settings-consilium-panel");
-    
-    if (!settingsPanel) return;
-    
-    settingsPanel.classList.add("hidden");
-    manualPanel?.classList.add("hidden");
-    combinedPanel?.classList.add("hidden");
-    consiliumPanel?.classList.add("hidden");
-    
-    if (val === "manual") {
-        settingsPanel.classList.remove("hidden");
-        manualPanel?.classList.remove("hidden");
-    } else if (val === "combined") {
-        settingsPanel.classList.remove("hidden");
-        combinedPanel?.classList.remove("hidden");
-    } else if (val === "consilium") {
-        settingsPanel.classList.remove("hidden");
-        consiliumPanel?.classList.remove("hidden");
-    }
-}
-
-// Динамическое наполнение выпадающего списка моделей для ручного режима
-function populateModelLockSelect(models) {
-    var select = document.getElementById("model-lock-select");
-    if (!select) return;
-    
-    select.innerHTML = '<option value="">-- выберите модель --</option>';
-    
-    var providers = Object.keys(models || {});
-    if (providers.length === 0) {
-        select.innerHTML = '<option value="">Нет доступных моделей (введите ключи)</option>';
-        return;
-    }
-    
-    providers.forEach(function(provider) {
-        var group = document.createElement("optgroup");
-        group.label = provider.toUpperCase();
-        
-        models[provider].forEach(function(m) {
-            var opt = document.createElement("option");
-            opt.value = m.id;
-            opt.textContent = m.name + " (" + m.tier + ")";
-            group.appendChild(opt);
-        });
-        select.appendChild(group);
-    });
 }

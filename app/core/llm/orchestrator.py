@@ -1,9 +1,11 @@
 """
 LLM Orchestrator with Smart Scoring + adaptive cooldown.
+Supports Multi-Strategy Combined Routing & Three-Phase Consilium Debate with Manual Steps.
 """
 import os
 import time
 import logging
+import json
 from typing import AsyncGenerator, List, Dict, Any, Optional
 import litellm
 from app.core.llm.registry import model_registry
@@ -88,18 +90,17 @@ class LLMOrchestrator:
             if env_var:
                 os.environ[env_var] = key
 
-    def _get_route(self, strategy: str, model_lock: Optional[str], needs_tools: bool = False) -> List[str]:
+    def _get_route(self, strategy: str, model_lock: Optional[str], needs_tools: bool = False, plan: str = "free") -> List[str]:
         """
         Строит оптимальный маршрут с учётом:
+        - Тарифного плана пользователя (на Free допускаются только бесплатные модели)
         - Smart Scoring (рейтинг моделей)
         - Стратегии (приоритеты провайдеров)
         - Cooldown (временно недоступные модели)
-        - Capabilities (код/рассуждения)
-        - Tool support (фильтр моделей без tool calling)
         """
         logger.info(
             f"ROUTE BUILD: strategy={strategy}, needs_tools={needs_tools}, "
-            f"keys={list(self.provider_keys.keys())}"
+            f"keys={list(self.provider_keys.keys())}, plan={plan}"
         )
 
         now = time.time()
@@ -124,6 +125,10 @@ class LLMOrchestrator:
             and not (needs_tools and m.id in MODELS_NO_TOOLS)
         ]
 
+        # ЖЕСТКИЙ СЕРВЕРНЫЙ КОНТРОЛЬ ТАРИФА FREE: исключаем любые платные (стандартные/pro) модели
+        if plan in ("free", "anonymous"):
+            candidates = [m for m in candidates if m.tier == "free"]
+
         if not candidates:
             logger.warning(
                 f"Route EMPTY! strategy={strategy}, keys={list(self.provider_keys.keys())}, "
@@ -134,8 +139,23 @@ class LLMOrchestrator:
         # Получаем Smart Scoring
         scores = store.get_model_scores()
 
-        # Определяем приоритеты по стратегии
-        priority_order = STRATEGY_PRIORITIES.get(strategy, STRATEGY_PRIORITIES["auto"])
+        # Разбираем стратегии для комбинированного режима (например: "coding,reasoning,local-first")
+        strategies = [s.strip() for s in strategy.split(",")]
+        
+        if len(strategies) > 1:
+            provider_ranks = {}
+            for s in strategies:
+                order = STRATEGY_PRIORITIES.get(s, STRATEGY_PRIORITIES["auto"])
+                for idx, prov in enumerate(order):
+                    provider_ranks.setdefault(prov, []).append(idx)
+            
+            # Сортируем провайдеров по их среднему рангу среди всех выбранных стратегий
+            priority_order = sorted(
+                provider_ranks.keys(),
+                key=lambda p: sum(provider_ranks[p]) / len(provider_ranks[p])
+            )
+        else:
+            priority_order = STRATEGY_PRIORITIES.get(strategy, STRATEGY_PRIORITIES["auto"])
 
         def sort_key(m):
             try:
@@ -147,16 +167,16 @@ class LLMOrchestrator:
             tr = 0 if m.tier == "free" else 1 if m.tier == "standard" else 2
 
             cb = 0
-            if strategy == "coding" and "code" in getattr(m, "capabilities", []):
+            if "coding" in strategies and "code" in getattr(m, "capabilities", []):
                 cb = -10
-            elif strategy == "reasoning" and "reasoning" in getattr(m, "capabilities", []):
+            elif "reasoning" in strategies and "reasoning" in getattr(m, "capabilities", []):
                 cb = -10
 
             return (pr, (100 - model_score), tr, cb, m.name)
 
         candidates.sort(key=sort_key)
 
-        # Разделяем на free и paid (free идут первыми для экономии)
+        # Разделяем на free и paid (free идут первыми для экономии по Принципу №3)
         free = [m for m in candidates if m.tier == "free"]
         paid = [m for m in candidates if m.tier != "free"]
 
@@ -172,9 +192,27 @@ class LLMOrchestrator:
         temperature: float = 0.2,
         tools: Optional[List[Dict[str, Any]]] = None,
         session_id: Optional[str] = None,
+        consilium_draft_model: Optional[str] = None,
+        consilium_critic_model: Optional[str] = None,
+        consilium_synth_model: Optional[str] = None,
+        plan: str = "free",
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        # Перехватываем режим Консилиума
+        if strategy == "consilium":
+            async for chunk in self._run_consilium_debate(
+                messages, 
+                temperature, 
+                session_id,
+                draft_lock=consilium_draft_model,
+                critic_lock=consilium_critic_model,
+                synth_lock=consilium_synth_model,
+                plan=plan
+            ):
+                yield chunk
+            return
+
         needs_tools = bool(tools)
-        route = self._get_route(strategy, model_lock, needs_tools=needs_tools)
+        route = self._get_route(strategy, model_lock, needs_tools=needs_tools, plan=plan)
 
         if not route:
             yield {"status": "no_models", "error": "Нет доступных моделей для каскада."}
@@ -225,7 +263,7 @@ class LLMOrchestrator:
 
                 kwargs: Dict[str, Any] = {
                     "model": model_id,
-                    "messages": local_messages, # <-- Используем локальный массив с внедренной инструкцией
+                    "messages": local_messages,
                     "temperature": temperature,
                     "max_tokens": max_tokens_limit,
                     "stream": True,
@@ -326,6 +364,86 @@ class LLMOrchestrator:
                 continue
 
         yield {"status": "failed", "error": f"Каскад исчерпан: {str(last_exception)}"}
+
+    async def _run_consilium_debate(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.2,
+        session_id: Optional[str] = None,
+        draft_lock: Optional[str] = None,
+        critic_lock: Optional[str] = None,
+        synth_lock: Optional[str] = None,
+        plan: str = "expert",
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Режим 'Консилиум': Многошаговый перекрестный спор моделей с ручной блокировкой шагов.
+        """
+        route = self._get_route("consilium", None, needs_tools=False, plan=plan)
+        if len(route) < 2 and not (draft_lock and critic_lock):
+            yield {"status": "fallback", "message": "Недостаточно моделей для консилиума. Перехожу в стандартный режим..."}
+            async for chunk in self.stream_completion(messages, "auto", temperature=temperature, session_id=session_id, plan=plan):
+                yield chunk
+            return
+
+        user_query = messages[-1]["content"] if messages else ""
+        
+        # Разрешаем участников дебатов (приоритет ручному выбору пользователя, иначе берем из авто-маршрута)
+        model_a = draft_lock if draft_lock else route[0]
+        model_b = critic_lock if critic_lock else (route[1] if len(route) > 1 else model_a)
+        model_c = synth_lock if synth_lock else (route[2] if len(route) > 2 else model_a)
+
+        # Шаг 1: Генерация первичного черновика Моделью А
+        yield {"status": "fallback", "message": f"👥 Шаг 1/3: Анализ и генерация черновика ({model_a.split('/')[-1]})..."}
+        model_a_chunks = []
+        try:
+            async for chunk in self.stream_completion(messages, "auto", model_lock=model_a, temperature=temperature, session_id=session_id, plan=plan):
+                if chunk.get("status") == "streaming" and chunk.get("content"):
+                    model_a_chunks.append(chunk["content"])
+        except Exception as e:
+            logger.error(f"Consilium Step 1 failed: {e}")
+            yield {"status": "fallback", "message": "Сбой консилиума на первом шаге. Перехожу к каскаду..."}
+            async for chunk in self.stream_completion(messages, "auto", temperature=temperature, session_id=session_id, plan=plan):
+                yield chunk
+            return
+
+        model_a_response = "".join(model_a_chunks)
+        if not model_a_response:
+            model_a_response = "Не удалось сгенерировать первоначальный черновик ответа."
+
+        # Шаг 2: Жесткий технический аудит Моделью Б
+        yield {"status": "fallback", "message": f"👥 Шаг 2/3: Перекрестный аудит и поиск ошибок ({model_b.split('/')[-1]})..."}
+        critique_prompt = (
+            f"Тебе дана техническая задача пользователя и первоначальный ответ другой модели.\n"
+            f"Выступи в роли жесткого технического аудитора. Найди скрытые ошибки, уязвимости, архитектурные недостатки или предложи более оптимальное решение.\n"
+            f"Пиши строго по делу, конструктивно и лаконично.\n\n"
+            f"ЗАДАЧА ПОЛЬЗОВАТЕЛЯ:\n{user_query}\n\n"
+            f"ПЕРВОНАЧАЛЬНЫЙ ОТВЕТ:\n{model_a_response}"
+        )
+        model_b_chunks = []
+        try:
+            async for chunk in self.stream_completion([{"role": "user", "content": critique_prompt}], "auto", model_lock=model_b, temperature=temperature, session_id=session_id, plan=plan):
+                if chunk.get("status") == "streaming" and chunk.get("content"):
+                    model_b_chunks.append(chunk["content"])
+        except Exception as e:
+            logger.error(f"Consilium Step 2 failed: {e}")
+            model_b_chunks = ["Не удалось получить перекрестный аудит."]
+
+        model_b_response = "".join(model_b_chunks)
+
+        # Шаг 3: Финальный синтез Моделью С и выдача стрима пользователю
+        yield {"status": "fallback", "message": f"👥 Шаг 3/3: Синтез решения и выдача ответа ({model_c.split('/')[-1]})..."}
+        synthesis_prompt = (
+            f"Ты — ведущий системный архитектор. Перед тобой стоит задача пользователя, первоначальный черновик ответа от другого ИИ, "
+            f"а также его жесткий профессиональный аудит от второго эксперта.\n"
+            f"Твоя цель — объединить лучшие стороны решений, исправить все указанные ошибки и выдать идеальный, законченный, "
+            f"максимально выверенный и рабочий ответ на языке пользователя.\n\n"
+            f"ЗАДАЧА ПОЛЬЗОВАТЕЛЯ:\n{user_query}\n\n"
+            f"ПЕРВОНАЧАЛЬНЫЙ ЧЕРНОВИК:\n{model_a_response}\n\n"
+            f"ТЕХНИЧЕСКИЙ АУДИТ:\n{model_b_response}"
+        )
+
+        async for chunk in self.stream_completion([{"role": "user", "content": synthesis_prompt}], "auto", model_lock=model_c, temperature=temperature, session_id=session_id, plan=plan):
+            yield chunk
 
 
 orchestrator = LLMOrchestrator()

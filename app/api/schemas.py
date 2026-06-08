@@ -5,6 +5,7 @@ Used across all routers for request/response validation.
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 
+
 class ChatCompletionPayload(BaseModel):
     """Request body for streaming chat completion."""
     session_id: Optional[str] = None
@@ -12,6 +13,12 @@ class ChatCompletionPayload(BaseModel):
     strategy: Optional[str] = "auto"
     model_lock: Optional[str] = None
     temperature: Optional[float] = 0.2
+    
+    # Ручной выбор участников для трех шагов Консилиума
+    consilium_draft_model: Optional[str] = None
+    consilium_critic_model: Optional[str] = None
+    consilium_synth_model: Optional[str] = None
+
 
 class KeysUpdatePayload(BaseModel):
     """Request body for hot-reloading provider API keys."""
