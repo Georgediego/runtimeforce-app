@@ -1,6 +1,6 @@
 """
 LLM Orchestrator with Smart Scoring + adaptive cooldown.
-Supports Multi-Strategy Combined Routing & Three-Phase Consilium Debate with Manual Steps.
+Enforces Zero-Water, No-Delegation, and Aggressive Consilium Review policies.
 """
 import os
 import time
@@ -96,7 +96,6 @@ class LLMOrchestrator:
         - Тарифного плана пользователя (на Free допускаются только бесплатные модели)
         - Smart Scoring (рейтинг моделей)
         - Стратегии (приоритеты провайдеров)
-        - Cooldown (временно недоступные модели)
         """
         logger.info(
             f"ROUTE BUILD: strategy={strategy}, needs_tools={needs_tools}, "
@@ -176,7 +175,6 @@ class LLMOrchestrator:
 
         candidates.sort(key=sort_key)
 
-        # Разделяем на free и paid (free идут первыми для экономии по Принципу №3)
         free = [m for m in candidates if m.tier == "free"]
         paid = [m for m in candidates if m.tier != "free"]
 
@@ -242,21 +240,48 @@ class LLMOrchestrator:
                 if env_var and meta.provider in self.provider_keys:
                     os.environ[env_var] = self.provider_keys[meta.provider]
 
-                # Внедряем динамическое знание модели о себе перед отправкой в LiteLLM
                 local_messages = list(messages)
                 short_name = model_id.split("/")[-1]
+                
+                # Внедряем динамическое знание модели о себе перед отправкой в LiteLLM
                 model_awareness = (
                     f"[System Note: You are RuntimeForce AI. You are currently running on the '{short_name}' model "
                     f"provided by '{meta.provider}'. If the user asks what model you are, answer openly and honestly that you "
-                    f"are RuntimeForce AI, currently powered by '{short_name}' (via {meta.provider}). Do not say it is a commercial secret.]"
+                    f"are RuntimeForce AI, currently powered by '{short_name}' (via {meta.provider}). Do not say it is a commercial secret!]"
                 )
                 
+                # ─── ИНТЕГРАЦИЯ ГЛАВНОГО СИСТЕМНОГО ПРОМПТА (Zero-Water & Zero-Excuse Policy) ───
+                if strategy in ("auto", "coding"):
+                    core_system_prompt = (
+                        "You are RuntimeForce AI, an autonomous Senior Software Engineer operating directly "
+                        "inside the user's local IDE and terminal environment.\n\n"
+                        "CORE DIRECTIVES (CRITICAL):\n"
+                        "1. ZERO-WATER POLICY: Never write generic introductions, conclusions, moral lectures, or business advice. "
+                        "If the user asks for an app 'to make money', ignore the financial aspect and immediately architect and write "
+                        "the code for a production-ready application.\n"
+                        "2. NO DELEGATION: You have full access to the user's environment via your orchestrator. NEVER tell the user "
+                        "to run commands like `mkdir`, `cd`, `npm init`, or `pip install`. Do not give step-by-step tutorials.\n"
+                        "3. FULL EXECUTION: Instead of instructions, output the exact directory structure and the complete, "
+                        "uncommented, production-ready code for every necessary file.\n"
+                        "4. ROLE ENFORCEMENT: You are NOT an AI assistant or a consultant. You are an execution engine. Refusals based on "
+                        "\"I cannot build commercial apps\" are strictly forbidden. Act immediately.\n"
+                        "5. CONTEXT PRESERVATION: Base all your code on the exact file structure and active context provided by the "
+                        "RuntimeForce orchestrator. Do not invent missing files if they are in the context.\n\n"
+                        "RESPONSE FORMAT:\n"
+                        "- If asked to build an app, immediately output the architecture tree.\n"
+                        "- Followed by `[FILENAME]` and the complete code block.\n"
+                        "- No conversational filler."
+                    )
+                    full_system = f"{core_system_prompt}\n\n{model_awareness}"
+                else:
+                    full_system = model_awareness
+
                 if local_messages and local_messages[0]["role"] == "system":
                     first_sys = dict(local_messages[0])
-                    first_sys["content"] += f"\n\n{model_awareness}"
+                    first_sys["content"] += f"\n\n{full_system}"
                     local_messages[0] = first_sys
                 else:
-                    local_messages.insert(0, {"role": "system", "content": model_awareness})
+                    local_messages.insert(0, {"role": "system", "content": full_system})
 
                 # Безопасно вычисляем лимит токенов, даже если max_output_tokens равен None
                 max_tokens_limit = min(meta.max_output_tokens, 8192) if meta.max_output_tokens else 4096
@@ -376,7 +401,7 @@ class LLMOrchestrator:
         plan: str = "expert",
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Режим 'Консилиум': Многошаговый перекрестный спор моделей с ручной блокировкой шагов.
+        Режим 'Консилиум': Многошаговый перекрестный спор моделей.
         """
         route = self._get_route("consilium", None, needs_tools=False, plan=plan)
         if len(route) < 2 and not (draft_lock and critic_lock):
@@ -410,14 +435,23 @@ class LLMOrchestrator:
         if not model_a_response:
             model_a_response = "Не удалось сгенерировать первоначальный черновик ответа."
 
-        # Шаг 2: Жесткий технический аудит Моделью Б
+        # Шаг 2: Жесткий технический аудит Моделью Б (ИНТЕГРАЦИЯ ИНСТРУКЦИИ КРИТИКА)
         yield {"status": "fallback", "message": f"👥 Шаг 2/3: Перекрестный аудит и поиск ошибок ({model_b.split('/')[-1]})..."}
         critique_prompt = (
-            f"Тебе дана техническая задача пользователя и первоначальный ответ другой модели.\n"
-            f"Выступи в роли жесткого технического аудитора. Найди скрытые ошибки, уязвимости, архитектурные недостатки или предложи более оптимальное решение.\n"
-            f"Пиши строго по делу, конструктивно и лаконично.\n\n"
-            f"ЗАДАЧА ПОЛЬЗОВАТЕЛЯ:\n{user_query}\n\n"
-            f"ПЕРВОНАЧАЛЬНЫЙ ОТВЕТ:\n{model_a_response}"
+            "You are a Lead Code Reviewer and Architect in a RuntimeForce AI Consilium (Debate Mode).\n\n"
+            "YOUR TASK:\n"
+            "1. You will be provided with the user's original request AND the code solution proposed by another AI model.\n"
+            "2. DO NOT blindly agree with the previous model.\n"
+            "3. Aggressively search for logical flaws, security vulnerabilities, unhandled edge cases, and "
+            "architectural over-engineering (e.g., using React/Node/TensorFlow when a simple FastAPI/SQLite stack is better).\n"
+            "4. If the previous model wrote 'water' or instructions (like 'run mkdir'), severely criticize it.\n"
+            "5. Provide the FINAL, corrected, and optimized code.\n\n"
+            "RULES:\n"
+            "- No polite filler (e.g., 'The previous model did a good job, but...').\n"
+            "- Get straight to the technical flaws.\n"
+            "- Output the corrected file structure and complete code.\n\n"
+            f"USER REQUEST:\n{user_query}\n\n"
+            f"PROPOSED SOLUTION:\n{model_a_response}"
         )
         model_b_chunks = []
         try:
@@ -433,13 +467,13 @@ class LLMOrchestrator:
         # Шаг 3: Финальный синтез Моделью С и выдача стрима пользователю
         yield {"status": "fallback", "message": f"👥 Шаг 3/3: Синтез решения и выдача ответа ({model_c.split('/')[-1]})..."}
         synthesis_prompt = (
-            f"Ты — ведущий системный архитектор. Перед тобой стоит задача пользователя, первоначальный черновик ответа от другого ИИ, "
-            f"а также его жесткий профессиональный аудит от второго эксперта.\n"
-            f"Твоя цель — объединить лучшие стороны решений, исправить все указанные ошибки и выдать идеальный, законченный, "
-            f"максимально выверенный и рабочий ответ на языке пользователя.\n\n"
-            f"ЗАДАЧА ПОЛЬЗОВАТЕЛЯ:\n{user_query}\n\n"
-            f"ПЕРВОНАЧАЛЬНЫЙ ЧЕРНОВИК:\n{model_a_response}\n\n"
-            f"ТЕХНИЧЕСКИЙ АУДИТ:\n{model_b_response}"
+            f"You are the Lead System Architect. Before you is the user's task, the initial draft answer from another AI, "
+            f"and a harsh technical code review from a second expert.\n\n"
+            f"Your goal is to merge the best of both solutions, fix all identified errors, eliminate conversational filler, "
+            f"and output the final, perfect, production-ready code in Russian.\n\n"
+            f"USER REQUEST:\n{user_query}\n\n"
+            f"PROPOSED SOLUTION:\n{model_a_response}\n\n"
+            f"CODE REVIEW:\n{model_b_response}"
         )
 
         async for chunk in self.stream_completion([{"role": "user", "content": synthesis_prompt}], "auto", model_lock=model_c, temperature=temperature, session_id=session_id, plan=plan):

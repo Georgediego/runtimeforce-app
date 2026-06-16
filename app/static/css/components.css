@@ -1,14 +1,110 @@
+/* ═══════════════════════════════════════════════
+   BASE ELEMENTS & FORM INPUTS
+   ═══════════════════════════════════════════════ */
+
+/* Группировка моноширинных шрифтов */
+.tool-output,
+.debug-trace-log-sidebar,
+.tool-execution-item,
+.content-div code,
+.ctx-chip,
+.tool-badge {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Группировка базовых стилей для форм */
+.ide-select, .ide-input {
+    width: 100%;
+    background: var(--ide-bg);
+    border: 1px solid var(--ide-border);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--ide-text);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+}
+
+/* Select styling */
+.ide-select {
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.ide-select:hover,
+.ide-select:focus,
+.ide-input:hover,
+.ide-input:focus {
+    border-color: var(--ide-accent);
+}
+
+.ide-select:focus,
+.ide-input:focus {
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+/* Input styling */
+.ide-input {
+    padding: 8px 12px;
+}
+
+/* Buttons */
+.ide-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.ide-btn-primary { background: var(--ide-accent); color: #fff; }
+.ide-btn-primary:hover { opacity: 0.88; }
+.ide-btn-ghost { background: var(--ide-hover); color: var(--ide-text); border: 1px solid var(--ide-border); }
+.ide-btn-danger { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+
+/* Stop button */
+#stop-generation-btn {
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+#stop-generation-btn:hover {
+    background: rgba(239, 68, 68, 1);
+    transform: translateY(-1px);
+}
+
+
+/* ═══════════════════════════════════════════════
+   CHIPS, BADGES & MESSAGE ACTIONS
+   ═══════════════════════════════════════════════ */
+
 /* Context chips */
 .ctx-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 4px 8px;
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.25);
     border-radius: 6px;
     font-size: 11px;
-    color: var(--ide-text);
+    color: #60a5fa;
     max-width: 200px;
 }
 
@@ -21,15 +117,17 @@
 .ctx-chip button {
     background: none;
     border: none;
-    color: var(--ide-muted);
+    color: inherit;
     cursor: pointer;
     padding: 0;
     margin-left: 4px;
     font-size: 14px;
     line-height: 1;
+    opacity: 0.7;
 }
 
 .ctx-chip button:hover {
+    opacity: 1;
     color: var(--ide-error);
 }
 
@@ -39,51 +137,39 @@
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    border-radius: 6px;
+    border-radius: 9999px;
     font-size: 11px;
     font-weight: 500;
     margin-bottom: 8px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
 }
 
-.tool-badge.running {
-    background: rgba(251, 191, 36, 0.1);
-    color: #fbbf24;
-}
-
-.tool-badge.success {
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-}
-
-.tool-badge.error {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-}
-
-/* Группировка моноширинных шрифтов */
-.tool-output,
-.debug-trace-log-sidebar,
-.tool-execution-item {
-    font-family: 'JetBrains Mono', monospace;
-}
+.tool-badge.running { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.tool-badge.success { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+.tool-badge.error { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171; }
 
 /* Tool output */
 .tool-output {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--ide-panel2, rgba(0, 0, 0, 0.2));
     border: 1px solid var(--ide-border);
     border-radius: 6px;
-    padding: 8px;
+    padding: 10px;
     font-size: 11px;
-    max-height: 200px;
+    color: var(--ide-muted);
+    max-height: 220px;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-all;
+    margin-top: 4px;
+    margin-bottom: 8px;
 }
 
 /* Message actions */
 .msg-actions {
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity 0.15s;
 }
 
 .group:hover .msg-actions {
@@ -99,6 +185,11 @@
     color: var(--ide-accent);
 }
 
+
+/* ═══════════════════════════════════════════════
+   PANELS, SIDEBARS & TREE VIEWS
+   ═══════════════════════════════════════════════ */
+
 /* Debug Trace Panel */
 .debug-trace-log-sidebar {
     background: rgba(10, 10, 15, 0.4);
@@ -113,23 +204,10 @@
     overflow-x: hidden;
 }
 
-.debug-trace-log-sidebar::-webkit-scrollbar {
-    width: 6px;
-}
-
-.debug-trace-log-sidebar::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 3px;
-}
-
-.debug-trace-log-sidebar::-webkit-scrollbar-thumb {
-    background: var(--ide-border);
-    border-radius: 3px;
-}
-
-.debug-trace-log-sidebar::-webkit-scrollbar-thumb:hover {
-    background: var(--ide-accent);
-}
+.debug-trace-log-sidebar::-webkit-scrollbar { width: 6px; }
+.debug-trace-log-sidebar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 3px; }
+.debug-trace-log-sidebar::-webkit-scrollbar-thumb { background: var(--ide-border); border-radius: 3px; }
+.debug-trace-log-sidebar::-webkit-scrollbar-thumb:hover { background: var(--ide-accent); }
 
 .debug-trace-log-sidebar:empty::before {
     content: 'Ожидание событий...';
@@ -213,43 +291,14 @@
     transition: all 0.2s;
 }
 
-.tool-execution-item.running {
-    background: rgba(251, 191, 36, 0.1);
-    border-left: 3px solid #fbbf24;
-}
+.tool-execution-item.running { background: rgba(251, 191, 36, 0.1); border-left: 3px solid #fbbf24; }
+.tool-execution-item.success { background: rgba(34, 197, 94, 0.1); border-left: 3px solid #22c55e; }
+.tool-execution-item.error { background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; }
 
-.tool-execution-item.success {
-    background: rgba(34, 197, 94, 0.1);
-    border-left: 3px solid #22c55e;
-}
-
-.tool-execution-item.error {
-    background: rgba(239, 68, 68, 0.1);
-    border-left: 3px solid #ef4444;
-}
-
-.tool-execution-item .status-icon {
-    font-size: 12px;
-    flex-shrink: 0;
-}
-
-.tool-execution-item.running .status-icon {
-    color: #fbbf24;
-    animation: spin 1s linear infinite;
-}
-
-.tool-execution-item.success .status-icon {
-    color: #22c55e;
-}
-
-.tool-execution-item.error .status-icon {
-    color: #ef4444;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
+.tool-execution-item .status-icon { font-size: 12px; flex-shrink: 0; }
+.tool-execution-item.running .status-icon { color: #fbbf24; animation: spin 1s linear infinite; }
+.tool-execution-item.success .status-icon { color: #22c55e; }
+.tool-execution-item.error .status-icon { color: #ef4444; }
 
 .tool-execution-item .tool-name {
     flex: 1;
@@ -276,21 +325,24 @@
     transition: background 0.15s;
 }
 
-.picker-tree-item:hover {
-    background: var(--ide-hover);
+.picker-tree-item:hover { background: var(--ide-hover); }
+.picker-tree-item input[type="checkbox"] { cursor: pointer; accent-color: var(--ide-accent); }
+.picker-tree-item span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Context strip scrollbar */
+#context-strip {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ide-border) transparent;
 }
 
-.picker-tree-item input[type="checkbox"] {
-    cursor: pointer;
-    accent-color: var(--ide-accent);
-}
+#context-strip::-webkit-scrollbar { height: 4px; }
+#context-strip::-webkit-scrollbar-track { background: transparent; }
+#context-strip::-webkit-scrollbar-thumb { background: var(--ide-border); border-radius: 2px; }
 
-.picker-tree-item span {
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+
+/* ═══════════════════════════════════════════════
+   CONTENT GENERATION & TOAST NOTIFICATIONS
+   ═══════════════════════════════════════════════ */
 
 /* Content div styling */
 .content-div {
@@ -307,134 +359,30 @@
     margin: 8px 0;
 }
 
-.content-div code {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-}
+.content-div code { font-size: 12px; }
+.content-div p { margin: 8px 0; line-height: 1.6; }
+.content-div ul, .content-div ol { margin: 8px 0; padding-left: 24px; }
+.content-div li { margin: 4px 0; }
 
-.content-div p {
-    margin: 8px 0;
-    line-height: 1.6;
-}
-
-.content-div ul, .content-div ol {
-    margin: 8px 0;
-    padding-left: 24px;
-}
-
-.content-div li {
-    margin: 4px 0;
-}
-
-/* Stop button */
-#stop-generation-btn {
-    background: rgba(239, 68, 68, 0.9);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-#stop-generation-btn:hover {
-    background: rgba(239, 68, 68, 1);
-    transform: translateY(-1px);
-}
-
-/* Scrollbar for context strip */
-#context-strip {
-    scrollbar-width: thin;
-    scrollbar-color: var(--ide-border) transparent;
-}
-
-#context-strip::-webkit-scrollbar {
-    height: 4px;
-}
-
-#context-strip::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-#context-strip::-webkit-scrollbar-thumb {
-    background: var(--ide-border);
-    border-radius: 2px;
-}
-
-/* Animate ping for running tools */
-.animate-ping {
-    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-@keyframes ping {
-    75%, 100% {
-        transform: scale(2);
-        opacity: 0;
-    }
-}
-
-/* Группировка базовых стилей для форм */
-.ide-select, .ide-input {
-    background: var(--ide-bg);
-    border: 1px solid var(--ide-border);
-    border-radius: 6px;
-    font-size: 12px;
-    color: var(--ide-text);
-    width: 100%;
-    transition: border-color 0.2s;
-}
-
-/* Select styling */
-.ide-select {
-    padding: 6px 10px;
-    cursor: pointer;
-}
-
-/* Объединение hover и focus */
-.ide-select:hover,
-.ide-select:focus {
-    border-color: var(--ide-accent);
-}
-
-.ide-select:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-}
-
-/* Input styling */
-.ide-input {
-    padding: 8px 12px;
-}
-
-.ide-input:hover {
-    border-color: var(--ide-accent);
-}
-
-/* Toast notifications - Всплывающие плашки сверху справа */
+/* Toast notifications CONTAINER */
 .toast-container {
     position: fixed !important;
     top: 16px !important;
     right: 16px !important;
-    bottom: auto !important;       /* Запрещает растягивание до низа экрана */
+    bottom: auto !important;
     left: auto !important;
-    height: auto !important;       /* Высота зависит строго от количества уведомлений */
-    max-width: 320px !important;       /* Ограничиваем ширину плашки */
-    z-index: 99999 !important;     /* Отображается поверх любых панелей, модалок и сайдбаров */
+    height: auto !important;
+    max-width: 360px !important;
+    z-index: 100000 !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 8px !important;
-    pointer-events: none;          /* Пропускает клики мыши сквозь пустые зоны контейнера */
+    pointer-events: none;
 }
 
+/* Toast CARD */
 .toast {
-    pointer-events: auto;          /* Кнопки внутри самого тоста остаются кликабельными */
+    pointer-events: auto;
     display: flex !important;
     align-items: center;
     gap: 10px;
@@ -446,17 +394,18 @@
     font-size: 13px;
     color: var(--ide-text, #cdd6f4);
     width: 100% !important;
-    height: auto !important;       /* Высота подстраивается под текст сообщения */
+    height: auto !important;
     min-height: 44px;
+    min-width: 220px;
     box-sizing: border-box;
-    animation: toastIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.toast.success { border-left: 4px solid #22c55e !important; }
-.toast.error   { border-left: 4px solid #ef4444 !important; }
-.toast.info    { border-left: 4px solid #3b82f6 !important; }
+.toast.success { border-left: 4px solid var(--ide-success, #22c55e) !important; }
+.toast.error   { border-left: 4px solid var(--ide-error, #ef4444) !important; }
+.toast.info    { border-left: 4px solid var(--ide-accent, #3b82f6) !important; }
 .toast.warning { border-left: 4px solid #f59e0b !important; }
-.toast.fade-out { opacity: 0; transition: opacity 0.2s; }
+.toast.fade-out { animation: toastOut 0.3s ease-in forwards !important; }
 
 .toast-icon { flex-shrink: 0; }
 .toast.success .toast-icon { color: #22c55e; }
@@ -485,126 +434,14 @@
     background: var(--ide-hover); 
 }
 
-@keyframes toastIn {
-    from { opacity: 0; transform: translateY(-10px) scale(0.95); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-}
 
-/* Силовое центрирование модального окна подтверждения (Confirm) */
-body .confirm-overlay,
-.confirm-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.6); /* Плотное затемнение заднего фона */
-    z-index: 9999999; /* Отображается поверх абсолютно всего */
-    display: flex;
-    align-items: center; /* Строго по центру вертикали */
-    justify-content: center; /* Строго по центру горизонтали */
-    pointer-events: auto;
-    box-sizing: border-box;
-}
-
-/* Контейнер самой карточки модального окна */
-body .confirm-overlay .confirm-modal,
-.confirm-modal {
-    background: #13161f; /* Фиксированный темный фон карточки */
-    border: 1px solid #32324d;
-    border-radius: 12px;
-    padding: 24px;
-    width: 360px; /* Фиксированная аккуратная ширина окна */
-    max-width: 90%;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
-    display: block;
-    height: auto;
-    box-sizing: border-box;
-    transform: none;
-}
-
-/* Стили заголовка внутри модалки */
-.confirm-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 10px;
-    color: #cdd6f4;
-    line-height: 1.3;
-    text-align: center;
-}
-
-/* Стили текста сообщения */
-.confirm-message {
-    font-size: 13px;
-    color: #a6adc8;
-    line-height: 1.5;
-    margin-bottom: 24px;
-    text-align: center;
-    white-space: normal;
-}
-
-/* Блок кнопок действий */
-.confirm-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    width: 100%;
-}
-
-/* Общие стили кнопок в модалке */
-.confirm-btn {
-    padding: 8px 16px;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Кнопка «Отмена» */
-.confirm-btn-cancel {
-    background: transparent;
-    border: 1px solid #32324d;
-    color: #cdd6f4;
-    margin: auto;
-}
-.confirm-btn-cancel:hover {
-    background: #252538;
-    border-color: #45475a;
-}
-
-/* Кнопка «Удалить» (Опасное действие) */
-.confirm-btn-confirm {
-    background: #ef4444; /* Красный цвет */
-    border: 1px solid #ef4444;
-    color: #ffffff;
-    margin: auto;
-}
-.confirm-btn-confirm:hover {
-    background: #dc2626;
-    border-color: #dc2626;
-}
-
-/* Анимация плавного появления фона */
-.confirm-overlay {
-    animation: fadeInBg 0.15s ease-out forwards;
-}
-
-@keyframes fadeInBg {
-    from { background: rgba(0, 0, 0, 0); }
-    to   { background: rgba(0, 0, 0, 0.6); }
-}
 /* ═══════════════════════════════════════════════
-   MODAL WINDOWS & FILE VIEWER STYLING
+   MODAL WINDOWS & CONFIRM DIALOGS
    ═══════════════════════════════════════════════ */
 
 /* Задний фон модальных окон */
-.modal-backdrop {
+.modal-backdrop, 
+.confirm-overlay {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -619,6 +456,7 @@ body .confirm-overlay .confirm-modal,
     justify-content: center !important;
     z-index: 99999 !important;
     box-sizing: border-box;
+    padding: 2rem;
 }
 
 .modal-backdrop.hidden {
@@ -627,53 +465,324 @@ body .confirm-overlay .confirm-modal,
 
 /* Стандартная модальная панель */
 .modal-panel {
-    background: var(--ide-surface, #13161f);
+    background: var(--ide-surface, var(--ide-panel, #13161f));
     border: 1px solid var(--ide-border, #32324d);
     border-radius: 12px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
     max-height: 85vh;
-    width: 480px;
-    max-width: 90%;
+    width: 560px;
+    max-width: 95vw;
     overflow: hidden;
     animation: modalScaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Широкая модальная панель (для Monaco Редактора) */
 .modal-panel-wide {
-    background: var(--ide-surface, #13161f);
+    background: var(--ide-surface, var(--ide-panel, #13161f));
     border: 1px solid var(--ide-border, #32324d);
     border-radius: 12px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
     display: flex;
     flex-direction: column;
-    height: 80vh;
-    width: 850px;
+    height: 85vh;
+    width: 90vw;
     min-width: 450px;
-    max-width: 95vw;
     overflow: hidden;
     animation: modalScaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-    
-    /* Включаем встроенную возможность изменения ширины */
     resize: horizontal; 
 }
 
-/* Узкая панель (для коммитов) */
-.modal-panel-sm {
+/* Узкая панель (для коммитов / малых форм) */
+.modal-panel-sm,
+.confirm-modal {
     background: var(--ide-surface, #13161f);
-    border: 1px solid var(--ide-border, #32324d);
+    border: 1px solid #32324d;
     border-radius: 12px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
     width: 380px;
-    max-width: 90%;
+    max-width: 90vw;
     overflow: hidden;
-    animation: modalScaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+}
+
+/* Специфично для Confirm карточки */
+.confirm-modal {
+    padding: 24px;
+    display: block;
+    height: auto;
+}
+
+.confirm-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #cdd6f4;
+    line-height: 1.3;
+    text-align: center;
+}
+
+.confirm-message {
+    font-size: 13px;
+    color: #a6adc8;
+    line-height: 1.5;
+    margin-bottom: 24px;
+    text-align: center;
+    white-space: normal;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    width: 100%;
+}
+
+.confirm-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.confirm-btn-cancel {
+    background: transparent;
+    border: 1px solid #32324d;
+    color: #cdd6f4;
+}
+.confirm-btn-cancel:hover {
+    background: #252538;
+    border-color: #45475a;
+}
+
+.confirm-btn-confirm {
+    background: #ef4444;
+    border: 1px solid #ef4444;
+    color: #ffffff;
+}
+.confirm-btn-confirm:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+
+/* ═══════════════════════════════════════════════
+   ANIMATIONS & EFFECTS
+   ═══════════════════════════════════════════════ */
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes ping {
+    75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+.animate-ping {
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes toastIn {
+    from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastOut {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(20px); }
 }
 
 @keyframes modalScaleIn {
     from { opacity: 0; transform: scale(0.96); }
     to { opacity: 1; transform: scale(1); }
+}
+
+.confirm-overlay {
+    animation: fadeInBg 0.15s ease-out forwards;
+}
+
+@keyframes fadeInBg {
+    from { background: rgba(0, 0, 0, 0); }
+    to   { background: rgba(0, 0, 0, 0.65); }
+}
+
+/* ─── Анимация вращения градиентной рамки ИИ без вращения текста внутри ─── */
+.avatar-thinking {
+    border-color: transparent !important;
+    position: relative;
+    z-index: 1;
+}
+.avatar-thinking::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 8px;
+    padding: 1px; /* Толщина рамки */
+    background: linear-gradient(135deg, #10b981, #3b82f6, #8b5cf6, #10b981);
+    background-size: 300% 300%;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box, 
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: avatar-gradient-spin 1.5s linear infinite;
+    z-index: -1;
+}
+@keyframes avatar-gradient-spin {
+    0% { transform: rotate(0deg); background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { transform: rotate(360deg); background-position: 0% 50%; }
+}
+
+/* ─── Стили пользовательского профиля и меню ─── */
+#rf-user-name {
+    text-align: left !important;
+    display: block !important;
+}
+#rf-menu-settings-btn:hover,
+#rf-menu-logout-btn:hover {
+    background-color: var(--ide-hover) !important;
+    color: var(--ide-text) !important;
+}
+#rf-menu-logout-btn:hover {
+    color: #f87171 !important; /* Красный оттенок ховера для кнопки Выйти */
+}
+
+/* ─── Анимация вращения градиентной рамки ИИ без вращения текста внутри ─── */
+.avatar-thinking {
+    border-color: transparent !important;
+    position: relative;
+    z-index: 1;
+}
+.avatar-thinking::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 8px;
+    padding: 1px; /* Толщина рамки */
+    background: linear-gradient(135deg, #10b981, #3b82f6, #8b5cf6, #10b981);
+    background-size: 300% 300%;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box, 
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: avatar-gradient-spin 1.5s linear infinite;
+    z-index: -1;
+}
+@keyframes avatar-gradient-spin {
+    0% { transform: rotate(0deg); background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { transform: rotate(360deg); background-position: 0% 50%; }
+}
+
+/* ─── Стили пользовательского профиля и меню ─── */
+#rf-user-profile {
+    position: relative;
+}
+#rf-user-avatar {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: #ffffff;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+}
+#rf-user-name {
+    text-align: left !important;
+    display: block !important;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ide-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+#rf-user-plan {
+    text-align: left !important;
+    display: block !important;
+    font-size: 10px;
+    color: var(--ide-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+#rf-user-plan:hover {
+    color: var(--ide-accent) !important;
+    text-decoration: underline;
+}
+#rf-user-menu {
+    border: 1px solid var(--ide-border);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    background-color: rgba(17, 19, 25, 0.85); /* Полупрозрачный */
+    backdrop-filter: blur(12px);
+}
+#rf-menu-settings-btn:hover,
+#rf-menu-logout-btn:hover {
+    background-color: var(--ide-hover) !important;
+    color: var(--ide-text) !important;
+}
+#rf-menu-logout-btn:hover {
+    color: #f87171 !important;
+}
+
+/* ─── Единый шрифт проекта для кириллицы ─── */
+body, button, input, select, textarea, .font-sans, .prose, .prose p, .prose li {
+    font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+}
+code, pre, .mono {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+
+/* ─── Исправление двухтонной темы (Light / Dark) ─── */
+html.light body,
+html.light .bg-ide-panel,
+html.light .bg-[#0c0d0e],
+html.light #left-sidebar,
+html.light #right-sidebar {
+    background-color: var(--ide-panel) !important;
+    color: var(--ide-text) !important;
+    border-color: var(--ide-border) !important;
+}
+html.light .text-ide-text {
+    color: var(--ide-text) !important;
+}
+html.light .text-ide-muted,
+html.light .text-[#8a939e] {
+    color: var(--ide-muted) !important;
+}
+html.light .border-ide-border,
+html.light .border-slate-900,
+html.light .border-ide-border/50 {
+    border-color: var(--ide-border) !important;
+}
+html.light .bg-gray-900/20 {
+    background-color: var(--ide-panel2) !important;
+}
+html.light .prose pre {
+    background-color: var(--ide-panel2) !important;
+}
+html.light .prose code {
+    background-color: rgba(37,99,235,0.08) !important;
+}
+html.light .ws-card,
+html.light .provider-card {
+    background-color: var(--ide-surface) !important;
+}
+html.light #rf-user-menu {
+    background-color: rgba(255, 255, 255, 0.85) !important;
+    border-color: var(--ide-border) !important;
 }

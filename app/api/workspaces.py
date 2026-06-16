@@ -1,6 +1,7 @@
 """
-Workspaces API router with per-user data isolation.
+Workspaces API router with per-user data isolation and terminal execution support.
 """
+import os
 import uuid
 import time
 import logging
@@ -8,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.api.schemas import WorkspaceCreatePayload
 from app.memory.store import store
 from app.core.workspace.manager import workspace_manager
-from app.core.crypto import encrypt
+from app.core.crypto import encrypt, decrypt
 from app.core.auth import get_current_user, require_authenticated_user
 
 logger = logging.getLogger("ai_runtime.api.workspaces")
@@ -16,6 +17,9 @@ router = APIRouter(prefix="/api/v1", tags=["workspaces"])
 
 _tree_cache: dict = {}
 TREE_CACHE_TTL = 30
+
+
+# ─── СТАТИЧНЫЕ МАРШРУТЫ (Должны быть строго ВЫШЕ параметрических) ───
 
 @router.get("/workspaces/active")
 async def get_active_workspace(user_id: str = Depends(get_current_user)):
@@ -44,7 +48,6 @@ async def get_tree(user_id: str = Depends(require_authenticated_user)):
         return {"tree": cached["tree"], "cached": True}
 
     try:
-        # Передаем user_id
         tree = await workspace_manager.get_tree(user_id=user_id)
         _tree_cache[cache_key] = {"tree": tree, "ts": now}
         return {"tree": tree, "cached": False}
@@ -67,7 +70,6 @@ async def get_tree(user_id: str = Depends(require_authenticated_user)):
 @router.get("/workspaces/tree/children")
 async def get_tree_children(path: str, user_id: str = Depends(require_authenticated_user)):
     try:
-        # Передаем user_id
         res = await workspace_manager.get_tree_children(path, user_id=user_id)
         return res
     except Exception as e:
@@ -77,12 +79,13 @@ async def get_tree_children(path: str, user_id: str = Depends(require_authentica
 @router.get("/workspaces/file")
 async def read_file(path: str, user_id: str = Depends(require_authenticated_user)):
     try:
-        # Передаем user_id
         content = await workspace_manager.read_file(path, user_id=user_id)
         return {"path": path, "content": content}
     except Exception as e:
         raise HTTPException(500, str(e))
 
+
+# ─── ДИНАМИЧЕСКИЕ И БАЗОВЫЕ МАРШРУТЫ (Ниже статичных) ───
 
 @router.get("/workspaces")
 async def list_workspaces(user_id: str = Depends(get_current_user)):
@@ -193,5 +196,20 @@ async def write_file(payload: dict, user_id: str = Depends(require_authenticated
         # Передаем user_id
         await workspace_manager.write_file(payload["path"], payload["content"], user_id=user_id)
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+# Добавить в самый конец файла app/api/workspaces.py на клиенте
+@router.post("/workspaces/execute")
+async def execute_command(payload: dict):
+    """Выполняет произвольную терминальную команду в активном ворксейсе с CWD."""
+    command = payload.get("command")
+    cwd = payload.get("cwd")
+    if not command:
+        raise HTTPException(400, "Command is required")
+    try:
+        # Выполняем напрямую для локального терминала без ограничений Depends
+        res = await workspace_manager.execute(command, cwd=cwd)
+        return res
     except Exception as e:
         raise HTTPException(500, str(e))

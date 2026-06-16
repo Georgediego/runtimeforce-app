@@ -18,8 +18,12 @@ app = FastAPI(title="AI Runtime IDE", version="2.0.0")
 # Register all API routers via central registry
 register_all(app)
 
-# Mount static files
-_static_dir = str(Path(__file__).resolve().parent / "static")
+# Вычисляем абсолютные пути относительно расположения этого файла main.py
+_app_dir = Path(__file__).resolve().parent
+_static_dir = str(_app_dir / "static")
+_templates_dir = _app_dir / "templates"
+
+# Mount static files using absolute path
 app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 @app.on_event("startup")
@@ -48,5 +52,5 @@ async def shutdown_event():
 
 @app.get("/")
 async def root():
-    """Serve main IDE page as static file (no Jinja2 parsing)."""
-    return FileResponse("app/templates/index.html")
+    """Serve main IDE page as static file using absolute path."""
+    return FileResponse(_templates_dir / "index.html")

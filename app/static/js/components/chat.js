@@ -1,5 +1,5 @@
 import { state, setState, subscribe } from "../state.js";
-import { sessionsApi, workspacesApi } from "../api.js";
+import { streamChat, sessionsApi, workspacesApi } from "../api.js";
 import { escapeHtml } from "../utils/escape.js";
 import { refreshIcons, getFileIcon } from "../utils/icons.js";
 import { showToast } from "./toast.js";
@@ -16,6 +16,39 @@ var modelLockSelect = document.getElementById("model-lock-select");
 
 // AbortController для кнопки Stop
 var currentAbortController = null;
+
+// Локальный кэш запущенных инструментов агента
+var runningAgentCommands = {};
+
+// Внедрение контрастных кнопок копирования кода в pre
+function injectCodeCopyButtons(container) {
+    container.querySelectorAll("pre").forEach(function(pre) {
+        if (pre.querySelector(".code-copy-btn")) return; // Защита от дубликатов
+        pre.style.position = "relative";
+        
+        var copyBtn = document.createElement("button");
+        copyBtn.className = "code-copy-btn absolute top-2 right-2 p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition z-10 cursor-pointer flex items-center justify-center shadow-lg";
+        copyBtn.title = "Копировать код";
+        copyBtn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i>';
+        
+        pre.appendChild(copyBtn);
+        
+        copyBtn.addEventListener("click", function(e) {
+            e.stopPropagation();
+            var codeText = pre.querySelector("code")?.textContent || pre.textContent;
+            navigator.clipboard.writeText(codeText).then(function() {
+                showToast("Код скопирован", "success", 1500);
+                copyBtn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>';
+                setTimeout(function() {
+                    copyBtn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i>';
+                    refreshIcons(copyBtn);
+                }, 2000);
+            }).catch(function() {
+                showToast("Ошибка копирования", "error");
+            });
+        });
+    });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // DEBUG TRACE PANEL
@@ -93,9 +126,10 @@ function updateActiveToolsUI() {
     }
 }
 
-function registerActiveTool(toolId, toolName) {
+function registerActiveTool(toolId, toolName, args) {
     activeTools[toolId] = {
         name: toolName,
+        arguments: args || "",
         status: 'running',
         startTime: Date.now()
     };
@@ -108,6 +142,7 @@ function updateActiveTool(toolId, status, elapsedMs) {
         activeTools[toolId].elapsedMs = elapsedMs;
         updateActiveToolsUI();
         
+        // Скрываем инструмент через 3 секунды после завершения
         if (status !== 'running') {
             setTimeout(function() {
                 delete activeTools[toolId];
@@ -115,6 +150,18 @@ function updateActiveTool(toolId, status, elapsedMs) {
             }, 3000);
         }
     }
+}
+
+// Откатоустойчивый рендерер Markdown
+function renderMarkdown(text) {
+    if (window.marked) {
+        if (typeof window.marked.parse === "function") {
+            return window.marked.parse(text);
+        } else if (typeof window.marked === "function") {
+            return window.marked(text);
+        }
+    }
+    return escapeHtml(text).replace(/\n/g, "<br>");
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -130,7 +177,9 @@ export function initChat() {
     promptInput.addEventListener("keydown", function(e) {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            sendMessage();
+            if (!state.isGenerating) {
+                sendMessage();
+            }
         }
     });
 
@@ -141,47 +190,97 @@ export function initChat() {
         if (log) log.innerHTML = "";
     });
 
-    // Обработка кнопки STOP
-    document.getElementById("stop-gen-btn")?.addEventListener("click", function() {
+    var stopBtnTrace = document.getElementById("stop-generation-btn");
+    var stopBtnChat = document.getElementById("stop-gen-btn");
+    
+    var handleStopAction = function() {
         if (currentAbortController) {
             currentAbortController.abort();
-            appendTrace("SYSTEM", "bg-red-900 text-red-200", "Генерация прервана пользователем.");
-            showToast("Генерация остановлена", "info");
+            appendTrace("STOPPED", "error", "Процесс принудительно остановлен пользователем.");
+            showToast("Генерация прервана", "warning");
+            
+            if (stopBtnTrace) {
+                stopBtnTrace.innerHTML = '<i data-lucide="square" class="w-3 h-3"></i> Останавливаю...';
+                setTimeout(() => {
+                    stopBtnTrace.innerHTML = '<i data-lucide="square" class="w-3 h-3"></i> Stop';
+                    refreshIcons(stopBtnTrace);
+                }, 1000);
+            }
+            
             setGenerating(false);
         }
-    });
+    };
 
-    // Кнопка прикрепления файлов контекста (вызов модалки)
+    stopBtnTrace?.addEventListener("click", handleStopAction);
+    stopBtnChat?.addEventListener("click", handleStopAction);
+
     document.getElementById("attach-context-btn")?.addEventListener("click", function() {
         openContextPicker();
     });
 
-    // Модалка контекста кнопки подтверждения/отмены
     document.getElementById("ctx-picker-cancel")?.addEventListener("click", closeContextPicker);
     document.getElementById("ctx-picker-confirm")?.addEventListener("click", confirmContextPicker);
 
-    // Живой поиск в контекст-пикере
     document.getElementById("ctx-picker-search")?.addEventListener("input", function(e) {
         filterContextPicker(e.target.value);
     });
 
-    // Настройка выпадающего списка под стратегии оркестратора
     if (strategySelect) {
         strategySelect.addEventListener("change", handleStrategyChange);
         handleStrategyChange();
     }
 
-    // При изменении чекбоксов фильтров — мгновенно перестраиваем все списки моделей
     document.querySelectorAll(".model-filter-checkbox, .model-filter-provider").forEach(function(el) {
         el.addEventListener("change", filterAllDropdowns);
     });
 
-    // Подписка на обновление моделей
     subscribe("models", function(models) {
         filterAllDropdowns();
     });
 
-    // Отрисовка пустого или дефолтного стрипа контекста
+    var attachBtn = document.getElementById("attach-btn");
+    var fileInput = document.getElementById("attach-file-input");
+    if (attachBtn && fileInput) {
+        attachBtn.addEventListener("click", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener("change", function(e) {
+            var files = e.target.files;
+            if (!files || !files.length) return;
+            Array.from(files).forEach(function(file) {
+                if (file.size > 5 * 1024 * 1024) {
+                    showToast(file.name + " > 5MB, пропущен", "error");
+                    return;
+                }
+                var chipId = "up-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+                var chip = { id: chipId, type: "upload", name: file.name, size: file.size, content: null, loading: true };
+                state.attachedContext.push(chip);
+                setState("attachedContext", state.attachedContext);
+                renderContextStrip();
+
+                var reader = new FileReader();
+                reader.onload = function(ev) {
+                    var found = state.attachedContext.find(function(c) { return c.id === chipId; });
+                    if (found) {
+                        found.content = ev.target.result;
+                        found.loading = false;
+                        renderContextStrip();
+                    }
+                };
+                reader.onerror = function() {
+                    setState("attachedContext", state.attachedContext.filter(function(c) { return c.id !== chipId; }));
+                    renderContextStrip();
+                    showToast("Ошибка чтения " + file.name, "error");
+                };
+                reader.readAsText(file);
+            });
+            fileInput.value = "";
+        });
+    }
+
     renderContextStrip();
 }
 
@@ -190,14 +289,26 @@ function setGenerating(val) {
     setState("isGenerating", val);
     
     var stopBtn = document.getElementById("stop-gen-btn");
+    var stopBtnTrace = document.getElementById("stop-generation-btn");
+    
     if (val) {
         sendBtn.disabled = true;
         sendBtn.classList.add("opacity-50");
         stopBtn?.classList.remove("hidden");
+        
+        if (stopBtnTrace) {
+            stopBtnTrace.disabled = false;
+            stopBtnTrace.classList.remove("opacity-50", "cursor-not-allowed");
+        }
     } else {
         sendBtn.disabled = false;
         sendBtn.classList.remove("opacity-50");
         stopBtn?.classList.add("hidden");
+        
+        if (stopBtnTrace) {
+            stopBtnTrace.disabled = true;
+            stopBtnTrace.classList.add("opacity-50", "cursor-not-allowed");
+        }
         currentAbortController = null;
     }
 }
@@ -209,6 +320,7 @@ export function newChat() {
     setState("currentSessionId", null);
     setState("attachedContext", []);
     chatHistoryDOM.innerHTML = "";
+    if (typeof setAgentStatus === "function") setAgentStatus("Idle");
     renderContextStrip();
     promptInput.value = "";
     promptInput.style.height = "auto";
@@ -217,9 +329,6 @@ export function newChat() {
 
 export async function loadChatSession(sessionId) {
     if (!sessionId) return;
-    try {
-        var data = await workspacesApi.file(path); // Неиспользуемый фикс
-    } catch(e) {}
     try {
         var data = await sessionsApi.messages(sessionId);
         var messageList = data.messages || [];
@@ -243,9 +352,9 @@ function renderChatHistory() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-function appendMessageDOM(role, content, traceData = null) {
+export function appendMessageDOM(role, content, traceData = null) {
     var msgDiv = document.createElement("div");
-    msgDiv.className = "message-fade-in flex w-full p-4 " + 
+    msgDiv.className = "message-fade-in flex w-full p-4 group " + 
         (role === "user" ? "justify-end" : "justify-start bg-gray-900/20 border-y border-ide-border/50");
 
     var container = document.createElement("div");
@@ -259,22 +368,70 @@ function appendMessageDOM(role, content, traceData = null) {
 
     var body = document.createElement("div");
     if (role === "user") {
-        body.className = "bg-indigo-950/20 border border-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-gray-200 leading-relaxed max-w-full font-sans";
-        body.textContent = content;
+        body.className = "bg-indigo-950/20 border border-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-gray-200 leading-relaxed max-w-full font-sans relative";
+        
+        if (content.length > 300) {
+            var shortText = content.slice(0, 300);
+            var longText = content.slice(300);
+            
+            body.innerHTML = 
+                '<span class="user-text-short">' + escapeHtml(shortText) + '</span>' +
+                '<span class="user-text-dots">... </span>' +
+                '<span class="user-text-long hidden">' + escapeHtml(longText) + '</span>' +
+                '<button class="user-text-toggle-btn text-indigo-400 hover:text-indigo-300 font-semibold ml-1.5 cursor-pointer transition text-xs select-none">Показать всё</button>';
+            
+            var btn = body.querySelector(".user-text-toggle-btn");
+            var longSpan = body.querySelector(".user-text-long");
+            var dotsSpan = body.querySelector(".user-text-dots");
+            
+            btn.addEventListener("click", function() {
+                var isHidden = longSpan.classList.contains("hidden");
+                if (isHidden) {
+                    longSpan.classList.remove("hidden");
+                    dotsSpan.classList.add("hidden");
+                    btn.textContent = "Свернуть";
+                } else {
+                    longSpan.classList.add("hidden");
+                    dotsSpan.classList.remove("hidden");
+                    btn.textContent = "Показать всё";
+                }
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            });
+        } else {
+            body.textContent = content;
+        }
     } else {
-        body.className = "flex-1 space-y-2 overflow-hidden text-gray-200 leading-relaxed text-sm prose prose-invert font-sans";
-        body.innerHTML = window.markdownUtils ? window.markdownUtils.render(content) : escapeHtml(content);
+        body.className = "flex-1 space-y-2 overflow-hidden text-gray-200 leading-relaxed text-sm prose prose-invert font-sans content-div";
+        body.innerHTML = renderMarkdown(content);
     }
 
     container.appendChild(avatar);
     container.appendChild(body);
     msgDiv.appendChild(container);
 
+    if (role === "assistant") {
+        var actionsDiv = document.createElement("div");
+        actionsDiv.className = "msg-actions flex items-start gap-1 pt-0.5 shrink-0";
+        actionsDiv.innerHTML = '<button class="copy-msg-btn p-1 rounded hover:bg-ide-hover text-ide-muted" title="Скопировать весь ответ"><i data-lucide="copy" class="w-3 h-3"></i></button>';
+        msgDiv.appendChild(actionsDiv);
+        
+        var copyBtn = actionsDiv.querySelector(".copy-msg-btn");
+        if (copyBtn) {
+            copyBtn.addEventListener("click", function() {
+                navigator.clipboard.writeText(body.textContent);
+                showToast("Весь ответ скопирован", "success", 1500);
+            });
+        }
+    }
+
     if (role === "assistant" && traceData) {
         renderToolTraceBlock(body, traceData);
     }
 
+    injectCodeCopyButtons(msgDiv);
+
     chatHistoryDOM.appendChild(msgDiv);
+    refreshIcons(msgDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
     
     if (window.Prism) {
@@ -282,6 +439,7 @@ function appendMessageDOM(role, content, traceData = null) {
             window.Prism.highlightElement(block);
         });
     }
+    return body;
 }
 
 function renderToolTraceBlock(parentDOM, trace) {
@@ -339,20 +497,24 @@ function renderToolTraceBlock(parentDOM, trace) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ОТПРАВКА СООБЩЕНИЙ И СТРИМИНГ ИИ
+// ОТПРАВКА СООБЩЕНИЙ И СТРИМИНГ ИИ (JSON SSE PARSER)
 // ═══════════════════════════════════════════════════════════════
 
 async function sendMessage() {
     var text = promptInput.value.trim();
-    if (!text || state.isGenerating) return;
+    if (!text && !state.attachedContext.length) return;
 
     var isNewSession = !state.currentSessionId;
 
     promptInput.value = "";
     promptInput.style.height = "auto";
 
-    appendMessageDOM("user", text);
-    
+    var aiContentDiv = appendMessageDOM("assistant", "");
+    var avatarEl = aiContentDiv.closest(".group")?.querySelector(".shadow-inner");
+    if (avatarEl) {
+        avatarEl.classList.add("avatar-thinking");
+    }
+
     state.chatHistory.push({ role: "user", content: text });
     
     var currentSessionId = state.currentSessionId;
@@ -372,22 +534,6 @@ async function sendMessage() {
     setGenerating(true);
     currentAbortController = new AbortController();
 
-    var msgDiv = document.createElement("div");
-    msgDiv.className = "message-fade-in flex space-x-4 p-4 bg-gray-900/20 border-y border-gray-800/30";
-    
-    var avatar = document.createElement("div");
-    avatar.className = "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold shadow-inner bg-emerald-600/20 text-emerald-400 border border-emerald-500/30";
-    avatar.textContent = "AI";
-
-    var body = document.createElement("div");
-    body.className = "flex-1 space-y-2 overflow-hidden text-gray-200 leading-relaxed";
-    body.innerHTML = '<span class="text-gray-500 animate-pulse">Думает...</span>';
-
-    msgDiv.appendChild(avatar);
-    msgDiv.appendChild(body);
-    chatHistoryDOM.appendChild(msgDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-
     var messagesForLLM = [];
     
     if (state.attachedContext && state.attachedContext.length) {
@@ -405,10 +551,8 @@ async function sendMessage() {
     });
 
     var fullAssistantText = "";
-    var currentToolCalls = {};
     var streamTraceData = { calls: [] };
 
-    // Вычисляем комбинированную или одиночную стратегию
     var strategyVal = (strategySelect && strategySelect.value) || "auto";
     if (strategyVal === "combined") {
         var checked = [];
@@ -437,7 +581,6 @@ async function sendMessage() {
                 strategy: strategyVal,
                 model_lock: modelLockVal,
                 temperature: 0.2,
-                // Ручной выбор участников для шагов Консилиума
                 consilium_draft_model: (strategySelect && strategySelect.value === "consilium") ? (document.getElementById("consilium-draft-select")?.value || null) : null,
                 consilium_critic_model: (strategySelect && strategySelect.value === "consilium") ? (document.getElementById("consilium-critic-select")?.value || null) : null,
                 consilium_synth_model: (strategySelect && strategySelect.value === "consilium") ? (document.getElementById("consilium-synth-select")?.value || null) : null,
@@ -457,107 +600,105 @@ async function sendMessage() {
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
-            var lines = buffer.split("\n");
+            var lines = buffer.split("\n\n");
             buffer = lines.pop();
 
             for (var i = 0; i < lines.length; i++) {
-                var line = lines[i];
-                var trimmed = line.trim();
-                if (!trimmed) continue;
+                var line = lines[i].trim();
+                if (!line || !line.startsWith("data: ")) continue;
+
+                var dataStr = line.slice(6).trim();
+                if (dataStr === "[DONE]") continue;
 
                 try {
-                    if (trimmed.startsWith("SYSTEM_NOTICE:")) {
-                        var msg = trimmed.substring("SYSTEM_NOTICE:".length);
-                        appendTrace("SYSTEM", "error", msg);
+                    var event = JSON.parse(dataStr);
+                    var status = event.status;
+
+                    if (status === "fallback") {
+                        appendTrace("SYSTEM", "error", event.message || "Switching...");
                     }
-                    else if (trimmed.startsWith("SYSTEM_ERROR:")) {
-                        var err = trimmed.substring("SYSTEM_ERROR:".length);
-                        appendTrace("ERROR", "error", err);
+                    else if (status === "failed") {
+                        appendTrace("ERROR", "error", event.error || "Unknown error");
+                        aiContentDiv.innerHTML = "<span class=\"text-ide-error font-medium\">⚠️ " + escapeHtml(event.error) + "</span>";
                     }
-                    else if (trimmed.startsWith("MODEL_TRY:")) {
-                        var meta = JSON.parse(trimmed.substring("MODEL_TRY:".length));
-                        appendTrace("TRY", "try", meta.model.split("/").pop() + " (" + meta.provider + ")");
+                    else if (status === "model_try") {
+                        appendTrace("TRY", "try", event.model.split("/").pop() + " (" + event.provider + ")");
                         var rModelEl = document.getElementById("current-model-display");
-                        if (rModelEl) rModelEl.textContent = meta.model.split("/").pop();
+                        if (rModelEl) rModelEl.textContent = event.model.split("/").pop();
                     }
-                    else if (trimmed.startsWith("MODEL_ERROR:")) {
-                        var meta = JSON.parse(trimmed.substring("MODEL_ERROR:".length));
-                        appendTrace("FAIL", "error", meta.model.split("/").pop() + " failed: " + meta.error);
+                    else if (status === "model_error") {
+                        appendTrace("FAIL", "error", event.model.split("/").pop() + " failed: " + event.error);
                     }
-                    else if (trimmed.startsWith("MODEL_SUCCESS:")) {
-                        var meta = JSON.parse(trimmed.substring("MODEL_SUCCESS:".length));
-                        appendTrace("SUCCESS", "success", meta.model.split("/").pop() + " in " + meta.elapsed_ms + "ms");
+                    else if (status === "model_success") {
+                        appendTrace("SUCCESS", "success", event.model.split("/").pop() + " in " + event.elapsed_ms + "ms");
                     }
-                    else if (trimmed.startsWith("ITERATION:")) {
-                        var meta = JSON.parse(trimmed.substring("ITERATION:".length));
-                        appendTrace("ITER", "iter", "Loop " + meta.iteration + "/" + meta.max);
+                    else if (status === "iteration_start") {
+                        appendTrace("ITER", "iter", "Loop " + event.iteration + "/" + event.max_iterations);
                     }
-                    else if (trimmed.startsWith("METADATA:")) {
-                        var meta = JSON.parse(trimmed.substring("METADATA:".length));
-                        var rModelEl = document.getElementById("current-model-display");
-                        if (rModelEl) rModelEl.textContent = meta.model.split("/").pop();
+                    else if (status === "title_generated") {
+                        loadSessions();
                     }
-                    else if (trimmed.startsWith("TOOL_START:")) {
-                        var meta = JSON.parse(trimmed.substring("TOOL_START:".length));
-                        appendTrace("TOOL", "tool", "Running: " + meta.tool_name);
-                        registerActiveTool(meta.tool_id, meta.tool_name);
+                    else if (status === "tool_start") {
+                        appendTrace("TOOL", "tool", "Running: " + event.tool_name);
+                        registerActiveTool(event.tool_id, event.tool_name, event.arguments);
                     }
-                    else if (trimmed.startsWith("TOOL_END:")) {
-                        var meta = JSON.parse(trimmed.substring("TOOL_END:".length));
-                        appendTrace("DONE", "done", "Finished: " + meta.tool_name);
-                        updateActiveTool(meta.tool_id, meta.result?.error ? 'error' : 'success', 1000);
+                    else if (status === "tool_end") {
+                        appendTrace("DONE", "done", "Finished: " + event.tool_name);
+                        updateActiveTool(event.tool_id, event.result?.error ? 'error' : 'success', 1000);
                         
                         streamTraceData.calls.push({
-                            name: meta.tool_name,
-                            args: meta.arguments || "",
-                            result: meta.result || "",
-                            status: meta.result?.error ? 'error' : 'success'
+                            name: event.tool_name,
+                            args: event.arguments || "",
+                            result: event.result || "",
+                            status: event.result?.error ? 'error' : 'success'
                         });
                         
-                        if (["write_file", "apply_patch", "execute_command"].includes(meta.tool_name)) {
+                        if (["write_file", "apply_patch", "execute_command"].includes(event.tool_name)) {
                             loadFileTree();
                             loadGitStatus();
                         }
-                    }
-                    else if (line.startsWith("CONTENT:")) {
-                        var textToken = line.substring("CONTENT:".length);
-                        if (fullAssistantText === "") {
-                            body.innerHTML = "";
+
+                        if (event.tool_name === "execute_command" && event.result) {
+                            if (typeof window.appendAgentTerminalOutput === "function") {
+                                var activeTool = activeTools[event.tool_id];
+                                var rawArgs = activeTool ? activeTool.arguments : "";
+                                var argsObj = rawArgs;
+                                if (typeof argsObj === "string") {
+                                    try { argsObj = JSON.parse(argsObj); } catch(e) {}
+                                }
+                                var cmdText = argsObj?.command || argsObj || "";
+                                window.appendAgentTerminalOutput(cmdText, event.result);
+                            }
                         }
-                        fullAssistantText += textToken;
-                        body.innerHTML = window.markdownUtils ? window.markdownUtils.render(fullAssistantText) : escapeHtml(fullAssistantText);
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
                     }
-                    else {
-                        if (fullAssistantText === "") {
-                            body.innerHTML = "";
+                    else if (status === "streaming") {
+                        if (event.model) {
+                            var rModelEl = document.getElementById("current-model-display");
+                            if (rModelEl) rModelEl.textContent = event.model.split("/").pop();
                         }
-                        fullAssistantText += line + "\n";
-                        body.innerHTML = window.markdownUtils ? window.markdownUtils.render(fullAssistantText) : escapeHtml(fullAssistantText);
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                        
+                        if (event.content) {
+                            if (fullAssistantText === "") {
+                                aiContentDiv.innerHTML = "";
+                            }
+                            fullAssistantText += event.content;
+                            aiContentDiv.innerHTML = renderMarkdown(fullAssistantText);
+                            injectCodeCopyButtons(aiContentDiv);
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
                     }
                 } catch (err) {
-                    console.error("Ошибка парсинга строки потока:", err, line);
+                    console.error("Ошибка парсинга строки потока:", err, dataStr);
                 }
             }
         }
 
-        state.chatHistory.push({ 
-            role: "assistant", 
-            content: fullAssistantText,
-            trace: streamTraceData.calls.length ? streamTraceData : null
-        });
-        
-        if (streamTraceData.calls.length) {
-            renderToolTraceBlock(body, streamTraceData);
-        }
-
     } catch (e) {
         if (e.name === "AbortError") {
-            // Запрос был отменен пользователем
+            // Запрос отменен
         } else {
             appendTrace("ERROR", "bg-red-900 text-red-200", "Ошибка стрима: " + e.message);
-            body.innerHTML = '<span class="text-red-400 font-medium">⚠️ Ошибка отправки: ' + escapeHtml(e.message) + '</span>';
+            aiContentDiv.innerHTML = '<span class="text-red-400 font-medium">⚠️ Ошибка отправки: ' + escapeHtml(e.message) + '</span>';
             showToast("Ошибка ИИ: " + e.message, "error");
         }
     } finally {
@@ -565,7 +706,11 @@ async function sendMessage() {
         state.attachedContext = [];
         setState("attachedContext", []);
         renderContextStrip();
-        loadSessions(); // <-- Автоматически стягиваем обновленный заголовок от ИИ
+        loadSessions();
+        
+        if (avatarEl) {
+            avatarEl.classList.remove("avatar-thinking");
+        }
     }
 }
 
@@ -608,7 +753,6 @@ function handleStrategyChange() {
 function filterAllDropdowns() {
     var models = state.models || {};
     
-    // Считываем текущее состояние фильтров чекбоксов
     var filters = {
         free: document.getElementById("filter-tier-free")?.checked ?? true,
         pro: document.getElementById("filter-tier-pro")?.checked ?? true,
@@ -621,7 +765,6 @@ function filterAllDropdowns() {
         filters.providers.push(cb.value);
     });
     
-    // Реактивно обновляем все четыре выпадающих списка моделей одновременно
     populateDropdown("model-lock-select", models, filters);
     populateDropdown("consilium-draft-select", models, filters);
     populateDropdown("consilium-critic-select", models, filters);
@@ -642,7 +785,6 @@ function populateDropdown(selectId, models, filters) {
     }
     
     providers.forEach(function(provider) {
-        // Фильтр по провайдерам
         if (filters.providers && filters.providers.length > 0 && !filters.providers.includes(provider)) return;
         
         var group = document.createElement("optgroup");
@@ -650,11 +792,9 @@ function populateDropdown(selectId, models, filters) {
         
         var addedCount = 0;
         models[provider].forEach(function(m) {
-            // Фильтр по планам (Free / Pro)
             if (!filters.free && m.tier === "free") return;
             if (!filters.pro && m.tier !== "free") return;
             
-            // Фильтр по способностям модели (Код / Аналитика)
             if (filters.code && !m.capabilities?.includes("code")) return;
             if (filters.reason && !m.capabilities?.includes("reasoning")) return;
             
@@ -813,10 +953,7 @@ async function confirmContextPicker() {
             var data = await workspacesApi.file(path);
             state.attachedContext.push({
                 id: "ws-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
-                type: "workspace", 
-                name: name, 
-                path: path, 
-                content: data.content || ""
+                type: "workspace", name: name, path: path, content: data.content || ""
             });
         } catch (e) {}
     }
