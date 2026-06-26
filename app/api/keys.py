@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Dict, Optional
 
 from app.api.schemas import KeysUpdatePayload
-from app.core.llm import orchestrator
+from app.core.llm import orchestrator, model_registry
 from app.core.crypto import encrypt, decrypt
 from app.memory.store import store
 
@@ -24,6 +24,9 @@ class KeyStatusResponse(BaseModel):
 async def update_runtime_keys(payload: KeysUpdatePayload):
     try:
         saved_count = 0
+        # Передаем флаг force_allow в реестр моделей перед обновлением
+        model_registry.force_allow = payload.force_allow
+
         for provider, plain_key in payload.keys.items():
             if plain_key and plain_key.strip():
                 encrypted = encrypt(plain_key)
@@ -42,11 +45,18 @@ async def update_runtime_keys(payload: KeysUpdatePayload):
         orchestrator.set_provider_keys(decrypted_keys)
         logger.info(f"Updated {saved_count} keys, orchestrator has {len(decrypted_keys)} keys")
 
+        # Принудительно вызываем обновление моделей с валидацией
+        await model_registry.refresh_all(orchestrator.provider_keys, force=True)
+
         return {
             "status": "success",
             "message": f"Saved {saved_count} keys securely",
             "providers": list(decrypted_keys.keys())
         }
+    except ValueError as ve:
+        # Перехватываем ошибку валидации слабых моделей и отдаем как 400 Bad Request
+        logger.error(f"Validation failed: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Failed to update keys: {e}")
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,11 +1,10 @@
 """
-Dynamic Model Registry.
-Models are discovered from provider APIs when keys are provided.
-NO HARDCODED MODELS. Everything comes from live introspection.
+Dynamic Model Registry with Strict Function Calling Validation.
 """
 import asyncio
 import logging
 import time
+import re
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 import httpx
@@ -24,6 +23,130 @@ class ModelMetadata:
     capabilities: List[str] = field(default_factory=list)
     tier: str = "free"
     description: str = ""
+    supports_function_calling: bool = False
+
+
+# Белый список сертифицированных Tier-1 моделей с нативной поддержкой Tool Calling
+TIER_1_FUNCTION_CALLING_MODELS = {
+    # Anthropic
+    "anthropic/claude-3-5-sonnet",
+    "anthropic/claude-3-5-sonnet-20241022",
+    "anthropic/claude-3-5-sonnet-latest",
+    "anthropic/claude-3-5-haiku",
+    "anthropic/claude-3-opus",
+    # OpenAI
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4",
+    "openai/gpt-4-turbo",
+    # Gemini
+    "gemini/gemini-1.5-pro",
+    "gemini/gemini-1.5-flash",
+    "gemini/gemini-2.0-flash",
+    "gemini/gemini-2.0-flash-exp",
+    "gemini/gemini-2.0-pro-exp",
+    # DeepSeek
+    "deepseek/deepseek-coder",
+    "deepseek/deepseek-chat",
+    # OpenRouter Mappings
+    "openrouter/anthropic/claude-3.5-sonnet",
+    "openrouter/google/gemini-2.0-flash-exp:free",
+    "openrouter/google/gemini-1.5-pro",
+    "openrouter/google/gemini-1.5-flash",
+    "openrouter/openai/gpt-4o",
+    "openrouter/openai/gpt-4o-mini",
+    "openrouter/deepseek/deepseek-coder",
+    # Groq Llama (Large variants with certified FC)
+    "groq/llama3-70b-8192",
+    "groq/llama-3.1-70b-versatile",
+    "groq/llama-3.3-70b-versatile",
+}
+
+
+def _check_function_calling_support(model_id: str) -> bool:
+    """Определяет нативную поддержку Function Calling по ID модели."""
+    mid_lower = model_id.lower()
+    
+    # Прямое сопоставление по белому списку
+    if model_id in TIER_1_FUNCTION_CALLING_MODELS:
+        return True
+        
+    # Динамический поиск по ключевым паттернам Tier-1 моделей
+    if any(m in mid_lower for m in [
+        "claude-3-5-sonnet", "claude-3.5-sonnet", "claude-3-5-haiku", "claude-3.5-haiku", "claude-3-opus",
+        "gpt-4o", "gpt-4-turbo", "gpt-4o-mini",
+        "gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0",
+        "deepseek-coder", "deepseek-chat"
+    ]):
+        return True
+        
+    # Разрешенные крупные локальные модели с проверенным Tool Calling
+    if "qwen2.5-coder:14b" in mid_lower or "qwen2.5-coder:32b" in mid_lower or "qwen2.5-coder:72b" in mid_lower:
+        return True
+    if "llama-3.1-70b" in mid_lower or "llama-3.3-70b" in mid_lower or "llama3-70b" in mid_lower:
+        return True
+        
+    return False
+
+
+def validate_custom_model(model_id: str, force_allow: bool = False) -> bool:
+    """
+    Проверяет подключаемую модель на соответствие минимальным требованиям качества.
+    Блокирует устаревший или слабый хлам (< 14B параметров для Ollama, gpt-3.5-turbo для OpenAI).
+    """
+    mid_lower = model_id.lower()
+    model_name = mid_lower.split("/")[-1] if "/" in mid_lower else mid_lower
+
+    # 1. Блокировка устаревших облачных моделей
+    if "gpt-3.5-turbo" in model_name or "text-davinci" in model_name:
+        if not force_allow:
+            raise ValueError(
+                f"Подключение устаревшей модели '{model_id}' заблокировано. "
+                f"Используйте современные Tier-1 альтернативы или передайте флаг 'force_allow': true."
+            )
+
+    # 2. Блокировка слабых локальных моделей (Ollama < 14B)
+    is_weak = False
+    reason = ""
+
+    # Извлечение размера параметров (например, :8b, :7b, :1.5b)
+    param_match = re.search(r':(\d+(\.\d+)?)[bM]', model_name)
+    if param_match:
+        params = float(param_match.group(1))
+        if params < 14.0:
+            is_weak = True
+            reason = f"размер модели ({params}B) меньше минимального порога в 14B параметров"
+    else:
+        # Известные слабые модели по умолчанию (без указания тега размера)
+        weak_patterns = [
+            r"llama3(?::|$|latest|:8b)",
+            r"llama2(?::|$|latest|:7b)",
+            r"gemma(?::|$|latest|:[27]b)",
+            r"gemma2(?::|$|latest|:9b)",
+            r"phi3(?::|$|latest)",
+            r"phi-3",
+            r"phi3.5",
+            r"mistral(?::|$|latest|:7b)",
+            r"qwen2.5:7b",
+            r"qwen2.5:3b",
+            r"qwen2.5:1.5b",
+            r"qwen2.5-coder:7b",
+            r"qwen2.5-coder:3b",
+            r"qwen2.5-coder:1.5b",
+        ]
+        for pattern in weak_patterns:
+            if re.search(pattern, model_name):
+                is_weak = True
+                reason = f"модель '{model_name}' идентифицирована как слабая локальная модель"
+                break
+
+    if is_weak and not force_allow:
+        raise ValueError(
+            f"Подключение слабой локальной модели '{model_id}' заблокировано ({reason}). "
+            f"Для надежной работы автономного агента требуется модель от 14B параметров (например, qwen2.5-coder:14b). "
+            f"Если вы уверены в своем выборе, повторите попытку с флагом 'force_allow': true."
+        )
+    return True
 
 
 PROVIDER_DISCOVERY = {
@@ -114,6 +237,7 @@ class ModelRegistry:
         self._lock = asyncio.Lock()
         self.refresh_interval = 3600
         self.last_refresh = 0.0
+        self.force_allow = False  # Флаг ручного пропуска валидации (BYOK/Ollama)
 
     async def discover_provider(self, provider: str, api_key: str) -> List[ModelMetadata]:
         discovery = PROVIDER_DISCOVERY.get(provider)
@@ -130,6 +254,9 @@ class ModelRegistry:
                 parser = getattr(self, f"_parse_{discovery['parser']}", None)
                 if parser:
                     return parser(provider, data)
+        except ValueError as ve:
+            # Пробрасываем ошибку валидации наверх для API ключей
+            raise ve
         except Exception as e:
             logger.error(f"Failed to fetch models from {provider}: {e}")
         return []
@@ -140,16 +267,31 @@ class ModelRegistry:
             mid = item.get("id", "")
             if not mid:
                 continue
+            model_id = f"{provider}/{mid}"
+            
+            # Прогон через Guardrail валидатор
+            try:
+                validate_custom_model(model_id, force_allow=self.force_allow)
+            except ValueError as ve:
+                logger.warning(f"Model excluded: {ve}")
+                if provider in ("openai", "ollama", "lm_studio") and not self.force_allow:
+                    raise ve
+                continue
+
             caps = ["text"]
             ml = mid.lower()
             if any(x in ml for x in ["coder", "code", "wizard"]):
                 caps.append("code")
             if any(x in ml for x in ["reason", "think", "r1"]):
                 caps.append("reasoning")
+            
+            supports_fc = _check_function_calling_support(model_id)
+
             models.append(ModelMetadata(
-                id=f"{provider}/{mid}", provider=provider, name=mid,
+                id=model_id, provider=provider, name=mid,
                 tier="free" if provider in FREE_PROVIDERS else "standard",
                 capabilities=caps,
+                supports_function_calling=supports_fc
             ))
         return models
 
@@ -159,6 +301,14 @@ class ModelRegistry:
             mid = item.get("id", "")
             if not mid:
                 continue
+            model_id = f"{provider}/{mid}"
+
+            # Прогон через Guardrail валидатор
+            try:
+                validate_custom_model(model_id, force_allow=self.force_allow)
+            except ValueError:
+                continue  # Для агрегатора OpenRouter просто пропускаем слабые модели, не роняя весь импорт
+
             pricing = item.get("pricing", {}) or {}
             inp = float(pricing.get("prompt", 0) or 0)
             out = float(pricing.get("completion", 0) or 0)
@@ -172,13 +322,17 @@ class ModelRegistry:
                 caps.append("reasoning")
             if any(x in ml or x in desc for x in ["vision", "image"]):
                 caps.append("vision")
+                
+            supports_fc = _check_function_calling_support(model_id)
+
             models.append(ModelMetadata(
-                id=f"{provider}/{mid}", provider=provider, name=mid,
+                id=model_id, provider=provider, name=mid,
                 context_window=item.get("context_length", 0) or 0,
                 pricing={"input": inp * 1000, "output": out * 1000},
                 capabilities=caps,
                 tier="free" if is_free else "standard",
                 description=(item.get("description") or "")[:200],
+                supports_function_calling=supports_fc
             ))
         return models
 
@@ -192,15 +346,21 @@ class ModelRegistry:
             methods = item.get("supportedGenerationMethods", [])
             if "generateContent" not in methods:
                 continue
+            model_id = f"{provider}/{mid}"
+            
             caps = ["text"]
             if "flash" in mid.lower() or "pro" in mid.lower():
                 caps.append("vision")
+                
+            supports_fc = _check_function_calling_support(model_id)
+
             models.append(ModelMetadata(
-                id=f"{provider}/{mid}", provider=provider, name=mid,
+                id=model_id, provider=provider, name=mid,
                 context_window=item.get("inputTokenLimit", 1000000),
                 max_output_tokens=item.get("outputTokenLimit", 8192),
                 tier="free", capabilities=caps,
                 description=item.get("description", ""),
+                supports_function_calling=supports_fc
             ))
         return models
 
@@ -210,13 +370,18 @@ class ModelRegistry:
             mid = item.get("id", "")
             if not mid:
                 continue
+            model_id = f"{provider}/{mid}"
             caps = ["text", "reasoning"]
             if "claude-3" in mid.lower():
                 caps.append("vision")
+                
+            supports_fc = _check_function_calling_support(model_id)
+
             models.append(ModelMetadata(
-                id=f"{provider}/{mid}", provider=provider, name=mid,
+                id=model_id, provider=provider, name=mid,
                 context_window=200000, max_output_tokens=8192,
                 tier="pro", capabilities=caps,
+                supports_function_calling=supports_fc
             ))
         return models
 
@@ -226,9 +391,12 @@ class ModelRegistry:
             mid = item.get("name", "") or item.get("id", "")
             if not mid:
                 continue
+            model_id = f"{provider}/{mid}"
+            supports_fc = _check_function_calling_support(model_id)
             models.append(ModelMetadata(
-                id=f"{provider}/{mid}", provider=provider, name=mid,
+                id=model_id, provider=provider, name=mid,
                 context_window=128000, tier="pro", capabilities=["text"],
+                supports_function_calling=supports_fc
             ))
         return models
 
@@ -257,7 +425,10 @@ class ModelRegistry:
             for p, k in provider_keys.items() if k and k.strip()
         ]
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, ValueError):
+                    raise r
 
     def get_available_models(self, provider_filter: Optional[str] = None) -> List[ModelMetadata]:
         models = list(self._models.values())

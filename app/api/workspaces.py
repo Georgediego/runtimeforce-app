@@ -16,7 +16,7 @@ logger = logging.getLogger("ai_runtime.api.workspaces")
 router = APIRouter(prefix="/api/v1", tags=["workspaces"])
 
 _tree_cache: dict = {}
-TREE_CACHE_TTL = 30
+TREE_CACHE_TTL = 0
 
 
 # ─── СТАТИЧНЫЕ МАРШРУТЫ (Должны быть строго ВЫШЕ параметрических) ───
@@ -166,8 +166,16 @@ async def activate_workspace(wid: str, user_id: str = Depends(require_authentica
     ws = store.get_workspace(wid, user_id=user_id)
     if not ws:
         raise HTTPException(404, "Workspace not found")
-    workspace_manager.set_active(wid)
+        
+    # ИСПРАВЛЕНО: Теперь передаем user_id в менеджер ворксейсов
+    workspace_manager.set_active(wid, user_id=user_id)
     store.set_active_workspace(wid, user_id=user_id)
+    
+    # Сбрасываем старый кэш дерева для этого пользователя, чтобы данные обновились
+    cache_key = f"{user_id}:{wid}"
+    if cache_key in _tree_cache:
+        _tree_cache.pop(cache_key, None)
+        
     return {"status": "success", "active_id": wid}
 
 

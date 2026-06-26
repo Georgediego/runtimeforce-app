@@ -51,8 +51,8 @@ class WorkspaceManager:
             
         return None
 
-    def set_active(self, workspace_id: str):
-        store.set_active_workspace(workspace_id)
+    def set_active(self, workspace_id: str, user_id: str):
+        store.set_active_workspace(workspace_id, user_id=user_id)
         self._active_workspace_id = workspace_id
 
     def _is_ssh(self, ws: Dict[str, Any]) -> bool:
@@ -107,6 +107,21 @@ class WorkspaceManager:
             conn._authenticated = True
 
         return conn
+
+    # НОВЫЙ МЕТОД: Умное разрешение путей относительно корня воркспейса
+    def _resolve_path(self, ws: Dict[str, Any], path: str) -> str:
+        root = ws.get("path")
+        if not root:
+            return path
+        
+        # Если путь уже абсолютный и лежит внутри воркспейса, возвращаем как есть
+        if os.path.isabs(path):
+            if path.startswith(root):
+                return path
+            # Если абсолютный, но не в воркспейсе, превращаем в относительный
+            path = path.lstrip("/\\")
+            
+        return os.path.join(root, path)
 
     async def execute(self, cmd: str, cwd: Optional[str] = None, timeout: float = 30.0, user_id: str = "anonymous") -> Dict[str, Any]:
         ws = self.get_active(user_id=user_id)
@@ -289,25 +304,38 @@ class WorkspaceManager:
         ws = self.get_active(user_id=user_id)
         if not ws:
             raise HTTPException(status_code=404, detail="No active workspace")
+            
+        resolved_path = self._resolve_path(ws, path)
+        
         if self._is_ssh(ws):
             conn = await self._get_ssh(ws)
-            result = await conn.execute(f"cat '{path}'")
+            result = await conn.execute(f"cat '{resolved_path}'")
             return result.get("stdout", "") if isinstance(result, dict) else (result or "")
         else:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(resolved_path, "r", encoding="utf-8") as f:
                 return f.read()
 
     async def write_file(self, path: str, content: str, user_id: str = "anonymous") -> bool:
         ws = self.get_active(user_id=user_id)
         if not ws:
             raise HTTPException(status_code=404, detail="No active workspace")
+            
+        resolved_path = self._resolve_path(ws, path)
+        
         if self._is_ssh(ws):
             conn = await self._get_ssh(ws)
+            # Убедимся, что директория существует на удаленном сервере перед записью
+            dirname = os.path.dirname(resolved_path)
+            if dirname:
+                await conn.execute(f"mkdir -p '{dirname}'")
+                
             b64_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-            await conn.execute(f"echo '{b64_content}' | base64 -d > {path}")
+            await conn.execute(f"echo '{b64_content}' | base64 -d > '{resolved_path}'")
             return True
         else:
-            with open(path, "w", encoding="utf-8") as f:
+            # Создаем все вложенные папки, если их еще нет
+            os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
+            with open(resolved_path, "w", encoding="utf-8") as f:
                 f.write(content)
             return True
 

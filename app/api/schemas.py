@@ -23,6 +23,7 @@ class ChatCompletionPayload(BaseModel):
 class KeysUpdatePayload(BaseModel):
     """Request body for hot-reloading provider API keys."""
     keys: Dict[str, str]
+    force_allow: Optional[bool] = False  # Разрешить подключение слабых/устаревших моделей
 
 
 class SessionCreatePayload(BaseModel):
