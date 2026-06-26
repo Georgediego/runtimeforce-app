@@ -1,75 +1,87 @@
 /**
- * RuntimeForce Auth Module
- * Только OAuth авторизация через runtimeforce-server
- */
+RuntimeForce Auth Module
+Только OAuth авторизация через runtimeforce-server
+*/
 window.RFAuth = {
     TOKEN_KEY: 'rf_jwt_token',
-
     getToken: function() { return localStorage.getItem(this.TOKEN_KEY); },
     getPlan: function() { return localStorage.getItem('rf_plan') || 'free'; },
     getEmail: function() { return localStorage.getItem('rf_email') || ''; },
     isAuthenticated: function() { return !!this.getToken(); },
-
+    
     showAuth: function() {
-        const o = document.getElementById('rf-auth-overlay');
+        var o = document.getElementById('rf-auth-overlay');
         if (o) o.style.display = 'flex';
         document.body.style.overflow = 'hidden';
     },
-
     hideAuth: function() {
-        const o = document.getElementById('rf-auth-overlay');
+        var o = document.getElementById('rf-auth-overlay');
         if (o) o.style.display = 'none';
         document.body.style.overflow = '';
-        setTimeout(() => {
-            if (typeof this.updateProfileUI === 'function') this.updateProfileUI();
-            // Уведомляем app.js что пользователь авторизован — можно загружать данные
+        setTimeout(function() {
+            if (typeof window.RFAuth.updateProfileUI === 'function') {
+                window.RFAuth.updateProfileUI();
+            }
             window.dispatchEvent(new Event('rf-authenticated'));
         }, 100);
     },
-
     showError: function(msg) {
-        const e = document.getElementById('rf-auth-error');
-        const s = document.getElementById('rf-auth-success');
+        var e = document.getElementById('rf-auth-error');
+        var s = document.getElementById('rf-auth-success');
         if (s) s.classList.add('hidden');
         if (e) { e.textContent = msg; e.classList.remove('hidden'); }
     },
-
     oauth: function(provider) {
-        const w = 600, h = 700;
-        const left = (screen.width - w) / 2;
-        const top = (screen.height - h) / 2;
+        var w = 600, h = 700;
+        var left = (screen.width - w) / 2;
+        var top = (screen.height - h) / 2;
         window.open('https://runtimeforce.dev/auth/' + provider, 'oauth_popup',
             'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top);
     },
-
     toggleUserMenu: function(e) {
-        if (e) e.stopPropagation();
-        const m = document.getElementById('rf-user-menu');
-        if (!m) return;
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        var m = document.getElementById('rf-user-menu');
+        var chevron = document.getElementById('profile-chevron');
+        if (!m) {
+            console.warn('Profile menu not found');
+            return;
+        }
         if (m.classList.contains('hidden')) {
             m.classList.remove('hidden');
-            requestAnimationFrame(() => {
+            requestAnimationFrame(function() {
                 m.style.opacity = '1';
                 m.style.transform = 'translateY(0)';
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
             });
         } else {
-            m.style.opacity = '0';
-            m.style.transform = 'translateY(10px)';
-            setTimeout(() => m.classList.add('hidden'), 200);
+            this.closeUserMenu();
         }
     },
-
+    closeUserMenu: function() {
+        var m = document.getElementById('rf-user-menu');
+        var chevron = document.getElementById('profile-chevron');
+        if (!m) return;
+        m.style.opacity = '0';
+        m.style.transform = 'translateY(10px)';
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+        setTimeout(function() {
+            if (m && (!m.style.opacity || m.style.opacity === '0')) {
+                m.classList.add('hidden');
+            }
+        }, 200);
+    },
     openSettings: function() {
-        var menu = document.getElementById('rf-user-menu');
-        if (menu) menu.classList.add('hidden');
+        this.closeUserMenu();
         if (typeof window.RFOpenSettings === 'function') {
             window.RFOpenSettings('general');
         } else {
-            const modal = document.getElementById('settings-modal');
+            var modal = document.getElementById('settings-modal');
             if (modal) modal.classList.remove('hidden');
         }
     },
-
     logout: function() {
         localStorage.removeItem(this.TOKEN_KEY);
         localStorage.removeItem('rf_plan');
@@ -77,40 +89,71 @@ window.RFAuth = {
         localStorage.removeItem('rf_avatar');
         location.reload();
     },
-
+    
     updateProfileUI: function() {
-        const email = this.getEmail();
+        var email = this.getEmail();
         if (!email) return;
-        const plan = this.getPlan();
-        const avatar = localStorage.getItem('rf_avatar') || email[0].toUpperCase();
+        var plan = this.getPlan();
+        var avatar = localStorage.getItem('rf_avatar') || email[0].toUpperCase();
+        var displayName = email.split('@')[0];
 
-        const av = document.getElementById('rf-user-avatar');
+        // ─── Хедер / Старые элементы ───
+        var av = document.getElementById('rf-user-avatar');
         if (av) av.textContent = avatar;
 
-        const nm = document.getElementById('rf-user-name');
-        if (nm) nm.textContent = email.split('@')[0];
+        var nm = document.getElementById('rf-user-name');
+        if (nm) nm.textContent = displayName;
 
-        const pl = document.getElementById('rf-user-plan');
+        var pl = document.getElementById('rf-user-plan');
         if (pl) {
-            const names = {free: 'Free', pro: 'PRO', studio: 'Studio'};
+            var names = {free: 'Free', pro: 'PRO', studio: 'Studio'};
             pl.textContent = names[plan] || 'Free';
-            pl.className = 'text-xs';
-            if (plan === 'pro') pl.classList.add('text-blue-400');
-            else if (plan === 'studio') pl.classList.add('text-purple-400');
-            else pl.classList.add('text-gray-400');
+            pl.className = 'text-[10px]';
+            if (plan === 'pro') pl.classList.add('text-[var(--ide-accent)]');
+            else if (plan === 'studio') pl.classList.add('text-[var(--ide-warning)]');
+            else pl.classList.add('text-[var(--ide-text-muted)]');
         }
 
-        const settingsPlan = document.getElementById('rf-settings-plan');
+        // ─── Settings Modal: General Tab ───
+        var settingsAvatar = document.getElementById('rf-settings-avatar');
+        if (settingsAvatar) settingsAvatar.textContent = avatar;
+
+        var settingsName = document.getElementById('rf-settings-name');
+        if (settingsName) settingsName.textContent = displayName;
+
+        var settingsPlan = document.getElementById('rf-settings-plan');
         if (settingsPlan) {
-            const names = {free: 'Бесплатный тариф', pro: 'PRO (€29/мес)', studio: 'Studio (€99/мес)'};
-            settingsPlan.textContent = names[plan] || 'Бесплатный тариф';
+            var names = {free: 'Free Plan', pro: 'PRO Plan', studio: 'Studio Plan'};
+            settingsPlan.textContent = names[plan] || 'Free Plan';
+            
+            // Цветовая индикация плана (стандартные цвета)
+            settingsPlan.classList.remove('text-[var(--ide-accent)]', 'text-[var(--ide-warning)]', 'text-[var(--ide-text-secondary)]');
+            if (plan === 'pro') {
+                settingsPlan.classList.add('text-[var(--ide-accent)]');
+            } else if (plan === 'studio') {
+                settingsPlan.classList.add('text-[var(--ide-warning)]');
+            } else {
+                settingsPlan.classList.add('text-[var(--ide-text-secondary)]');
+            }
         }
 
-        const me = document.getElementById('rf-menu-email');
+        // Кнопка Upgrade: показываем для free и pro, скрываем только для studio
+        var upgradeBtn = document.getElementById('rf-settings-upgrade-btn');
+        if (upgradeBtn) {
+            if (plan === 'studio') {
+                upgradeBtn.classList.add('hidden');
+            } else {
+                upgradeBtn.classList.remove('hidden');
+            }
+        }
+
+        // ─── Dropdown Menu ───
+        var me = document.getElementById('rf-menu-email');
         if (me) me.textContent = email;
-        const mp = document.getElementById('rf-menu-plan');
+
+        var mp = document.getElementById('rf-menu-plan');
         if (mp) {
-            const names = {free: 'Free Plan', pro: 'PRO Plan', studio: 'Studio Plan'};
+            var names = {free: 'Free Plan', pro: 'PRO Plan', studio: 'Studio Plan'};
             mp.textContent = names[plan] || 'Free Plan';
         }
     },
@@ -123,63 +166,82 @@ window.RFAuth = {
         }
 
         // Слушаем OAuth callback из popup
-        window.addEventListener('message', (event) => {
+        window.addEventListener('message', function(event) {
             if (event.origin !== 'https://runtimeforce.dev') return;
             if (event.data && (event.data.type === 'rf_github_auth' || event.data.type === 'rf_google_auth')) {
-                localStorage.setItem(this.TOKEN_KEY, event.data.token);
+                localStorage.setItem(window.RFAuth.TOKEN_KEY, event.data.token);
                 localStorage.setItem('rf_plan', event.data.plan || 'free');
                 localStorage.setItem('rf_email', event.data.email);
                 localStorage.setItem('rf_avatar', (event.data.email || 'U')[0].toUpperCase());
-                this.hideAuth();
+                window.RFAuth.hideAuth();
             }
         });
 
         // Закрытие dropdown при клике вне его
-        document.addEventListener('click', (e) => {
-            const m = document.getElementById('rf-user-menu');
-            const p = document.getElementById('rf-user-profile');
-            if (m && p && !m.contains(e.target) && !p.contains(e.target)) {
-                m.classList.add('hidden');
+        document.addEventListener('click', function(e) {
+            var m = document.getElementById('rf-user-menu');
+            var p = document.getElementById('rf-user-profile');
+            if (!m || !p) return;
+
+            if (!m.contains(e.target) && !p.contains(e.target)) {
+                if (!m.classList.contains('hidden')) {
+                    window.RFAuth.closeUserMenu();
+                }
             }
         });
     }
 };
 
+// ═══════════════════════════════════════════════════════════════
 // Инициализация обработчиков событий
+// ═══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
     // Кнопка профиля
-    document.getElementById('open-settings-btn')?.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.target.closest('[data-lucide="settings"]')) {
-            if (typeof window.RFOpenSettings === 'function') {
-                window.RFOpenSettings('general');
-            }
-        } else {
+    var profileBtn = document.getElementById('open-profile-btn');
+    if (profileBtn) {
+        profileBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             window.RFAuth.toggleUserMenu(e);
-        }
-    });
+        });
+    }
 
-    document.getElementById('rf-menu-settings-btn')?.addEventListener('click', function() {
-        if (typeof window.RFOpenSettings === 'function') {
-            window.RFOpenSettings('general');
-        }
-    });
+    // Settings (из меню)
+    var menuSettingsBtn = document.getElementById('rf-menu-settings-btn');
+    if (menuSettingsBtn) {
+        menuSettingsBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.RFAuth.openSettings();
+        });
+    }
 
-    document.getElementById('rf-menu-logout-btn')?.addEventListener('click', function() {
-        window.RFAuth.logout();
-    });
+    // Logout
+    var logoutBtn = document.getElementById('rf-menu-logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.RFAuth.logout();
+        });
+    }
 
     // OAuth кнопки
-    document.getElementById('rf-auth-github-btn')?.addEventListener('click', function() {
-        window.RFAuth.oauth('github');
-    });
+    var githubBtn = document.getElementById('rf-auth-github-btn');
+    if (githubBtn) {
+        githubBtn.addEventListener('click', function() {
+            window.RFAuth.oauth('github');
+        });
+    }
 
-    document.getElementById('rf-auth-google-btn')?.addEventListener('click', function() {
-        window.RFAuth.oauth('google');
-    });
+    var googleBtn = document.getElementById('rf-auth-google-btn');
+    if (googleBtn) {
+        googleBtn.addEventListener('click', function() {
+            window.RFAuth.oauth('google');
+        });
+    }
 });
 
 // Автозапуск
-document.addEventListener('DOMContentLoaded', () => window.RFAuth.init());
+document.addEventListener('DOMContentLoaded', function() { window.RFAuth.init(); });
 if (document.readyState !== 'loading') window.RFAuth.init();

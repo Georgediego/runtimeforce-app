@@ -3,646 +3,556 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RuntimeForce IDE</title>
-    <link rel="icon" href="/static/favicon.png" type="image/x-icon">
+    <title>RuntimeForce | Professional AI IDE</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" id="hljs-theme">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <script>
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    </script>
 </head>
-<body data-rf-version="MARKER-2026-06-01" class="bg-ide-bg text-ide-text h-screen w-screen overflow-hidden flex font-sans">
+<body class="h-screen flex flex-col">
 
-<!-- ===== LEFT SIDEBAR ===== -->
-<aside id="left-sidebar" class="w-56 bg-ide-panel border-r border-ide-border flex flex-col shrink-0">
-    <div class="h-11 flex items-center px-3 border-b border-ide-border justify-between shrink-0">
-        <div class="flex items-center gap-2">
-            <div class="w-5 h-5 rounded bg-ide-accent/20 flex items-center justify-center">
-                <i data-lucide="cpu" class="w-3 h-3 text-ide-accent"></i>
+    <header class="fixed top-0 w-full glass-header z-50 flex items-center justify-between px-4">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3">
+            <a href="https://runtimeforce.dev/" target="_blank" rel="noopener noreferrer" class="block hover:brightness-110 transition-all duration-200 shrink-0">
+                <img src="/static/runtimeforce.png" alt="RuntimeForce" class="h-12 w-auto object-contain">
+            </a>
             </div>
-            <span class="font-semibold text-xs tracking-widest text-ide-muted uppercase">Explorer</span>
         </div>
-        <button id="new-chat-btn" class="p-1 rounded hover:bg-ide-hover text-ide-muted" data-tip="Новый чат">
-            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-        </button>
-    </div>
-    <div class="px-3 py-2 shrink-0">
-        <div class="relative">
-            <i data-lucide="search" class="w-3 h-3 text-ide-muted absolute left-2.5 top-1/2 -translate-y-1/2"></i>
-            <input type="text" placeholder="Поиск по сессиям..." id="search-input" class="w-full bg-ide-hover border border-ide-border rounded-md pl-7 pr-7 py-1.5 text-xs">
-            <button id="search-clear" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-ide-muted hover:text-ide-text">
-                <i data-lucide="x" class="w-3 h-3"></i>
+
+        <div class="flex items-center gap-4 relative" id="rf-user-profile">
+            <button id="theme-toggle-btn" class="w-8 h-8 rounded-full hover:bg-[var(--ide-elevated)] flex items-center justify-center text-[var(--ide-text-secondary)]">
+                <i data-lucide="moon" id="theme-icon" class="w-4 h-4"></i>
             </button>
-        </div>
-        <div id="search-results-count" class="hidden text-[10px] text-ide-muted mt-1 px-1"></div>
-    </div>
-    <div class="flex-1 overflow-y-auto px-2 pb-2">
-        <div class="flex items-center justify-between mb-1.5 mt-2 px-2">
-            <span class="text-[10px] font-semibold text-ide-muted uppercase tracking-widest">Сессии</span>
-            <button id="refresh-sessions-btn" class="text-ide-muted hover:text-ide-accent" data-tip="Обновить">
-                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            <button id="open-profile-btn" class="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 cursor-pointer flex items-center justify-center text-white text-[10px] font-bold">
+                U
             </button>
-        </div>
-        <div id="sessions-list" class="space-y-0.5">
-            <div class="text-center text-xs text-ide-muted py-2">Загрузка...</div>
-        </div>
-        <div class="mt-4 mb-1.5 px-2 flex items-center justify-between">
-            <div class="flex items-center gap-1.5 min-w-0 flex-1">
-                <i data-lucide="folder-git-2" class="w-3 h-3 text-ide-accent shrink-0"></i>
-                <span class="text-[10px] font-semibold text-ide-muted uppercase tracking-widest truncate" id="workspace-name">Workspace</span>
-            </div>
-            <div class="flex items-center gap-1">
-                <span id="git-badge" class="hidden text-[9px] bg-ide-accent/10 text-ide-accent px-1.5 py-0.5 rounded">GIT</span>
-                <button id="commit-btn" class="hidden text-ide-muted hover:text-ide-accent shrink-0" data-tip="Commit">
-                    <i data-lucide="git-commit" class="w-3 h-3"></i>
-                </button>
-                <button id="refresh-tree-btn" class="text-ide-muted hover:text-ide-accent shrink-0" data-tip="Обновить">
-                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            
+            <div id="rf-user-menu" class="hidden absolute top-10 right-0 w-56 bg-[var(--ide-elevated)] rounded-lg shadow-2xl z-[200] p-2 border border-[var(--ide-border-subtle)]" style="opacity:0;transform:translateY(10px);transition:all 200ms ease-out;">
+                <div class="px-3 py-2.5 mb-1 bg-[var(--ide-bg)] rounded">
+                    <div id="rf-menu-email" class="text-xs font-medium truncate">user@example.com</div>
+                    <div id="rf-menu-plan" class="text-[10px] text-[var(--ide-text-secondary)] mt-0.5">Free Plan</div>
+                </div>
+                <button id="rf-menu-logout-btn" class="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-[var(--ide-error)] hover:bg-[var(--ide-error)] hover:bg-opacity-10 rounded">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Sign Out
                 </button>
             </div>
-        </div>
-        <div class="px-2 mb-2">
-            <span class="text-[10px] text-ide-accent font-mono truncate block" id="workspace-path">—</span>
-        </div>
-        <div id="file-tree">
-            <div class="text-center text-xs text-ide-muted py-4">Нет активного workspace</div>
-        </div>
-    </div>
-
-    <!-- ===== PROFILE SECTION ===== -->
-    <div class="shrink-0 border-t border-ide-border">
-        <div class="flex items-center justify-between px-3 py-2 border-b border-ide-border">
-            <span class="text-xs text-ide-muted">Тема</span>
-            <button id="theme-toggle-btn" class="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-ide-hover text-ide-muted text-xs">
-                <i data-lucide="moon" class="w-3.5 h-3.5" id="theme-icon"></i>
-                <span id="theme-label">Dark</span>
-            </button>
-        </div>
-        <div id="rf-user-profile" class="relative">
-            <button id="open-settings-btn" class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-ide-hover">
-                <div id="rf-user-avatar" class="w-6 h-6 rounded bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-[10px] shrink-0"></div>
-                <div class="flex flex-col items-start flex-1 min-w-0">
-                    <span id="rf-user-name" class="text-xs font-medium text-ide-text truncate w-full"></span>
-                    <div id="rf-user-plan" class="text-[10px] text-ide-muted"></div>
-                </div>
-                <i data-lucide="settings" class="w-3.5 h-3.5 text-ide-muted shrink-0 cursor-pointer hover:text-ide-text" id="rf-settings-icon"></i>
-            </button>
-
-            <div id="rf-user-menu" class="hidden absolute bottom-full left-0 right-0 mb-2 bg-ide-panel/80 backdrop-blur-md border border-ide-border rounded-lg shadow-2xl overflow-hidden z-50">
-                <!-- Кнопка-ссылка: имя и план теперь объединены общим ховером -->
-                <a href="https://runtimeforce.dev/account" target="_blank" class="flex flex-col gap-0.5 px-3 py-2.5 border-b border-ide-border hover:bg-ide-hover transition-colors no-underline group">
-                    <div id="rf-menu-email" class="text-xs font-medium text-ide-text truncate"></div>
-                    <div id="rf-menu-plan" class="text-[10px] text-ide-muted group-hover:text-ide-accent transition-colors"></div>
-                </a>
-                <div class="p-1">
-                    <button id="rf-menu-settings-btn" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-ide-text rounded hover:bg-ide-hover transition">
-                        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
-                        Настройки
-                    </button>
-                    <button id="rf-menu-logout-btn" class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-ide-hover transition text-red-400">
-                        <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-                        Выйти
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</aside>
-
-<!-- ===== MAIN CONTENT ===== -->
-<main class="flex-1 flex flex-col min-w-0 bg-ide-bg relative overflow-hidden">
-    <header class="h-11 border-b border-ide-border flex items-center px-4 bg-ide-bg/90 backdrop-blur shrink-0 justify-between z-10">
-        <div class="flex items-center gap-1.5">
-            <button id="toggle-left-sidebar-btn" class="p-1.5 rounded hover:bg-ide-hover text-ide-muted" data-tip="Сайдбар">
-                <i data-lucide="panel-left" class="w-4 h-4"></i>
-            </button>
-            <div class="w-px h-4 bg-ide-border mx-1"></div>
-<a href="https://runtimeforce.dev/" class="inline-block" id="active-model-display">
-  <img src="/static/runtimeforce.png" alt="RuntimeForce" class="h-[3rem] w-[12rem] object-contain">
-</a>
-
-
-        </div>
-        <div class="flex items-center gap-1">
-            <button id="toggle-right-sidebar-btn" class="p-1.5 rounded hover:bg-ide-hover text-ide-muted" data-tip="Оркестратор">
-                <i data-lucide="panel-right" class="w-4 h-4"></i>
-            </button>
         </div>
     </header>
-    <div id="chat-container" class="flex-1 overflow-y-auto scroll-smooth">
-        <!-- Расширен интерфейс чата до max-w-5xl для просторной верстки при закрытых боковых панелях -->
-        <div class="max-w-5xl mx-auto px-6 py-6 space-y-6" id="chat-history">
-            <div class="flex gap-3 group">
-                <div class="w-7 h-7 rounded-lg bg-ide-panel border border-ide-border flex items-center justify-center shrink-0 mt-0.5">
-                    <i data-lucide="cpu" class="w-3.5 h-3.5 text-ide-accent"></i>
-                </div>
-                <div class="flex-1 min-w-0 pt-0.5">
-                    <div class="flex items-center gap-2 mb-1.5">
-                        <span class="font-semibold text-xs text-ide-text">Runtime Agent</span>
-                        <span class="text-[10px] text-ide-muted font-mono">system</span>
-                    </div>
-                    <div class="prose prose-invert max-w-none text-sm text-ide-text">
-                        <p>Система инициализирована. Оркестратор готов к работе.</p>
-                        <p>Текущая стратегия маршрутизации: <code>auto</code>.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="h-40"></div>
-    </div>
-    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-ide-bg via-ide-bg/95 to-transparent pt-8 pb-4 px-4 pointer-events-none">
-        <!-- Расширена область инпута до max-w-5xl -->
-        <div class="max-w-5xl mx-auto pointer-events-auto">
-            <div class="bg-ide-panel border border-ide-border rounded-xl shadow-2xl flex flex-col gap-1.5 chat-input-wrapper">
-                <div class="flex items-center gap-1.5 px-3 pt-2.5 overflow-x-auto flex-wrap" id="context-strip"></div>
-                <textarea id="prompt-input" rows="1" class="w-full bg-transparent text-sm text-ide-text placeholder-ide-muted resize-none focus:outline-none px-3 py-1 font-sans leading-relaxed" placeholder="Напишите сообщение... (Enter — отправить, Shift+Enter — перенос)"></textarea>
-                <div class="flex justify-between items-center px-3 pb-2.5">
-                    <div class="flex items-center gap-0.5 relative">
-                        <!-- Вырезана дублирующая кнопка context-btn, оставлена только кнопка загрузки файлов -->
-                        <button id="attach-btn" class="p-1.5 rounded-md hover:bg-ide-hover text-ide-muted hover:text-ide-accent" data-tip="Прикрепить файл">
-                            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
-                        </button>
-                        <input type="file" id="attach-file-input" multiple class="hidden">
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[11px] text-ide-muted font-mono hidden sm:block">Shift+Enter — перенос</span>
-                        <button id="send-btn" class="bg-ide-accent hover:opacity-80 text-white p-2 rounded-lg shadow-lg flex items-center gap-1.5 text-xs font-medium px-3">
-                            <i data-lucide="send" class="w-3.5 h-3.5"></i>
-                            <span>Отправить</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</main>
 
-<!-- ===== RIGHT SIDEBAR ===== -->
-<aside id="right-sidebar" class="w-72 bg-ide-panel border-l border-ide-border flex flex-col shrink-0">
-    <!-- Header -->
-    <div class="h-11 flex items-center px-4 border-b border-ide-border justify-between shrink-0">
-        <span class="font-semibold text-xs tracking-widest text-ide-muted uppercase">Оркестратор</span>
-        <button id="open-providers-btn" class="p-1 rounded hover:bg-ide-hover text-ide-muted" data-tip="Провайдеры">
-            <i data-lucide="key" class="w-3.5 h-3.5"></i>
-        </button>
+    <div class="flex flex-1 mt-[56px]">
+        <aside id="left-sidebar" class="w-[60px] flex flex-col items-center py-4 justify-between h-[calc(100vh-56px)] z-40">
+            <div class="flex flex-col gap-2 items-center h-full min-h-[inherit]">
+    <!-- Верхняя группа иконок -->
+    <div class="sidebar-icon active w-9 h-9 flex items-center justify-center cursor-pointer left-tab-btn" data-panel="explorer" title="Explorer">
+        <i data-lucide="files" class="w-5 h-5"></i>
+    </div>
+    
+    <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer transition-colors left-tab-btn" data-panel="sessions" title="Sessions">
+        <i data-lucide="message-square" class="w-5 h-5"></i>
+    </div>
+    
+    <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer transition-colors left-tab-btn" data-panel="git" title="Git">
+        <i data-lucide="git-branch" class="w-5 h-5"></i>
     </div>
 
-    <!-- Scrollable content -->
-    <div class="flex-1 overflow-y-auto min-h-0">
-        <div class="p-3 space-y-4">
-            <!-- Статус агента -->
-            <div>
-                <div class="text-[10px] font-semibold text-ide-muted uppercase tracking-widest mb-2">Статус агента</div>
-                <div class="bg-ide-bg rounded-lg border border-ide-border p-3 space-y-2.5">
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs text-ide-muted">Статус</span>
-                        <span class="flex items-center gap-2 text-xs font-medium text-ide-success">
-                            <span class="w-2 h-2 rounded-full bg-ide-success status-idle" id="status-indicator"></span>
-                            <span id="agent-status-text">Idle</span>
-                        </span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs text-ide-muted">Модель</span>
-                        <span class="text-[11px] font-mono bg-ide-hover px-2 py-0.5 rounded text-ide-accent truncate max-w-[130px]" id="current-model-display">auto</span>
-                    </div>
-                </div>
-            </div>
+    <!-- Кнопка настроек, прижатая к самому низу панели -->
+    <div 
+        id="rf-menu-settings-btn" 
+        class="mt-auto sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text(--ide-text-primary) cursor-pointer transition-colors" 
+        title="Settings"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings" aria-hidden="true" class="lucide lucide-settings w-5 h-5">
+            <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+    </div>
+</div>
 
-            <!-- Маршрутизация -->
-            <div class="space-y-3">
-                <div class="text-[10px] font-semibold text-ide-muted uppercase tracking-wider">Оркестратор моделей</div>
-                <select id="strategy-select" class="ide-select text-xs">
-                    <option value="auto" selected>🤖 AUTO (Рекомендуемый)</option>
-                    <option value="coding">💻 ПРОГРАММИРОВАНИЕ</option>
-                    <option value="reasoning">🧠 АНАЛИТИКА</option>
-                    <option value="local-first">🏠 ЛОКАЛЬНЫЙ (Local First)</option>
-                    <option value="combined">🎯 КОМБИНИРОВАННЫЙ</option>
-                    <option value="consilium">👥 КОНСИЛИУМ (Дебаты)</option>
-                    <option value="manual">✋ РУЧНОЙ РЕЖИМ</option>
-                </select>
+        </aside>
 
-                <!-- Фильтры моделей (Free, Pro, Провайдеры, Категории) -->
-                <div id="model-filters-container" class="bg-ide-panel2/40 p-2.5 rounded border border-ide-border/40 space-y-2 hidden text-[11px]">
-                    <div class="font-semibold text-[9px] text-ide-muted uppercase tracking-wider">Фильтры моделей</div>
+        <main class="flex-1 grid grid-cols-[220px_1fr_280px] h-[calc(100vh-56px)] overflow-hidden">
+            
+            <section id="file-explorer-col" class="bg-[var(--ide-surface)] flex flex-col overflow-hidden border-r border-[var(--ide-border-subtle)]">
+                <div id="left-panel-explorer" class="left-panel-content flex-1 flex flex-col overflow-hidden">
+                    <div class="px-4 py-3 flex items-center justify-between">
+                        <span class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)]">Explorer</span>
+                        <button id="refresh-tree-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]"><i data-lucide="folder-sync" class="w-3.5 h-3.5"></i></button>
+                    </div>
                     
-                    <!-- Тарифный уровень (Tier) -->
-                    <div class="flex gap-4">
-                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
-                            <input type="checkbox" id="filter-tier-free" checked class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                            <span>Free</span>
-                        </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
-                            <input type="checkbox" id="filter-tier-pro" checked class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                            <span>Pro</span>
-                        </label>
-                    </div>
-
-                    <!-- Способности моделей (Capabilities) -->
-                    <div class="flex gap-4">
-                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition" title="Модели со способностью к написанию кода">
-                            <input type="checkbox" id="filter-cap-code" class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                            <span>💻 Код</span>
-                        </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition" title="Модели со сложными рассуждениями">
-                            <input type="checkbox" id="filter-cap-reason" class="model-filter-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                            <span>🧠 Аналитика</span>
-                        </label>
-                    </div>
-
-                    <!-- Провайдеры -->
-                    <div class="space-y-1">
-                        <div class="text-[8px] text-ide-muted uppercase font-semibold">Провайдеры</div>
-                        <div class="grid grid-cols-2 gap-x-2 gap-y-1">
-                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="groq" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                                <span>Groq</span>
-                            </label>
-                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="gemini" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                                <span>Gemini</span>
-                            </label>
-                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="openrouter" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                                <span>OpenRouter</span>
-                            </label>
-                            <label class="flex items-center gap-1.5 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="ollama" checked class="model-filter-provider rounded bg-ide-bg border-ide-border text-ide-accent h-3 w-3">
-                                <span>Ollama</span>
-                            </label>
+                    <div class="px-4 pb-3 shrink-0 border-b border-[var(--ide-border-subtle)] mb-2">
+                        <div class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--ide-elevated)] border border-[var(--ide-border-subtle)] group hover:bg-[var(--ide-elevated-2)] transition-colors cursor-pointer">
+                            <span class="w-2 h-2 rounded-full bg-[var(--ide-success)] animate-pulse shrink-0"></span>
+                            <div class="flex-1 min-w-0">
+                                <div id="workspace-name" class="font-semibold text-xs truncate text-[var(--ide-text-primary)]">RuntimeForce</div>
+                                <div id="workspace-path" class="text-[10px] text-[var(--ide-text-muted)] truncate hover:text-[var(--ide-text-secondary)] transition-colors mt-0.5" title="Кликните, чтобы скопировать">— не активен —</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Динамическая панель настроек оркестратора -->
-                <div id="orchestrator-settings" class="bg-ide-bg rounded-lg border border-ide-border p-3 text-xs hidden space-y-3">
                     
-                    <!-- Настройка РУЧНОГО РЕЖИМА -->
-                    <div id="settings-manual-panel" class="hidden space-y-1.5">
-                        <label class="text-[10px] text-ide-muted uppercase font-semibold block">Выберите основную модель</label>
-                        <select id="model-lock-select" class="ide-select text-xs mt-1">
-                            <option value="">Загрузка моделей...</option>
-                        </select>
-                        <p class="text-[9px] text-ide-muted leading-relaxed mt-1">
-                            ИИ будет использовать выбранную модель по умолчанию. При сбоях или исчерпании лимитов оркестратор автоматически переключится на резервные модели без потери контекста.
-                        </p>
-                    </div>
-
-                    <!-- Настройка КОМБИНИРОВАННОГО РЕЖИМА -->
-                    <div id="settings-combined-panel" class="hidden space-y-1.5">
-                        <label class="text-[10px] text-ide-muted uppercase font-semibold block mb-1">Комбинировать стратегии</label>
-                        <div class="space-y-1.5 mt-1">
-                            <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="coding" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3.5 w-3.5">
-                                <span>💻 Программирование</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="reasoning" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3.5 w-3.5">
-                                <span>🧠 Аналитика</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer text-ide-text hover:text-white transition">
-                                <input type="checkbox" value="local-first" class="combined-strategy-checkbox rounded bg-ide-bg border-ide-border text-ide-accent h-3.5 w-3.5">
-                                <span>🏠 Локальный (Local First)</span>
-                            </label>
-                        </div>
-                        <p class="text-[9px] text-ide-muted leading-relaxed mt-1.5 border-t border-ide-border/40 pt-1.5">
-                            Приоритеты провайдеров будут сбалансированы по среднему рангу среди всех выбранных режимов.
-                        </p>
-                    </div>
-
-                    <!-- Настройка РЕЖИМА КОНСИЛИУМ (с ручным выбором моделей) -->
-                    <div id="settings-consilium-panel" class="hidden space-y-2">
-                        <label class="text-[10px] text-ide-muted uppercase font-semibold block mb-1">Настройка участников дебатов</label>
-                        <div class="space-y-2.5">
-                            <div class="space-y-1">
-                                <div class="text-[10px] text-ide-muted font-medium">Шаг 1: Черновик</div>
-                                <select id="consilium-draft-select" class="ide-select text-xs">
-                                    <option value="">-- Авто-подбор --</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1">
-                                <div class="text-[10px] text-ide-muted font-medium">Шаг 2: Критика</div>
-                                <select id="consilium-critic-select" class="ide-select text-xs">
-                                    <option value="">-- Авто-подбор --</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1">
-                                <div class="text-[10px] text-ide-muted font-medium">Шаг 3: Синтез</div>
-                                <select id="consilium-synth-select" class="ide-select text-xs">
-                                    <option value="">-- Авто-подбор --</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
+                    <div id="file-tree" class="flex-1 overflow-y-auto px-2 space-y-0.5"></div>
                 </div>
-            </div>
 
-            <!-- Runtime Trace -->
-            <div class="px-4 py-3 flex flex-col min-h-[60px] max-h-[200px]">
-                <div class="flex items-center justify-between mb-2 shrink-0">
-                    <div class="text-[10px] font-semibold text-ide-muted uppercase tracking-wider flex items-center gap-1.5">
-                        <i data-lucide="activity" class="w-3 h-3"></i>
-                        Runtime Trace
+                <div id="left-panel-sessions" class="left-panel-content hidden flex-1 flex flex-col overflow-hidden">
+                    <div class="px-4 py-3 flex items-center justify-between">
+                        <span class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)]">Sessions</span>
+                        <div class="flex gap-2">
+                            <button id="refresh-sessions-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>
+                            <button id="new-chat-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-1">
-                        <span id="trace-counter" class="text-[10px] font-mono text-ide-muted">(0)</span>
-                        <button id="clear-trace-btn" class="text-ide-muted hover:text-ide-text p-0.5 rounded hover:bg-ide-hover" title="Очистить">
-                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                    <div id="sessions-list" class="flex-1 overflow-y-auto px-2 space-y-0.5"></div>
+                </div>
+
+                <div id="left-panel-git" class="left-panel-content hidden flex-1 flex flex-col overflow-hidden">
+
+                    <!-- Empty state: нет репозитория -->
+                    <div id="git-empty-state" class="flex flex-col items-center justify-center h-full p-6 text-center">
+                        <i data-lucide="git-fork" class="w-8 h-8 text-[var(--ide-text-muted)] mb-3"></i>
+                        <p class="text-xs text-[var(--ide-text-muted)] mb-4">Git not initialized</p>
+                        <button id="git-init-btn" class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] border border-[var(--ide-accent)]/30 rounded-md hover:bg-[var(--ide-accent)]/20 transition-colors">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            Initialize Repository
                         </button>
                     </div>
-                </div>
-                <div id="debug-trace-log" class="debug-trace-log-sidebar flex-1 min-h-0"></div>
-                <!-- Переименована кнопка в Stop и оставлен корректный ID для связи с обработчиком -->
-                <button id="stop-generation-btn" class="hidden w-full mt-2 items-center justify-center gap-1.5 px-2 py-1.5 bg-red-600/80 hover:bg-red-600 text-white text-[11px] rounded transition-colors shrink-0">
-                    <i data-lucide="square" class="w-3 h-3"></i>
-                    Stop
-                </button>
-            </div>
-        </div>
-    </div>
 
-    <!-- Терминал (с полем ввода команд) -->
-    <div id="terminal-panel" class="border-t border-ide-border shrink-0">
-        <div class="flex items-center gap-2 px-4 py-1.5 cursor-pointer select-none hover:bg-ide-hover" id="terminal-header">
-            <i data-lucide="terminal" class="w-3.5 h-3.5 text-ide-accent"></i>
-            <span class="text-[10px] font-semibold text-ide-accent uppercase tracking-widest">Терминал</span>
-            <div class="flex-1"></div>
-            <button id="close-terminal-btn" class="text-ide-muted hover:text-ide-text p-0.5 rounded">
-                <i data-lucide="chevron-down" class="w-3 h-3 transition-transform duration-200" id="terminal-chevron"></i>
-            </button>
-        </div>
-        <div id="terminal-output" class="px-3 py-2 font-mono text-xs text-ide-muted overflow-y-auto transition-all duration-200 hidden" style="height: 180px;">
-            <span class="text-ide-accent">$ </span><span class="animate-pulse">█</span>
-        </div>
-        <div id="terminal-input-row" class="flex items-center gap-2 px-3 py-1.5 bg-ide-bg border-t border-ide-border hidden">
-            <span class="text-ide-accent font-mono text-xs font-bold shrink-0">$</span>
-            <input id="terminal-cmd-input" type="text" class="flex-1 bg-transparent outline-none text-xs font-mono text-ide-text placeholder-ide-muted" placeholder="Введите команду...">
-        </div>
-    </div>
-</aside>
-
-<!-- ===== SETTINGS MODAL ===== -->
-<div id="settings-modal" class="modal-backdrop hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-    <div id="settings-panel" class="modal-panel">
-        
-        <div class="flex items-center justify-between px-4 py-3 border-b border-ide-border shrink-0">
-            <div class="flex items-center gap-2">
-                <i data-lucide="settings" class="w-4 h-4 text-ide-accent"></i>
-                <span class="font-semibold text-sm text-ide-text">Настройки</span>
-            </div>
-            <button id="close-settings-btn" class="p-1 rounded hover:bg-ide-hover text-ide-muted border-none bg-none cursor-pointer">
-                <i data-lucide="x" class="w-4 h-4"></i>
-            </button>
-        </div>
-
-        <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
-            <div class="settings-tabs-horizontal">
-                <button class="settings-nav-btn active" data-tab="general">
-                    <i data-lucide="sliders" class="w-3.5 h-3.5"></i> Общие
-                </button>
-                <button class="settings-nav-btn" data-tab="workspace">
-                    <i data-lucide="folder" class="w-3.5 h-3.5"></i> Workspace
-                </button>
-                <button class="settings-nav-btn" data-tab="providers">
-                    <i data-lucide="cpu" class="w-3.5 h-3.5"></i> Провайдеры
-                </button>
-            </div>
-
-            <div class="settings-content">
-                
-                <div class="settings-tab active" id="stab-general">
-                    <div class="settings-section-title">Интерфейс</div>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center bg-black/5 p-2 rounded">
-                            <span class="text-sm text-ide-text font-medium">Тема</span>
-                            <button id="settings-theme-btn" class="ide-btn ide-btn-ghost flex items-center gap-2">
-                                <i data-lucide="moon" class="w-3.5 h-3.5" id="settings-theme-icon"></i>
-                                <span id="settings-theme-label">Dark</span>
+                    <!-- Active state: репозиторий найден -->
+                    <div id="git-content" class="hidden flex-1 flex flex-col overflow-hidden">
+                        <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--ide-border-subtle)] shrink-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-medium text-[var(--ide-text-primary)]">Changes</span>
+                                <span id="git-badge" class="hidden text-[10px] bg-[var(--ide-accent)]/15 text-[var(--ide-accent)] px-1.5 py-0.5 rounded-full font-medium"></span>
+                            </div>
+                            <button id="commit-btn" class="hidden items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[var(--ide-accent)] text-white rounded-md hover:brightness-110 transition-all">
+                                <i data-lucide="git-commit-horizontal" class="w-3 h-3"></i>
+                                Commit
                             </button>
                         </div>
-                    </div>
-
-                    <div class="flex justify-between items-center mt-4 pt-4 border-t border-ide-border">
-                        <div>
-                            <div class="text-sm text-ide-text font-medium">Тариф</div>
-                            <div id="rf-settings-plan" class="text-xs text-ide-muted mt-0.5">Free</div>
+                        <div id="git-files-list" class="flex-1 overflow-y-auto px-2 py-1"></div>
+                        <div class="px-3 py-2 border-t border-[var(--ide-border-subtle)] shrink-0">
+                            <div class="flex items-center gap-1.5 text-[11px] text-[var(--ide-text-muted)]">
+                                <i data-lucide="git-branch" class="w-3 h-3"></i>
+                                <span id="git-branch-name">—</span>
+                            </div>
                         </div>
-                        <button id="rf-upgrade-btn" class="ide-btn ide-btn-primary">
-                            <i data-lucide="zap" class="w-3.5 h-3.5"></i> Сменить тариф
-                        </button>
                     </div>
 
-                    <div class="mt-4">
-                        <button id="rf-check-updates-btn" class="ide-btn ide-btn-ghost w-full justify-start">
-                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="rf-refresh-icon"></i>
-                            <span id="rf-check-updates-text">Проверить обновления</span>
-                        </button>
-                        <div id="rf-update-status" class="mt-2 text-xs text-ide-muted hidden"></div>
+                </div>
+            </section>
+
+            <section class="flex flex-col bg-[var(--ide-bg)] overflow-hidden">
+<div class="h-10 flex items-center px-4 gap-6 select-none bg-[var(--ide-bg)] border-b border-[var(--ide-border-subtle)]">
+    <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-[var(--ide-accent)] text-[var(--ide-text-primary)]" data-panel="chat">Chat</button>
+    
+    <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-transparent text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]" data-panel="editor">Editor</button>
+    <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-transparent text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]" data-panel="terminal">Terminal</button>
+</div>
+
+                <div id="right-panel-chat" class="right-panel-content flex-1 flex flex-col overflow-hidden relative">
+                    
+                    <div id="chat-container" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+                        <div id="chat-history" class="w-full flex flex-col gap-3"></div>
                     </div>
 
-                    <div class="settings-section-title mt-6">Сессия</div>
-                    <button id="clear-chat-btn" class="ide-btn ide-btn-danger w-full justify-start">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Очистить историю чата
+                    <div id="orchestrator-settings" class="hidden bg-[var(--ide-elevated)] border border-[var(--ide-border-subtle)] rounded-xl p-4 mb-2 mx-4 shadow-lg">
+                        <div class="flex flex-wrap gap-4 items-end">
+                            <div id="settings-manual-panel" class="hidden flex-1 min-w-[200px]">
+                                <label class="block text-[10px] uppercase tracking-widest text-[var(--ide-text-muted)] mb-1.5 font-bold">Выбор модели</label>
+                                <select id="model-lock-select" class="w-full bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg px-3 py-2 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] transition-colors"></select>
+                            </div>
+                            <div id="settings-consilium-panel" class="hidden w-full space-y-3">
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-widest text-[var(--ide-text-muted)] mb-1.5 font-bold">Draft (Исполнитель)</label>
+                                        <select id="consilium-draft-select" class="w-full bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg px-3 py-2 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] transition-colors"></select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-widest text-[var(--ide-text-muted)] mb-1.5 font-bold">Critic (Критик)</label>
+                                        <select id="consilium-critic-select" class="w-full bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg px-3 py-2 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] transition-colors"></select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-widest text-[var(--ide-text-muted)] mb-1.5 font-bold">Synth (Архитектор)</label>
+                                        <select id="consilium-synth-select" class="w-full bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg px-3 py-2 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] transition-colors"></select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="model-filters-container" class="hidden flex items-center gap-5 pt-3 border-t border-[var(--ide-border-subtle)] w-full">
+                               <label class="flex items-center gap-2 cursor-pointer text-[var(--ide-text-secondary)] hover:text-[var(--ide-text-primary)]">
+                                   <input type="checkbox" id="filter-tier-free" checked class="rounded accent-[var(--ide-accent)]"> <span class="text-[11px] font-medium">Free Tier</span>
+                               </label>
+                               <label class="flex items-center gap-2 cursor-pointer text-[var(--ide-text-secondary)] hover:text-[var(--ide-text-primary)]">
+                                   <input type="checkbox" id="filter-tier-pro" checked class="rounded accent-[var(--ide-accent)]"> <span class="text-[11px] font-medium">Pro Tier</span>
+                               </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 pt-0 bg-transparent">
+                        <div id="attached-context-bar" class="hidden mb-2 flex gap-2 flex-wrap"></div>
+                        <input type="file" id="attach-file-input" multiple class="hidden">
+                        
+                        <div class="input-focus-ring bg-[var(--ide-elevated)] rounded-2xl p-3 flex flex-col gap-2 transition-shadow">
+                            <textarea id="prompt-input" placeholder="Ask RuntimeForce anything..." class="bg-transparent border-none outline-none resize-none w-full text-sm min-h-[40px] max-h-[200px]" rows="1"></textarea>
+                            <div class="flex items-center justify-between border-t border-[var(--ide-border-subtle)] pt-2 mt-1">
+                                <div class="flex items-center gap-3">
+                                    <button id="attach-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]"><i data-lucide="paperclip" class="w-4 h-4"></i></button>
+                                    
+                                    <select id="strategy-select" class="bg-transparent hover:bg-[var(--ide-elevated)] border border-transparent hover:border-[var(--ide-border-subtle)] rounded-lg px-3 py-1.5 text-[11px] font-medium text-[var(--ide-text-primary)] outline-none transition-all cursor-pointer">
+                                    <option value="coding" class="bg-[#111111] text-white">⚡ Coding</option>
+                                    <option value="manual" class="bg-[#111111] text-white">✋ Manual</option>
+                                    <option value="consilium" class="bg-[#111111] text-white">👥 Consilium</option>
+                                    </select>
+                                    <select id="model-lock-select" class="hidden bg-transparent text-[11px] font-medium text-[var(--ide-text-secondary)] outline-none cursor-pointer max-w-[120px] rounded rounded-lg appearance-none"></select>
+                                </div>
+                                
+                                <div class="flex items-center gap-2">
+                                    <button id="send-btn" class="bg-[var(--ide-accent)] hover:bg-[var(--ide-accent-hover)] text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                                        <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="right-panel-terminal" class="right-panel-content hidden flex-1 flex flex-col bg-black">
+                    <div id="terminal-output" class="flex-1 overflow-y-auto p-4 font-mono text-xs text-gray-300"></div>
+                    <div id="terminal-input-row" class="px-4 py-2 border-t border-gray-800 flex items-center gap-2">
+                        <span class="text-[var(--ide-accent)] font-mono text-xs">❯</span>
+                        <input id="terminal-cmd-input" type="text" class="flex-1 bg-transparent outline-none font-mono text-xs text-white" placeholder="Type command...">
+                    </div>
+                </div>
+
+                <!-- ПАНЕЛЬ РЕДАКТОРА -->
+<div id="right-panel-editor" class="right-panel-content hidden flex-1 flex flex-col bg-[var(--ide-bg)] relative">
+    <div class="h-9 flex items-center justify-between px-4 bg-[var(--ide-surface)] border-b border-[var(--ide-border-subtle)] shrink-0">
+        <div class="flex items-center gap-2 overflow-hidden">
+            <i data-lucide="file-code" class="w-3.5 h-3.5 text-[var(--ide-accent)] shrink-0"></i>
+            <span id="editor-filename" class="text-xs font-mono text-[var(--ide-text-primary)] truncate tracking-tight">Файл не выбран</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 pl-2">
+            <button id="editor-save-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] transition-colors disabled:opacity-50" title="Сохранить (Ctrl+S)">
+                <i data-lucide="save" class="w-3.5 h-3.5"></i>
+            </button>
+            <button id="editor-close-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-error)] transition-colors" title="Закрыть">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
+    </div>
+    <div id="monaco-container" class="flex-1 w-full relative">
+        <div class="flex items-center justify-center h-full text-[var(--ide-text-muted)] text-xs">Выберите файл для редактирования</div>
+    </div>
+</div>
+            </section>
+
+<section class="bg-[var(--ide-surface)] flex flex-col p-4 gap-6 overflow-y-auto border-l border-[var(--ide-border-subtle)] h-full">
+    
+    <!-- Блок 1: Orchestrator -->
+    <div class="mt-4">
+        <div class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-3">Orchestrator</div>
+        <div class="bg-[var(--ide-elevated)] p-3 rounded-xl border border-[var(--ide-border-subtle)]">
+            <div class="flex justify-between text-[11px] mb-2">
+                <span id="current-model-display" class="text-[var(--ide-text-secondary)] font-mono">auto</span>
+            </div>
+            <div class="w-full h-1.5 bg-[var(--ide-elevated-2)] rounded-full overflow-hidden">
+                <div class="h-full bg-[var(--ide-success)] w-full animate-pulse"></div>
+            </div>
+        </div>
+    </div>                
+
+<!-- Блок 2: Agent Trace -->
+<div class="mt-4">
+    <div class="flex items-center justify-between text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-3">
+        <span>Agent Trace</span>
+        <button id="clear-trace-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] transition-colors p-0.5 rounded hover:bg-[var(--ide-elevated)]" title="Clear trace">
+            <i data-lucide="trash-2" class="w-3 h-3"></i>
+        </button>
+    </div>
+    <div class="relative h-[15rem] bg-[var(--ide-elevated)] rounded-xl border border-[var(--ide-border-subtle)] overflow-hidden">
+        <div class="timeline-line"></div>
+        <div id="debug-trace-log" class="pl-6 flex flex-col gap-2 text-xs h-full overflow-y-auto custom-scrollbar p-3">
+            <!-- Сюда динамически добавляются строки лога -->
+        </div>
+    </div>
+    <button id="stop-gen-btn" class="hidden justify-center text-[var(--ide-error)] hover:text-red-400 text-xs px-2 mt-2"><i data-lucide="square" class="w-3.5 h-3.5 inline"></i> Stop</button>
+</div>
+
+    <!-- Блок 3: Active Tools -->
+    <div class="mt-4">
+        <div class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-3">Active Tools</div>
+        <div id="active-tools-list" class="flex flex-col gap-2">
+            <!-- Сюда динамически добавляются инструменты -->
+        </div>
+    </div>
+
+</section>
+
+        </main>
+    </div>
+
+    <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-8 bg-[rgba(0,0,0,0.8)] backdrop-blur-sm">
+        <div class="w-full max-w-4xl h-[600px] bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-2xl shadow-2xl flex overflow-hidden">
+            <div id="settings-panel" class="w-64 border-r border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-6 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-[var(--ide-text-primary)]">Settings</h2>
+                    <button id="close-settings-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <nav class="space-y-1">
+                    <button class="settings-nav-btn active w-full text-left px-3 py-2 text-sm rounded text-[var(--ide-text-secondary)] hover:bg-[var(--ide-elevated)]" data-tab="general">General</button>
+                    <button class="settings-nav-btn w-full text-left px-3 py-2 text-sm rounded text-[var(--ide-text-secondary)] hover:bg-[var(--ide-elevated)]" data-tab="workspace">Workspace</button>
+                    <button class="settings-nav-btn w-full text-left px-3 py-2 text-sm rounded text-[var(--ide-text-secondary)] hover:bg-[var(--ide-elevated)]" data-tab="providers">Providers</button>
+                </nav>
+            </div>
+            <div class="flex-1 p-8 overflow-y-auto">
+
+<div id="stab-general" class="settings-tab active space-y-4">
+    <!-- Карточка профиля -->
+    <div class="ws-card cursor-default">
+        <div id="rf-settings-avatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shrink-0">U</div>
+        <div class="flex-1 min-w-0">
+            <div id="rf-settings-name" class="text-sm font-semibold text-[var(--ide-text-primary)] truncate">User</div>
+            <div id="rf-settings-plan" class="text-xs text-[var(--ide-text-secondary)]">Free Plan</div>
+        </div>
+        <a href="https://runtimeforce.dev/#pricing" target="_blank" rel="noopener noreferrer" id="rf-settings-upgrade-btn" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[var(--ide-accent)] hover:bg-[var(--ide-accent-hover)] text-white rounded-lg transition-colors shrink-0">
+            <i data-lucide="crown" class="w-3.5 h-3.5"></i>
+            Upgrade
+        </a>
+    </div>
+
+    <!-- Карточка проверки обновлений -->
+    <div class="ws-card cursor-default">
+        <img src="/static/logo.png" alt="RuntimeForce" class="w-10 h-10 rounded-lg object-contain shrink-0 bg-[var(--ide-elevated)] p-1">
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-[var(--ide-text-primary)]">Check for Updates</div>
+            <div id="rf-settings-version" class="text-xs text-[var(--ide-text-secondary)]">Checking version...</div>
+        </div>
+        <button id="check-updates-btn" class="px-3 py-1.5 text-xs bg-[var(--ide-elevated)] hover:bg-[var(--ide-elevated-2)] text-[var(--ide-text-primary)] rounded-lg transition-colors shrink-0">Check</button>
+    </div>
+
+    <!-- Карточка очистки чата -->
+    <div class="ws-card cursor-default">
+        <div class="w-10 h-10 rounded-lg bg-[var(--ide-error)]/10 flex items-center justify-center shrink-0">
+            <i data-lucide="message-square-x" class="w-5 h-5 text-[var(--ide-error)]"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-[var(--ide-text-primary)]">Clear Chat History</div>
+            <div class="text-xs text-[var(--ide-text-secondary)]">Delete all conversation history</div>
+        </div>
+        <button id="clear-chat-btn" class="px-3 py-1.5 text-xs bg-[var(--ide-error)] hover:bg-[var(--ide-error)]/90 text-white rounded-lg transition-colors shrink-0">Clear</button>
+    </div>
+</div>
+
+                <div id="stab-workspace" class="settings-tab hidden space-y-6">
+                    <button id="refresh-workspaces-btn" class="px-4 py-2 bg-[var(--ide-elevated)] rounded text-sm">Refresh Workspaces</button>
+                    <div id="ws-list" class="space-y-2 mt-4"></div>
+                </div>
+
+<div id="stab-providers" class="settings-tab hidden space-y-6">
+    <div class="flex items-center gap-2">
+        <i data-lucide="gift" class="w-4 h-4 text-emerald-400"></i>
+        <span class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)]">Free providers</span>
+    </div>
+    <div id="providers-list-free" class="space-y-2"></div>
+
+    <div class="flex items-center gap-2 mt-6 pt-4 border-t border-[var(--ide-border-subtle)]">
+        <i data-lucide="monitor" class="w-4 h-4 text-[var(--ide-accent)]"></i>
+        <span class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)]">Local Models</span>
+    </div>
+    <div id="providers-list-local" class="space-y-2"></div>
+
+    <div class="flex items-center gap-2 mt-6 pt-4 border-t border-[var(--ide-border-subtle)]">
+        <i data-lucide="credit-card" class="w-4 h-4 text-purple-400"></i>
+        <span class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)]">Pro providers</span>
+    </div>
+    <div id="providers-list-pro" class="space-y-2 mt-2"></div>
+</div>            
+
+    <div id="rf-auth-overlay" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-[var(--ide-bg)]">
+        <div class="text-center">
+            <h1 class="text-2xl font-bold mb-8">Sign in to RuntimeForce</h1>
+            <div id="rf-auth-error" class="hidden text-red-500 mb-4"></div>
+            <button id="rf-auth-github-btn" class="w-64 py-3 bg-[var(--ide-elevated)] border border-[var(--ide-border-subtle)] rounded-lg text-sm font-semibold hover:bg-[var(--ide-elevated-2)] transition-colors">Continue with GitHub</button>
+        </div>
+    </div>
+
+    <div id="context-picker-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.8)] backdrop-blur-sm">
+        <div class="w-[520px] max-h-[70vh] bg-[var(--ide-surface)] rounded-xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-[var(--ide-border-subtle)]">
+                <input id="ctx-picker-search" type="text" placeholder="Search files..." class="w-full bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-md px-3 py-2 text-xs text-[var(--ide-text-primary)] outline-none">
+            </div>
+            <div id="ctx-picker-tree" class="flex-1 overflow-y-auto p-2"></div>
+            <div class="p-3 flex justify-between bg-[var(--ide-elevated)]">
+                <span id="ctx-picker-count" class="text-xs text-[var(--ide-text-muted)]">Selected: 0</span>
+                <div class="flex gap-2">
+                    <button id="ctx-picker-cancel" class="px-3 py-1 text-xs text-[var(--ide-text-secondary)]">Cancel</button>
+                    <button id="ctx-picker-confirm" class="px-4 py-1 bg-[var(--ide-accent)] text-white rounded text-xs font-bold">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="file-viewer-modal" class="hidden fixed inset-0 z-40 bg-[var(--ide-bg)]">
+        <div id="file-viewer-header" class="flex justify-between p-2"><span id="file-viewer-title"></span><button id="file-close-btn">Close</button></div>
+        <div id="file-viewer-content" class="h-full w-full"></div>
+    </div>
+    <!-- Diff Viewer Modal -->
+    <div id="diff-viewer-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-xl shadow-2xl w-full max-w-3xl mx-4 flex flex-col max-h-[80vh]">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--ide-border-subtle)] shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="git-compare" class="w-4 h-4 text-[var(--ide-accent)]"></i>
+                    <span id="diff-viewer-name" class="text-sm font-medium text-[var(--ide-text-primary)] truncate"></span>
+                </div>
+                <button id="close-diff-viewer-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] transition-colors p-1 rounded">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <pre id="diff-viewer-content" class="flex-1 overflow-auto p-4 text-xs font-mono text-[var(--ide-text-primary)] leading-relaxed"></pre>
+        </div>
+    </div>
+
+    <!-- Commit Modal -->
+    <div id="commit-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--ide-border-subtle)] shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="git-commit-horizontal" class="w-4 h-4 text-[var(--ide-accent)]"></i>
+                    <span class="text-sm font-medium text-[var(--ide-text-primary)]">Commit changes</span>
+                </div>
+                <button id="close-commit-modal-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] transition-colors p-1 rounded">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-4 flex flex-col gap-3">
+                <div id="commit-files-preview" class="text-xs text-[var(--ide-text-secondary)] max-h-32 overflow-y-auto space-y-0.5 bg-[var(--ide-bg)] rounded-lg p-2"></div>
+                <textarea id="commit-message-input" rows="3" placeholder="Commit message..." class="w-full px-3 py-2 text-sm bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg text-[var(--ide-text-primary)] placeholder-[var(--ide-text-muted)] resize-none focus:outline-none focus:border-[var(--ide-accent)]"></textarea>
+                <div class="flex items-center justify-end gap-2">
+                    <button id="cancel-commit-btn" class="px-3 py-1.5 text-xs text-[var(--ide-text-secondary)] hover:text-[var(--ide-text-primary)] transition-colors rounded-lg hover:bg-[var(--ide-elevated)]">Cancel</button>
+                    <button id="confirm-commit-btn" class="px-3 py-1.5 text-xs font-medium bg-[var(--ide-accent)] text-white rounded-lg hover:brightness-110 transition-all flex items-center gap-1.5">
+                        <i data-lucide="git-commit-horizontal" class="w-3 h-3"></i>
+                        Commit
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <div class="settings-tab hidden" id="stab-workspace">
-                    <div class="settings-section-title flex items-center justify-between">
-                        <span>Активные workspace</span>
-                        <button id="refresh-workspaces-btn" class="text-ide-muted hover:text-ide-accent bg-none border-none cursor-pointer">
-                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </div>
-                    <div id="ws-list" class="space-y-2 mb-4">
-                        <div class="text-center text-xs text-ide-muted py-4">Загрузка...</div>
-                    </div>
-
-                    <div class="settings-section-title cursor-pointer flex items-center justify-between" onclick="document.getElementById('local-ws-form').classList.toggle('hidden')">
-                        <span>Добавить локальный</span>
-                        <i data-lucide="chevron-down" class="w-4 h-4 text-ide-muted"></i>
-                    </div>
-                    <div class="space-y-2 hidden mt-2" id="local-ws-form">
-                        <input type="text" id="ws-local-name" placeholder="Название" class="ide-input">
-                        <div class="flex gap-2">
-                            <input type="text" id="ws-path-input" placeholder="~/Projects/my-app" class="ide-input flex-1">
-                            <button id="add-local-ws-btn" class="ide-btn ide-btn-primary shrink-0">Добавить</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-section-title mt-4 cursor-pointer flex items-center justify-between" onclick="document.getElementById('ssh-ws-form').classList.toggle('hidden')">
-                        <span>Добавить Remote SSH</span>
-                        <i data-lucide="chevron-down" class="w-4 h-4 text-ide-muted"></i>
-                    </div>
-                    <div class="space-y-2 hidden mt-2" id="ssh-ws-form">
-                        <input type="text" id="ssh-name" placeholder="Название" class="ide-input">
-                        <div class="grid grid-cols-2 gap-2">
-                            <input type="text" id="ssh-host" placeholder="Host" class="ide-input">
-                            <input type="number" id="ssh-port" placeholder="22" value="22" class="ide-input">
-                        </div>
-                        <input type="text" id="ssh-user" placeholder="Username" class="ide-input">
-                        <select id="ssh-auth-type" class="ide-select">
-                            <option value="password">Password</option>
-                            <option value="key">Private Key</option>
-                        </select>
-                        <div id="ssh-password-row">
-                            <input type="password" id="ssh-password" placeholder="Пароль" class="ide-input">
-                        </div>
-                        <div id="ssh-key-row" class="hidden">
-                            <textarea id="ssh-key" rows="4" placeholder="~/.ssh/id_rsa" class="ide-input resize-none font-mono text-[11px]"></textarea>
-                            <input type="password" id="ssh-passphrase" placeholder="Passphrase" class="ide-input mt-1.5">
-                        </div>
-                        <input type="text" id="ssh-path" placeholder="Путь на сервере" class="ide-input">
-                        <button id="add-ssh-ws-btn" class="ide-btn ide-btn-primary w-full">Подключить SSH</button>
-                    </div>
+<!-- Update Available Modal -->
+<div id="update-available-modal" class="hidden fixed inset-0 z-[400] flex items-center justify-center bg-[rgba(0,0,0,0.8)] backdrop-blur-sm">
+    <div class="bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--ide-border-subtle)] shrink-0">
+            <div class="flex items-center gap-2">
+                <i data-lucide="download" class="w-4 h-4 text-[var(--ide-accent)]"></i>
+                <span class="text-sm font-medium text-[var(--ide-text-primary)]">Update Available</span>
+            </div>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div class="text-center">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--ide-accent)]/10 flex items-center justify-center">
+                    <i data-lucide="rocket" class="w-8 h-8 text-[var(--ide-accent)]"></i>
                 </div>
-
-                <div class="settings-tab hidden" id="stab-providers">
-                    <div class="settings-section-title">Free провайдеры</div>
-                    <div class="space-y-2" id="providers-list-free"></div>
-
-                    <div class="settings-section-title mt-6 cursor-pointer flex items-center justify-between" onclick="document.getElementById('pro-providers-list').classList.toggle('hidden')">
-                        <span>Pro провайдеры</span>
-                        <i data-lucide="chevron-down" class="w-4 h-4 text-ide-muted"></i>
-                    </div>
-                    <div id="pro-providers-list" class="hidden space-y-2 mt-2">
-                        <div class="space-y-2" id="providers-list-pro"></div>
-                    </div>
-
-                    <div class="flex justify-between items-center gap-2 mt-auto">
-                        <button id="clear-keys-btn" class="ide-btn ide-btn-danger text-xs">
-                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Очистить
-                        </button>
-                        <button id="save-keys-btn" class="ide-btn ide-btn-primary text-xs">
-                            <i data-lucide="save" class="w-3.5 h-3.5"></i> Сохранить
-                        </button>
-                    </div>
+                <p class="text-sm text-[var(--ide-text-primary)] mb-2">A new version of RuntimeForce is available!</p>
+                <div class="text-xs text-[var(--ide-text-secondary)] space-y-1">
+                    <div>Build: <span id="update-new-sha" class="font-mono text-[var(--ide-accent)]">—</span></div>
+                    <div>Released: <span id="update-new-date" class="text-[var(--ide-text-primary)]">—</span></div>
                 </div>
-
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2">
+                <button id="update-later-btn" class="px-3 py-1.5 text-xs text-[var(--ide-text-secondary)] hover:text-[var(--ide-text-primary)] transition-colors rounded-lg hover:bg-[var(--ide-elevated)]">Later</button>
+                <button id="update-now-btn" class="px-4 py-1.5 text-xs font-medium bg-[var(--ide-accent)] text-white rounded-lg hover:bg-[var(--ide-accent-hover)] transition-all flex items-center gap-1.5">
+                    <i data-lucide="download" class="w-3 h-3"></i>
+                    Update Now
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ===== FILE VIEWER MODAL ===== -->
-<div id="file-viewer-modal" class="modal-backdrop hidden">
-    <div class="modal-panel-wide" onclick="event.stopPropagation()">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-ide-border" style="flex-shrink: 0;">
-            <div class="flex items-center gap-2 min-w-0 flex-1">
-                <i data-lucide="file-code" class="w-4 h-4 text-ide-accent"></i>
-                <span class="text-sm font-medium text-ide-text truncate" id="file-viewer-name">—</span>
-            </div>
-            <button id="close-file-viewer-btn" class="p-1 rounded hover:bg-ide-hover text-ide-muted">
-                <i data-lucide="x" class="w-4 h-4"></i>
-            </button>
-        </div>
-        <div style="flex: 1; overflow: hidden; position: relative; min-height: 0;">
-            <div id="file-viewer-content" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0;"></div>
-        </div>
-    </div>
-</div>
-
-<!-- ===== DIFF VIEWER MODAL ===== -->
-<div id="diff-viewer-modal" class="modal-backdrop hidden">
-    <div class="modal-panel-wide" onclick="event.stopPropagation()">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-ide-border">
+<!-- Model Picker Modal -->
+<div id="model-picker-modal" class="hidden fixed inset-0 z-[400] flex items-center justify-center bg-[rgba(0,0,0,0.8)] backdrop-blur-sm">
+    <div class="bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[80vh]">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--ide-border-subtle)] shrink-0">
             <div class="flex items-center gap-2">
-                <i data-lucide="git-compare" class="w-4 h-4 text-ide-accent"></i>
-                <span class="text-sm font-medium text-ide-text" id="diff-viewer-name">—</span>
+                <i data-lucide="cpu" class="w-4 h-4 text-[var(--ide-accent)]"></i>
+                <span class="text-sm font-medium text-[var(--ide-text-primary)]">Select Models</span>
+                <span id="model-picker-provider-name" class="text-xs text-[var(--ide-text-muted)]"></span>
             </div>
-            <button id="close-diff-viewer-btn" class="p-1 rounded hover:bg-ide-hover text-ide-muted">
+            <button id="close-model-picker-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] transition-colors p-1 rounded">
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </div>
-        <div class="flex-1 bg-ide-panel2" style="height: 70vh;">
-            <pre id="diff-viewer-content" class="p-4 text-xs font-mono whitespace-pre-wrap m-0"></pre>
+        <div class="p-4 border-b border-[var(--ide-border-subtle)]">
+            <input id="model-picker-search" type="text" placeholder="Search models (flash, free, pro, code...)" class="w-full bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg px-3 py-2 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)]">
         </div>
-    </div>
-</div>
-
-<!-- ===== COMMIT MODAL ===== -->
-<div id="commit-modal" class="modal-backdrop hidden">
-    <div class="modal-panel-sm" onclick="event.stopPropagation()">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-ide-border">
-            <div class="flex items-center gap-2">
-                <i data-lucide="git-commit" class="w-4 h-4 text-ide-accent"></i>
-                <span class="font-semibold text-sm text-ide-text">Git Commit</span>
-            </div>
-            <button id="close-commit-modal-btn" class="p-1 rounded hover:bg-ide-hover text-ide-muted">
-                <i data-lucide="x" class="w-4 h-4"></i>
-            </button>
+        <div id="model-picker-list" class="flex-1 overflow-y-auto p-4 custom-scrollbar">
         </div>
-        <div class="p-4 space-y-3">
-            <input type="text" id="commit-message-input" placeholder="Commit message" class="ide-input">
-            <div id="commit-files-preview" class="text-xs text-ide-muted max-h-40 overflow-y-auto"></div>
-            <div class="flex justify-end gap-2">
-                <button id="cancel-commit-btn" class="ide-btn ide-btn-ghost">Отмена</button>
-                <button id="confirm-commit-btn" class="ide-btn ide-btn-primary">Commit</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ===== CONTEXT PICKER MODAL ===== -->
-<div id="context-picker-modal" class="modal-backdrop hidden">
-    <div class="modal-panel" onclick="event.stopPropagation()">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-ide-border">
-            <div class="flex items-center gap-2">
-                <i data-lucide="paperclip" class="w-4 h-4 text-ide-accent"></i>
-                <span class="font-semibold text-sm text-ide-text">Добавить контекст</span>
-            </div>
-            <button id="close-context-picker-btn" class="p-1 rounded hover:bg-ide-hover text-ide-muted">
-                <i data-lucide="x" class="w-4 h-4"></i>
-            </button>
-        </div>
-        <div class="px-3 py-2 border-b border-ide-border">
-            <input type="text" id="ctx-picker-search" placeholder="Фильтр файлов..." class="ide-input text-xs">
-        </div>
-        <div class="flex-1 overflow-auto p-2 max-h-[55vh]" id="ctx-picker-tree">
-            <div class="text-center text-xs text-ide-muted py-4">Загрузка...</div>
-        </div>
-        <div class="flex items-center justify-between px-4 py-3 border-t border-ide-border">
-            <span class="text-xs text-ide-muted" id="ctx-picker-count">Выбрано: 0</span>
+        <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--ide-border-subtle)] bg-[var(--ide-elevated)]">
+            <span id="model-picker-count" class="text-xs text-[var(--ide-text-muted)]">Selected: 0</span>
             <div class="flex gap-2">
-                <button id="cancel-context-picker-btn" class="ide-btn ide-btn-ghost">Отмена</button>
-                <button id="confirm-context-picker-btn" class="ide-btn ide-btn-primary">Добавить</button>
+                <button id="model-picker-cancel" class="px-3 py-1.5 text-xs text-[var(--ide-text-secondary)] hover:text-[var(--ide-text-primary)] transition-colors rounded-lg hover:bg-[var(--ide-elevated-2)]">Cancel</button>
+                <button id="model-picker-confirm" class="px-4 py-1.5 text-xs font-medium bg-[var(--ide-accent)] text-white rounded-lg hover:bg-[var(--ide-accent-hover)] transition-all">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ===== AUTH OVERLAY ===== -->
-<div id="rf-auth-overlay" class="fixed inset-0 flex items-center justify-center z-[9999] p-4" style="display:none; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);">
-    <div class="bg-gray-900 p-8 rounded-2xl shadow-2xl border border-gray-800 w-full max-w-md text-center">
-        <img src="/static/runtimeforce.png" alt="RuntimeForce" class="w-full max-w-[200px] mx-auto mb-4 object-contain">
-        <p class="text-gray-400 text-sm mb-8">Войдите через GitHub или Google для запуска RuntimeForce</p>
-
-        <div class="grid grid-cols-1 gap-3 mb-6">
-            <button id="rf-auth-github-btn" class="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white p-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-                Войти через GitHub
-            </button>
-            <button id="rf-auth-google-btn" class="w-full bg-white hover:bg-gray-100 text-gray-900 p-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                Войти через Google
+<!-- Local Models Picker Modal -->
+<div id="local-models-picker-modal" class="hidden fixed inset-0 z-[400] flex items-center justify-center bg-[rgba(0,0,0,0.8)] backdrop-blur-sm">
+    <div class="bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[70vh]">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--ide-border-subtle)] shrink-0">
+            <div class="flex items-center gap-2">
+                <i data-lucide="monitor" class="w-4 h-4 text-[var(--ide-accent)]"></i>
+                <span class="text-sm font-medium text-[var(--ide-text-primary)]">Available Models</span>
+            </div>
+            <button id="close-local-models-picker-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] transition-colors p-1 rounded">
+                <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </div>
-
-        <p id="rf-auth-error" class="text-red-500 text-sm mb-4 text-center hidden"></p>
-        <p id="rf-auth-success" class="text-green-500 text-sm mb-4 text-center hidden"></p>
+        <div id="local-models-picker-list" class="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-1">
+        </div>
     </div>
 </div>
 
-<!-- ===== SCRIPTS ===== -->
-<script type="module" src="/static/js/app.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
-<script>
-    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
-</script>
-<script src="/static/js/auth.js"></script>
+    <script type="module" src="/static/js/utils/escape.js"></script>
+    <script type="module" src="/static/js/utils/format.js"></script>
+    <script type="module" src="/static/js/utils/icons.js"></script>
+    <script type="module" src="/static/js/state.js"></script>
+    <script type="module" src="/static/js/api.js"></script>
+    <script type="module" src="/static/js/auth.js"></script>
+    <script type="module" src="/static/js/components/toast.js"></script>
+    <script type="module" src="/static/js/components/fileviewer.js"></script>
+    <script type="module" src="/static/js/components/filetree.js"></script>
+    <script type="module" src="/static/js/components/git.js"></script>
+    <script type="module" src="/static/js/components/sessions.js"></script>
+    <script type="module" src="/static/js/components/workspace.js"></script>
+    <script type="module" src="/static/js/components/providers.js"></script>
+    <script type="module" src="/static/js/components/settings.js"></script>
+    <script type="module" src="/static/js/components/orchestrator_ui.js"></script>
+    <script type="module" src="/static/js/components/chat.js"></script>
+    <script type="module" src="/static/js/components/terminal.js"></script>
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
