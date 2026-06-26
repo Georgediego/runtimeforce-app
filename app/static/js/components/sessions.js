@@ -4,16 +4,19 @@ import { escapeHtml, escapeRegex } from "../utils/escape.js";
 import { formatSessionTime } from "../utils/format.js";
 import { refreshIcons } from "../utils/icons.js";
 import { showToast, showConfirm } from "./toast.js";
-import { loadChatSession } from "./chat.js"; // <-- Импортируем loadChatSession
+// ❌ УДАЛЕН статический импорт loadChatSession из chat.js
+// (он создавал циклическую зависимость chat.js → sessions.js → chat.js)
+// Теперь loadChatSession загружается динамически через import() в openSession()
 
 export async function loadSessions() {
     const container = document.getElementById("sessions-list");
     if (!container) return;
+
     try {
         const data = await sessionsApi.list();
         setState("allSessions", data.sessions || []);
         renderSessions(state.allSessions);
-        
+
         // Автоматически открываем последнюю активную сессию при загрузке страницы, если нет активной
         if (state.allSessions.length > 0 && !state.currentSessionId) {
             await openSession(state.allSessions[0].id);
@@ -149,13 +152,20 @@ function highlightText(text, q) {
 }
 
 export async function openSession(id) {
+    if (!id) return;
     setState("currentSessionId", id);
     renderSessions(state.allSessions);
+
     try {
-        // ИСПРАВЛЕНИЕ: Вызываем готовую функцию загрузки истории и рендеринга
+        // ✅ ДИНАМИЧЕСКИЙ ИМПОРТ — разрывает циклическую зависимость с chat.js
+        const { loadChatSession } = await import("./chat.js");
         await loadChatSession(id);
-        window.dispatchEvent(new CustomEvent("agent-status", { detail: { status: "Idle" } }));
+
+        // Сброс статуса агента в шапке
+        const statusEl = document.getElementById("agent-status-text");
+        if (statusEl) statusEl.textContent = "Idle";
     } catch (e) {
+        console.error("Session load error:", e);
         showToast("Ошибка загрузки истории", "error");
     }
 }
@@ -163,10 +173,12 @@ export async function openSession(id) {
 async function renameSessionPrompt(id) {
     const s = state.allSessions.find(x => x.id === id);
     if (!s) return;
+
     const newTitle = prompt("Введите новое название сессии:", s.title);
     if (newTitle === null) return;
     const cleanTitle = newTitle.trim();
     if (!cleanTitle) return;
+
     try {
         await sessionsApi.create(cleanTitle, id);
         showToast("Сессия переименована", "success");
@@ -208,6 +220,7 @@ export function initSearch() {
         const q = input.value.trim();
         if (clearBtn) clearBtn.classList.toggle("hidden", !q);
         clearTimeout(state.searchDebounce);
+
         if (!q) {
             renderSessions(state.allSessions);
             if (countEl) countEl.classList.add("hidden");
@@ -230,6 +243,7 @@ async function performSearch(q) {
     const lower = q.toLowerCase();
     const matches = [];
     const countEl = document.getElementById("search-results-count");
+
     if (countEl) {
         countEl.classList.remove("hidden");
         countEl.textContent = "Поиск...";
@@ -258,9 +272,7 @@ async function getMessagesCached(id) {
     try {
         const data = await sessionsApi.messages(id);
         const msgs = data.messages || [];
-        if (state.sessionsCache) {
-            state.sessionsCache.set(id, msgs);
-        }
+        if (state.sessionsCache) state.sessionsCache.set(id, msgs);
         return msgs;
     } catch (e) {
         return [];

@@ -3,12 +3,12 @@ import { workspacesApi } from "../api.js";
 import { escapeHtml } from "../utils/escape.js";
 import { showToast, showConfirm } from "./toast.js";
 
-let editor = null;            // Monaco editor instance
-let currentPath = null;       // Путь открытого файла
-let currentContent = null;    // Исходный контент (для проверки dirty state)
-let isDirty = false;          // Были ли изменения
-let monacoReady = false;      // Загрузился ли Monaco
-let monacoLoadPromise = null; // Promise загрузки Monaco
+let editor = null;            
+let currentPath = null;       
+let currentContent = null;    
+let isDirty = false;          
+let monacoReady = false;      
+let monacoLoadPromise = null; 
 
 function loadMonaco() {
     if (monacoReady) return Promise.resolve();
@@ -67,33 +67,30 @@ function detectLanguage(path) {
 
 export async function openFile(path, name) {
     if (isDirty && currentPath) {
-        // Используем кастомный конфирм вместо confirm()
         const confirmed = await showConfirm(
             "Несохранённые изменения",
             "В текущем файле есть несохранённые изменения. Закрыть его без сохранения?",
             "Закрыть",
             "Отмена"
         );
-        if (!confirmed) {
-            return;
-        }
+        if (!confirmed) return;
     }
 
     currentPath = path;
     isDirty = false;
     updateHeader(name, false);
+    
+    // Переключаем интерфейс на вкладку Editor
+    activateEditorTab();
 
-    // Открываем модальное окно
-    const modal = document.getElementById("file-viewer-modal");
-    if (modal) modal.classList.remove("hidden");
-
-    const container = document.getElementById("file-viewer-content");
+    const container = document.getElementById("monaco-container");
     if (!container) return;
 
     container.innerHTML =
-        '<div class="flex items-center justify-center h-full text-ide-muted text-sm">' +
+        '<div class="flex items-center justify-center h-full text-[var(--ide-text-muted)] text-sm">' +
         '<i data-lucide="loader" class="w-4 h-4 inline animate-spin mr-2"></i>' +
         'Загрузка ' + escapeHtml(name) + '...</div>';
+    if (window.lucide) window.lucide.createIcons();
 
     try {
         const data = await workspacesApi.file(path);
@@ -108,7 +105,7 @@ export async function openFile(path, name) {
             renderFallback(container, content, path);
         }
 
-        showViewerChrome(name);
+        bindHeaderButtons();
     } catch (e) {
         container.innerHTML =
             '<div class="flex items-center justify-center h-full text-ide-error text-sm">' +
@@ -116,12 +113,35 @@ export async function openFile(path, name) {
     }
 }
 
+function activateEditorTab() {
+    // 1. Обновляем визуальный статус кнопок-вкладок
+    document.querySelectorAll('.right-tab-btn').forEach(btn => {
+        btn.classList.remove('border-[var(--ide-accent)]', 'text-[var(--ide-text-primary)]');
+        btn.classList.add('border-transparent', 'text-[var(--ide-text-muted)]');
+        
+        if (btn.dataset.panel === 'editor') {
+            btn.classList.remove('border-transparent', 'text-[var(--ide-text-muted)]');
+            btn.classList.add('border-[var(--ide-accent)]', 'text-[var(--ide-text-primary)]');
+        }
+    });
+    
+    // 2. Скрываем все панели
+    document.querySelectorAll('.right-panel-content').forEach(panel => {
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+    });
+    
+    // 3. Показываем редактор
+    const editorPanel = document.getElementById('right-panel-editor');
+    if (editorPanel) {
+        editorPanel.classList.remove('hidden');
+        editorPanel.classList.add('flex');
+    }
+}
+
 function renderMonaco(container, content, path) {
     if (editor && typeof editor.dispose === "function") { editor.dispose(); editor = null; }
     container.innerHTML = "";
-    // Monaco конфликтует с Tailwind-классами на контейнере — сохраняем и очищаем
-    container._savedClassName = container.className;
-    container.className = "";
     container.style.height = "100%";
     container.style.width = "100%";
 
@@ -201,7 +221,7 @@ export async function saveFile() {
     }
 
     const content = editor.getValue();
-    const saveBtn = document.getElementById("file-save-btn");
+    const saveBtn = document.getElementById("editor-save-btn");
 
     if (saveBtn) {
         saveBtn.disabled = true;
@@ -230,18 +250,24 @@ function getFileName(path) {
 }
 
 function updateHeader(name, dirty) {
-    const titleEl = document.getElementById("file-viewer-title");
+    const titleEl = document.getElementById("editor-filename");
     if (titleEl) {
-        titleEl.textContent = (dirty ? "● " : "") + (name || "Файл");
-        titleEl.style.color = dirty ? "var(--ide-warning)" : "var(--ide-text)";
+        titleEl.textContent = (dirty ? "● " : "") + (name || "Файл не выбран");
+        // Подкрашиваем текст, если файл не сохранен
+        if (dirty) {
+            titleEl.classList.add("text-[var(--ide-warning)]");
+            titleEl.classList.remove("text-[var(--ide-text-primary)]");
+        } else {
+            titleEl.classList.add("text-[var(--ide-text-primary)]");
+            titleEl.classList.remove("text-[var(--ide-warning)]");
+        }
     }
 }
 
-function showViewerChrome(name) {
-    const header = document.getElementById("file-viewer-header");
-    const saveBtn = document.getElementById("file-save-btn");
-    const closeBtn = document.getElementById("file-close-btn");
-    if (header) header.classList.remove("hidden");
+function bindHeaderButtons() {
+    const saveBtn = document.getElementById("editor-save-btn");
+    const closeBtn = document.getElementById("editor-close-btn");
+    
     if (saveBtn && !saveBtn.dataset.bound) {
         saveBtn.addEventListener("click", saveFile);
         saveBtn.dataset.bound = "1";
@@ -250,14 +276,12 @@ function showViewerChrome(name) {
         closeBtn.addEventListener("click", closeFile);
         closeBtn.dataset.bound = "1";
     }
-    updateHeader(name, false);
 }
 
 window.addEventListener("close-file", closeFile);
 
 export async function closeFile() {
     if (isDirty) {
-        // Используем кастомный конфирм вместо confirm()
         const confirmed = await showConfirm(
             "Несохранённые изменения",
             "В файле есть несохранённые изменения. Закрыть редактор без сохранения?",
@@ -266,22 +290,13 @@ export async function closeFile() {
         );
         if (!confirmed) return;
     }
-    const modal = document.getElementById("file-viewer-modal");
-    if (modal) modal.classList.add("hidden");
-    const header = document.getElementById("file-viewer-header");
-    const container = document.getElementById("file-viewer-content");
     
-    if (header) header.classList.add("hidden");
+    const container = document.getElementById("monaco-container");
     if (container) {
-        // Восстанавливаем классы контейнера которые очистили для Monaco
-        if (container._savedClassName !== undefined) {
-            container.className = container._savedClassName;
-            container._savedClassName = undefined;
-        }
-        container.style.height = "";
-        container.style.width = "";
-        container.innerHTML = '<div class="flex items-center justify-center h-full text-ide-muted text-xs">Выберите файл для редактирования</div>';
+        container.innerHTML = '<div class="flex items-center justify-center h-full text-[var(--ide-text-muted)] text-xs">Выберите файл для редактирования</div>';
     }
+    
+    updateHeader("", false);
     
     if (editor && typeof editor.dispose === "function") {
         editor.dispose();

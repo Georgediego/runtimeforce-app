@@ -47,11 +47,17 @@ export const workspacesApi = {
     tree: () => request("/api/v1/workspaces/tree"),
     treeChildren: (path) => request("/api/v1/workspaces/tree/children?path=" + encodeURIComponent(path)),
     file: (path) => request("/api/v1/workspaces/file?path=" + encodeURIComponent(path)),
+    // ДОБАВЛЕНО: Функция сохранения файла
+    saveFile: (path, content) => request("/api/v1/workspaces/file", {
+        method: "POST", // или PUT в зависимости от вашего бэкенда
+        body: JSON.stringify({ path: path, content: content })
+    })
 };
 
 // Git
 export const gitApi = {
     status: () => request("/api/v1/git/status"),
+    init: () => request("/api/v1/git/init", { method: "POST" }), 
     diff: (path, staged = false) => request("/api/v1/git/diff?path=" + encodeURIComponent(path || "") + "&staged=" + staged),
     log: (n = 10) => request("/api/v1/git/log?n=" + n),
     branches: () => request("/api/v1/git/branches"),

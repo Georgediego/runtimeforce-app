@@ -54,17 +54,20 @@ function renderLazyNode(node, depth) {
 
     if (isDir) {
         return '<div class="tree-folder" data-path="' + escapeHtml(node.path) + '" data-loaded="false">' +
-            '<div class="tree-folder-toggle" style="' + padStyle + '">' +
-                '<i data-lucide="chevron-right" class="w-3 h-3 tree-chevron"></i>' +
-                '<i data-lucide="folder" class="w-3.5 h-3.5 text-ide-warning shrink-0"></i>' +
+            // ИСПРАВЛЕНИЕ: Добавлен flex items-center для выравнивания в строку
+            '<div class="tree-folder-toggle flex items-center gap-1.5 py-1 text-sm cursor-pointer hover:bg-[var(--ide-elevated)] transition-colors" style="' + padStyle + '">' +
+                '<i data-lucide="chevron-right" class="w-3 h-3 tree-chevron transition-transform duration-200 shrink-0 text-ide-muted"></i>' +
+                '<i data-lucide="folder" class="w-3.5 h-3.5 text-[var(--ide-accent)] shrink-0"></i>' +
                 '<span class="truncate ' + gitClass + '">' + escapeHtml(node.name) + '</span>' +
             '</div>' +
-            '<div class="tree-folder-children"></div>' +
+            // ИСПРАВЛЕНИЕ: Изначально скрываем содержимое папки (hidden)
+            '<div class="tree-folder-children hidden"></div>' +
         '</div>';
     }
 
-    return '<div class="tree-file-item file-tree-item ' + gitClass + '" style="' + padStyle + '" data-path="' + escapeHtml(node.path) + '" data-name="' + escapeHtml(node.name) + '">' +
-        '<i data-lucide="' + getFileIcon(node.name) + '" class="w-3.5 h-3.5 shrink-0"></i>' +
+    // ИСПРАВЛЕНИЕ: Файлы также выровнены через flex items-center
+    return '<div class="tree-file-item file-tree-item flex items-center gap-1.5 py-1 text-sm cursor-pointer hover:bg-[var(--ide-elevated)] transition-colors ' + gitClass + '" style="' + padStyle + '" data-path="' + escapeHtml(node.path) + '" data-name="' + escapeHtml(node.name) + '">' +
+        '<i data-lucide="' + getFileIcon(node.name) + '" class="w-3.5 h-3.5 shrink-0 text-ide-muted"></i>' +
         '<span class="truncate">' + escapeHtml(node.name) + '</span>' +
     '</div>';
 }
@@ -110,16 +113,28 @@ async function toggleLazyFolder(toggleEl) {
     var isExpanded = folder.classList.contains("expanded");
     var dirPath = folder.dataset.path;
     var isLoaded = folder.dataset.loaded === "true";
+    // Находим стрелку по классу
+    var chevron = toggleEl.querySelector(".tree-chevron");
 
     if (isExpanded) {
+        // Сворачивание
         folder.classList.remove("expanded");
-        var icon = toggleEl.querySelectorAll("i")[1];
+        childrenContainer.classList.add("hidden");
+        
+        if (chevron) { chevron.style.transform = "rotate(0deg)"; }
+        
+        var icon = toggleEl.querySelector('[data-lucide="folder-open"]');
         if (icon) { icon.setAttribute("data-lucide", "folder"); refreshIcons(toggleEl); }
         return;
     }
 
+    // Раскрытие
     folder.classList.add("expanded");
-    var icon = toggleEl.querySelectorAll("i")[1];
+    childrenContainer.classList.remove("hidden");
+    
+    if (chevron) { chevron.style.transform = "rotate(90deg)"; }
+    
+    var icon = toggleEl.querySelector('[data-lucide="folder"]');
     if (icon) { icon.setAttribute("data-lucide", "folder-open"); refreshIcons(toggleEl); }
 
     if (isLoaded) return;
