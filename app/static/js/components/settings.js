@@ -147,43 +147,6 @@ function performUpdate() {
     window.location.reload(true);
 }
 
-function showUpdateModal(sha, date) {
-    const modal = document.getElementById('update-available-modal');
-    if (!modal) return;
-
-    const shortSha = sha.substring(0, 7);
-    const dateStr = date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-
-    const shaEl = document.getElementById('update-new-sha');
-    const dateEl = document.getElementById('update-new-date');
-    
-    if (shaEl) shaEl.textContent = shortSha;
-    if (dateEl) dateEl.textContent = dateStr;
-
-    modal.classList.remove('hidden');
-    if (window.lucide) window.lucide.createIcons();
-}
-
-function performUpdate() {
-    const modal = document.getElementById('update-available-modal');
-    const newSha = localStorage.getItem(CACHE_KEY);
-    
-    if (newSha) {
-        localStorage.setItem('rf_current_sha', newSha);
-    }
-    
-    if (modal) modal.classList.add('hidden');
-    
-    // Принудительная перезагрузка с очисткой кэша
-    window.location.reload(true);
-}
-
 export function initSettings() {
     var modal = document.getElementById("settings-modal");
 
