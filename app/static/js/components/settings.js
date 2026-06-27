@@ -6,10 +6,10 @@ import { renderProvidersUI, updateKeyStatusIndicators, saveAllKeys, clearAllKeys
 // Обновления: GitHub API (публичный репозиторий)
 // ═══════════════════════════════════════════════════════════
 const GITHUB_REPO = 'Georgediego/runtimeforce-app';
-const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/commits/main`;
-const CACHE_KEY = 'rf_last_commit_sha';
+const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;  // ← ИЗМЕНЕНО
+const CACHE_KEY = 'rf_last_release_tag';  // ← ИЗМЕНЕНО
 const CACHE_TIME_KEY = 'rf_last_check_time';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 часа
+const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
 export async function checkForUpdates(forceCheck = false) {
     const versionEl = document.getElementById('rf-settings-version');
@@ -23,14 +23,12 @@ export async function checkForUpdates(forceCheck = false) {
 
     try {
         const now = Date.now();
-        const cachedSha = localStorage.getItem(CACHE_KEY);
+        const cachedTag = localStorage.getItem(CACHE_KEY);  // ← ИЗМЕНЕНО
         const lastCheck = parseInt(localStorage.getItem(CACHE_TIME_KEY) || '0');
         
-        let latestSha, commitDate;
+        let latestTag, releaseDate;  // ← ИЗМЕНЕНО
 
-        if (forceCheck || !cachedSha || (now - lastCheck) >= CACHE_DURATION) {
-            console.log('[RF] Checking for updates from GitHub...');
-            
+        if (forceCheck || !cachedTag || (now - lastCheck) >= CACHE_DURATION) {
             const response = await fetch(GITHUB_API, {
                 headers: { 
                     'Accept': 'application/vnd.github.v3+json',
@@ -38,78 +36,58 @@ export async function checkForUpdates(forceCheck = false) {
                 }
             });
 
-            // ═══════════════════════════════════════════════════════════
-            // УМНАЯ ОБРАБОТКА ОШИБОК
-            // ═══════════════════════════════════════════════════════════
             if (response.status === 404) {
-                // Репозиторий приватный или не существует
-                console.warn('[RF] Repository is private or not found (404)');
                 if (checkBtn) {
                     checkBtn.disabled = false;
-                    checkBtn.innerHTML = '<i data-lucide="lock" class="w-3.5 h-3.5 inline"></i> Private Repo';
+                    checkBtn.innerHTML = '<i data-lucide="package" class="w-3.5 h-3.5 inline"></i> No releases';
                     if (window.lucide) window.lucide.createIcons({ root: checkBtn });
                 }
-                if (versionEl) {
-                    versionEl.textContent = 'Repository is private';
-                }
-                return { hasUpdate: false, error: false, private: true };
+                if (versionEl) versionEl.textContent = 'No releases yet';
+                return { hasUpdate: false, error: false, noReleases: true };
             }
 
             if (response.status === 403) {
-                // Rate limit exceeded
-                console.warn('[RF] GitHub API rate limit exceeded');
                 if (checkBtn) {
                     checkBtn.disabled = false;
                     checkBtn.innerHTML = '<i data-lucide="clock" class="w-3.5 h-3.5 inline"></i> Rate Limit';
                     if (window.lucide) window.lucide.createIcons({ root: checkBtn });
                 }
-                if (versionEl) {
-                    versionEl.textContent = 'API rate limit exceeded';
-                }
+                if (versionEl) versionEl.textContent = 'API rate limit exceeded';
                 return { hasUpdate: false, error: false, rateLimited: true };
             }
 
-            if (!response.ok) {
-                throw new Error(`GitHub API error: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
 
             const data = await response.json();
             
-            if (!data.sha || !data.commit) {
-                throw new Error('Invalid response from GitHub API');
-            }
+            if (!data.tag_name) throw new Error('Invalid response from GitHub API');
 
-            latestSha = data.sha;
-            commitDate = new Date(data.commit.committer.date);
+            latestTag = data.tag_name;  // ← ИЗМЕНЕНО: "v1.1.0"
+            releaseDate = new Date(data.published_at);  // ← ИЗМЕНЕНО
 
-            localStorage.setItem(CACHE_KEY, latestSha);
+            localStorage.setItem(CACHE_KEY, latestTag);
             localStorage.setItem(CACHE_TIME_KEY, now.toString());
-            
-            console.log('[RF] Latest commit:', latestSha.substring(0, 7), commitDate);
         } else {
-            latestSha = cachedSha;
-            commitDate = new Date(lastCheck);
-            console.log('[RF] Using cached version:', latestSha.substring(0, 7));
+            latestTag = cachedTag;
+            releaseDate = new Date(lastCheck);
         }
 
-        // Обновляем UI с версией
+        // Обновляем UI
         if (versionEl) {
-            const shortSha = latestSha.substring(0, 7);
-            const dateStr = commitDate.toLocaleDateString('en-US', { 
+            const dateStr = releaseDate.toLocaleDateString('en-US', { 
                 year: 'numeric', month: 'short', day: 'numeric' 
             });
-            versionEl.textContent = `Build ${shortSha} • ${dateStr}`;
+            versionEl.textContent = `${latestTag} • ${dateStr}`;  // ← ИЗМЕНЕНО
         }
 
         // Проверяем, есть ли новая версия
-        const savedSha = localStorage.getItem('rf_current_sha');
-        const isNewVersion = savedSha && savedSha !== latestSha;
+        const savedTag = localStorage.getItem('rf_current_release');  // ← ИЗМЕНЕНО
+        const isNewVersion = savedTag && savedTag !== latestTag;
 
         if (isNewVersion && forceCheck) {
-            showUpdateModal(latestSha, commitDate);
-        } else if (!savedSha) {
-            localStorage.setItem('rf_current_sha', latestSha);
-            console.log('[RF] Initial version saved:', latestSha.substring(0, 7));
+            showUpdateModal(latestTag, releaseDate);  // ← ИЗМЕНЕНО
+        } else if (!savedTag) {
+            localStorage.setItem('rf_current_release', latestTag);  // ← ИЗМЕНЕНО
         }
 
         if (checkBtn) {
@@ -122,7 +100,7 @@ export async function checkForUpdates(forceCheck = false) {
             if (window.lucide) window.lucide.createIcons({ root: checkBtn });
         }
 
-        return { hasUpdate: isNewVersion, sha: latestSha, date: commitDate };
+        return { hasUpdate: isNewVersion, tag: latestTag, date: releaseDate };  // ← ИЗМЕНЕНО
 
     } catch (error) {
         console.error('[RF] Update check failed:', error);
@@ -133,12 +111,40 @@ export async function checkForUpdates(forceCheck = false) {
             if (window.lucide) window.lucide.createIcons({ root: checkBtn });
         }
 
-        if (versionEl) {
-            versionEl.textContent = 'Connection error';
-        }
+        if (versionEl) versionEl.textContent = 'Connection error';
 
         return { hasUpdate: false, error: true, message: error.message };
     }
+}
+
+function showUpdateModal(tag, date) {  // ← ИЗМЕНЕНО
+    const modal = document.getElementById('update-available-modal');
+    if (!modal) return;
+
+    const dateStr = date.toLocaleDateString('en-US', { 
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+
+    const tagEl = document.getElementById('update-new-sha');  // Можно переименовать в 'update-new-tag'
+    const dateEl = document.getElementById('update-new-date');
+
+    if (tagEl) tagEl.textContent = tag;  // ← ИЗМЕНЕНО
+    if (dateEl) dateEl.textContent = dateStr;
+
+    modal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function performUpdate() {
+    const modal = document.getElementById('update-available-modal');
+    const newTag = localStorage.getItem(CACHE_KEY);  // ← ИЗМЕНЕНО
+    if (newTag) {
+        localStorage.setItem('rf_current_release', newTag);  // ← ИЗМЕНЕНО
+    }
+
+    if (modal) modal.classList.add('hidden');
+    window.location.reload(true);
 }
 
 function showUpdateModal(sha, date) {
