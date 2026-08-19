@@ -1,132 +1,144 @@
-import { escapeHtml } from "../utils/escape.js";
+/**
+ * Terminal UI Controller with Real-Time Agent Execution Stream & Persistent Storage.
+ */
+import { workspacesApi, sessionsApi } from "../core/api_http_client.js";
+import { eventBus } from "../core/event_bus.js";
 
-var terminalOutput = document.getElementById("terminal-output");
-var terminalHeader = document.getElementById("terminal-header");
-var terminalChevron = document.getElementById("terminal-chevron");
-var terminalInputRow = document.getElementById("terminal-input-row");
-var terminalCmdInput = document.getElementById("terminal-cmd-input");
+let currentSessionId = null;
+let saveQueue = [];
+let isSaving = false;
 
-var isExpanded = false;
-var currentCwd = ""; // Хранение текущей директории
-
-function toggleTerminal() {
-    isExpanded = !isExpanded;
-    if (isExpanded) {
-        terminalOutput.classList.remove("hidden");
-        terminalInputRow.classList.remove("hidden");
-        terminalChevron.style.transform = "rotate(180deg)";
-    } else {
-        terminalOutput.classList.add("hidden");
-        terminalInputRow.classList.add("hidden");
-        terminalChevron.style.transform = "rotate(0deg)";
-    }
-}
-
-export function initTerminal() {
-    if (terminalHeader) {
-        terminalHeader.addEventListener("click", function(e) {
-            if (e.target.closest("#close-terminal-btn")) return;
-            toggleTerminal();
-        });
-    }
-    var closeBtn = document.getElementById("close-terminal-btn");
-    if (closeBtn) {
-        closeBtn.addEventListener("click", function(e) {
-            e.stopPropagation();
-            toggleTerminal();
-        });
-    }
-    terminalCmdInput?.addEventListener("keydown", async function(e) {
-        if (e.key === "Enter" && this.value.trim()) {
-            var cmd = this.value.trim();
-            this.value = "";
-            await executeCommand(cmd);
-        }
-    });
-    if (terminalChevron) {
-        terminalChevron.style.transform = "rotate(0deg)";
-    }
-}
-
-async function executeCommand(cmd) {
-    var cleanCmd = cmd.trim();
-    
-    // Парсим cd локально на клиенте, чтобы терминал помнил путь и выводил его в промпте
-    if (cleanCmd.startsWith("cd ")) {
-        var targetDir = cleanCmd.substring(3).trim();
-        if (targetDir === "..") {
-            var parts = currentCwd.split("/");
-            parts.pop();
-            currentCwd = parts.join("/");
-        } else if (targetDir.startsWith("/")) {
-            currentCwd = targetDir;
-        } else {
-            currentCwd = currentCwd ? currentCwd + "/" + targetDir : targetDir;
-        }
-        appendToTerminal("<span class='text-ide-accent'>" + (currentCwd || "~") + " $ </span>" + escapeHtml(cmd));
-        return;
-    }
-
-    appendToTerminal("<span class='text-ide-accent'>" + (currentCwd || "~") + " $ </span>" + escapeHtml(cmd));
-    
+async function flushSaveQueue() {
+    if (isSaving || !currentSessionId || saveQueue.length === 0) return;
+    isSaving = true;
+    const entry = saveQueue.shift();
     try {
-        var response = await fetch("/api/v1/workspaces/execute", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                command: cmd,
-                cwd: currentCwd || null // Передаем CWD на бэкенд
-            })
+        await sessionsApi.saveTerminalEntry(currentSessionId, entry.type, entry.content);
+    } catch (e) {
+        console.warn("Failed to persist terminal entry:", e);
+    } finally {
+        isSaving = false;
+        if (saveQueue.length > 0) flushSaveQueue();
+    }
+}
+
+function queueSave(entryType, content) {
+    if (!currentSessionId || !content) return;
+    saveQueue.push({ type: entryType, content });
+    flushSaveQueue();
+}
+
+export const terminalUIController = {
+    init() {
+        const cmdInput = document.getElementById("terminal-cmd-input");
+        cmdInput?.addEventListener("keydown", async (e) => {
+            if (e.key === "Enter") {
+                const cmd = cmdInput.value.trim();
+                if (!cmd) return;
+                cmdInput.value = "";
+                this.appendPromptLine(cmd, true);
+                try {
+                    const activeProjectId = localStorage.getItem("rf_active_project_id") || "";
+                    const res = await workspacesApi.execute(cmd, null, null, activeProjectId);
+                    if (res.stdout) {
+                        this.appendOutput(res.stdout, "text-slate-200", true);
+                    }
+                    if (res.stderr) {
+                        this.appendOutput(res.stderr, "text-red-400", true);
+                    }
+                } catch (err) {
+                    const errText = `Error: ${err.message}\n`;
+                    this.appendOutput(errText, "text-red-400", true);
+                }
+            }
+        });
+
+        eventBus.on("session:selected", (sessionId) => {
+            if (sessionId) this.setSession(sessionId);
+        });
+        eventBus.on("session.activated", (sessionId) => {
+            if (sessionId) this.setSession(sessionId);
+        });
+        eventBus.on("terminal:write", ({ type, content }) => {
+            this.appendOutput(content, type === "stderr" ? "text-red-400" : "text-slate-200", true);
         });
         
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        var data = await response.json();
-        
-        if (data.stdout) {
-            appendToTerminal("<span class='text-ide-text'>" + escapeHtml(data.stdout) + "</span>");
-        }
-        if (data.stderr) {
-            appendToTerminal("<span class='text-ide-error'>" + escapeHtml(data.stderr) + "</span>");
-        }
-        if (data.exit_code !== 0 && data.exit_code !== undefined) {
-            appendToTerminal("<span class='text-ide-muted'>[Exit code: " + data.exit_code + "]</span>");
-        }
-    } catch (err) {
-        appendToTerminal("<span class='text-ide-error'>Error: " + escapeHtml(err.message) + "</span>");
-    }
-}
+        eventBus.on("terminal.agent_output", (data) => {
+            if (data && data.session_id === currentSessionId) {
+                if (data.command) {
+                    this.appendPromptLine(`[AGENT] ${data.command}`, false);
+                }
+                if (data.output) {
+                    const styleClass = data.exit_code === 0 ? "text-emerald-300" : "text-red-400";
+                    this.appendOutput(data.output, styleClass, false);
+                }
+            }
+        });
+    },
 
-function appendToTerminal(html) {
-    var line = document.createElement("div");
-    line.innerHTML = html;
-    line.style.whiteSpace = "pre-wrap";
-    line.style.wordBreak = "break-all";
-    terminalOutput.appendChild(line);
-    terminalOutput.scrollTop = terminalOutput.scrollHeight;
-}
+    async setSession(sessionId) {
+        currentSessionId = sessionId;
+        saveQueue = [];
+        isSaving = false;
+        await this.restoreHistory();
+    },
 
-// ✅ Запись команд агента в терминал
-window.appendAgentTerminalOutput = function(cmd, result) {
-    if (!isExpanded) {
-        var badge = document.getElementById("terminal-badge");
-        if (!badge) {
-            badge = document.createElement("span");
-            badge.id = "terminal-badge";
-            badge.className = "text-[9px] bg-ide-accent/20 text-ide-accent px-1.5 py-0.5 rounded ml-1";
-            terminalHeader.insertBefore(badge, terminalChevron);
+    async restoreHistory() {
+        const output = document.getElementById("terminal-output");
+        if (!output || !currentSessionId) return;
+        output.innerHTML = "";
+        try {
+            const data = await sessionsApi.terminal(currentSessionId);
+            const entries = data.terminal || [];
+            for (const entry of entries) {
+                if (entry.entry_type === "input") {
+                    this.appendPromptLine(entry.content.replace(/^\$ /, ""), false);
+                } else if (entry.entry_type === "stdout") {
+                    this.appendOutput(entry.content, "text-slate-200", false);
+                } else if (entry.entry_type === "stderr") {
+                    this.appendOutput(entry.content, "text-red-400", false);
+                } else if (entry.entry_type === "system") {
+                    this.appendOutput(entry.content, "text-cyan-400", false);
+                }
+            }
+        } catch (e) {
+            console.warn("Failed to restore terminal history:", e);
         }
-        var count = parseInt(badge.textContent || "0") + 1;
-        badge.textContent = count;
-    }
-    
-    appendToTerminal("<span class='text-yellow-400'>[Agent] $ </span>" + escapeHtml(cmd));
-    if (result.stdout) {
-        appendToTerminal("<span class='text-ide-muted text-[10px]'>" + escapeHtml(result.stdout) + "</span>");
-    }
-    if (result.stderr) {
-        appendToTerminal("<span class='text-ide-error text-[10px]'>" + escapeHtml(result.stderr) + "</span>");
-    }
-    if (result.error) {
-        appendToTerminal("<span class='text-ide-error text-[10px]'>" + escapeHtml(result.error) + "</span>");
-    }
+    },
+
+    appendPromptLine(cmd, persist = true) {
+        const output = document.getElementById("terminal-output");
+        if (!output) return;
+        const line = document.createElement("div");
+        line.className = "flex items-center gap-2 py-0.5 font-mono text-xs";
+        const safeCmd = String(cmd || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        line.innerHTML =
+            `<span class="text-[#07f77a] font-bold shrink-0">user@localhost:~$</span> ` +
+            `<span class="text-white truncate font-bold">${safeCmd}</span>`;
+        output.appendChild(line);
+        output.scrollTop = output.scrollHeight;
+        if (persist) queueSave("input", `$ ${cmd}`);
+    },
+
+    appendOutput(text, className = "text-slate-300", persist = true) {
+        const output = document.getElementById("terminal-output");
+        if (!output) return;
+        const div = document.createElement("div");
+        div.className = `font-mono text-xs leading-relaxed whitespace-pre-wrap ${className}`;
+        div.textContent = text;
+        output.appendChild(div);
+        output.scrollTop = output.scrollHeight;
+        if (persist) {
+            const entryType = className.includes("red") ? "stderr" : "stdout";
+            queueSave(entryType, text);
+        }
+    },
+
+    clear() {
+        const output = document.getElementById("terminal-output");
+        if (output) output.innerHTML = "";
+    },
 };

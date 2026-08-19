@@ -1,114 +1,151 @@
-"""
-JWT user extraction for local data isolation.
-Decodes JWT payload WITHOUT signature verification (local IDE trust model).
-"""
-import base64
-import json
-import logging
+# app/core/auth.py — Fixed: JWT with avatar, proper OAuth flow
+import os
+import hashlib
+import jwt
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import Request, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.core.config import settings
+from app.core.database import get_db, AsyncSessionLocal
+from app.models.user import User, SubscriptionTier
+from app.core.security import get_password_hash, verify_password
 
-logger = logging.getLogger("ai_runtime.auth")
-security = HTTPBearer(auto_error=False)
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 
-def extract_user_from_jwt(token: Optional[str]) -> str:
-    if not token:
-        return "anonymous"
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire, "type": "access"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_token(token: str) -> dict:
     try:
-        if token.startswith("Bearer "):
-            token = token[7:]
-        parts = token.split(".")
-        if len(parts) != 3:
-            return "anonymous"
-        
-        payload_b64 = parts[1]
-        padding = 4 - len(payload_b64) % 4
-        if padding != 4:
-            payload_b64 += "=" * padding
-            
-        decoded = base64.urlsafe_b64decode(payload_b64)
-        data = json.loads(decoded)
-        
-        user_id = (
-            data.get("email") 
-            or data.get("sub") 
-            or data.get("username")
-            or data.get("preferred_username")
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-        if user_id:
-            return str(user_id).lower().strip()
-        return "anonymous"
-    except Exception as e:
-        logger.warning(f"JWT decode failed: {e}")
-        return "anonymous"
+
 
 async def get_current_user(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> str:
-    token = None
-    if credentials:
-        token = credentials.credentials
-    elif "authorization" in request.headers:
-        auth = request.headers["authorization"]
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-        else:
-            token = auth
-    elif "jwt_token" in request.cookies:
-        token = request.cookies.get("jwt_token")
-    elif "access_token" in request.cookies:
-        token = request.cookies.get("access_token")
-    elif "x-user-email" in request.headers:
-        return request.headers["x-user-email"].lower().strip()
-        
-    return extract_user_from_jwt(token)
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+    if not token:
+        raise credentials_exception
+    try:
+        payload = decode_token(token)
+        if payload.get("type") != "access":
+            raise credentials_exception
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except Exception:
+        raise credentials_exception
 
-async def get_current_user_info(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> dict:
-    """Извлекает как имя пользователя, так и его тарифный план из JWT локально."""
-    token = None
-    if credentials:
-        token = credentials.credentials
-    elif "authorization" in request.headers:
-        auth = request.headers["authorization"]
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-        else:
-            token = auth
-    elif "jwt_token" in request.cookies:
-        token = request.cookies.get("jwt_token")
-    elif "access_token" in request.cookies:
-        token = request.cookies.get("access_token")
-    elif "x-user-email" in request.headers:
-        return {"user_id": request.headers["x-user-email"].lower().strip(), "plan": "free"}
-        
-    user_id = extract_user_from_jwt(token)
-    plan = "free"
-    
-    if token:
-        try:
-            parts = token.split(".")
-            if len(parts) == 3:
-                payload_b64 = parts[1]
-                padding = 4 - len(payload_b64) % 4
-                if padding != 4:
-                    payload_b64 += "=" * padding
-                decoded = base64.urlsafe_b64decode(payload_b64)
-                data = json.loads(decoded)
-                plan = data.get("plan") or data.get("rf_plan") or "free"
-        except Exception:
-            pass
-            
-    return {"user_id": user_id, "plan": str(plan).lower().strip()}
+    query = select(User).where(User.id == user_id)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise credentials_exception
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Account deactivated")
+    return user
 
-async def require_authenticated_user(user_id: str = Depends(get_current_user)) -> str:
-    if user_id == "anonymous":
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required. Please log in."
+
+def verify_subscription(required_tiers: list[SubscriptionTier]):
+    async def dependency(current_user: User = Depends(get_current_user)):
+        if current_user.tier not in required_tiers:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Subscription required: {', '.join(t.value for t in required_tiers)}"
+            )
+        return current_user
+    return dependency
+
+
+# --- GITHUB OAUTH ---
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "Ov23liCdIDC8Qxa5xDyB")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "38a29b62e954acaa99dc0e8c957c98dcae44954f")
+GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "https://runtimeforce.dev/auth/github/callback")
+
+
+async def get_or_create_github_user(email: str, github_id: str, db: AsyncSession) -> User:
+    query = select(User).where(User.email == email)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+    if not user:
+        user = User(
+            email=email,
+            hashed_password=get_password_hash(f"github_{github_id}_oauth"),
+            tier=SubscriptionTier.FREE
         )
-    return user_id
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    return user
+
+
+# --- GOOGLE OAUTH ---
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "658102812661-drd0gld8vhjc1cl8s1on7je686rfrfap.apps.googleusercontent.com")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "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")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://runtimeforce.dev/auth/google/callback")
+
+
+async def get_or_create_google_user(email: str, google_id: str, db: AsyncSession) -> User:
+    query = select(User).where(User.email == email)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+    if not user:
+        user = User(
+            email=email,
+            hashed_password=get_password_hash(f"google_{google_id}_oauth"),
+            tier=SubscriptionTier.FREE
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    return user
+
+
+async def get_current_user_optional(request: Request) -> Optional[User]:
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        if not user_id:
+            return None
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+            return user
+    except Exception:
+        return None
