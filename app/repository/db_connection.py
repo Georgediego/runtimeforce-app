@@ -116,6 +116,18 @@ CREATE TABLE IF NOT EXISTS model_scores (
     PRIMARY KEY (model_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS project_oauth_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id TEXT NOT NULL,
+    provider TEXT NOT NULL CHECK(provider IN ('github', 'x', 'reddit')),
+    token_data TEXT NOT NULL,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    user_id TEXT DEFAULT 'anonymous',
+    UNIQUE(project_id, provider)
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_workspaces_active ON workspaces(is_active);
 CREATE INDEX IF NOT EXISTS idx_workspaces_user ON workspaces(user_id);
@@ -125,6 +137,8 @@ CREATE INDEX IF NOT EXISTS idx_selected_models_user ON provider_selected_models(
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_telemetry_user ON model_telemetry(user_id);
 CREATE INDEX IF NOT EXISTS idx_scores_user ON model_scores(user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_project ON project_oauth_tokens(project_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_provider ON project_oauth_tokens(provider);
 """
 
 def get_default_db_path() -> str:

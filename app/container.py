@@ -26,6 +26,7 @@ from app.repository.social_feed_db_repository import SocialFeedDBRepository
 from app.repository.graph_db_repository import GraphDBRepository
 from app.repository.decision_db_repository import DecisionDBRepository
 from app.repository.embeddings_db_repository import EmbeddingsDBRepository
+from app.repository.oauth_db_repository import OAuthDBRepository
 
 # Workspace & Project Services
 from app.services.workspace.workspace_driver_factory import WorkspaceDriverFactory
@@ -53,7 +54,17 @@ from app.services.llm.llm_rotation_service import LLMRotationService
 
 # Agent Services
 from app.services.agent.architect_agent_service import ArchitectAgentService
+from app.services.agent.engineer_agent_service import EngineerAgentService
+from app.services.agent.implementer_agent_service import ImplementerAgentService
+from app.services.agent.designer_agent_service import DesignerAgentService
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
+
+# Git & OAuth Services
+from app.services.git.github_oauth_service import GitHubOAuthService
+
+# Social Media Services
+from app.services.social.x_oauth_service import XOAuthService
+from app.services.social.reddit_oauth_service import RedditOAuthService
 
 # Tools Services
 from app.services.terminal.terminal_command_filter import TerminalCommandFilter
@@ -120,6 +131,7 @@ class ApplicationContainer:
         self.social_feed_repo = SocialFeedDBRepository(self.db_manager)
         self.graph_repo = GraphDBRepository(self.db_manager)
         self.decision_repo = DecisionDBRepository(self.db_manager)
+        self.oauth_repo = OAuthDBRepository(self.db_manager)
         
         self.local_embedding_service = LocalEmbeddingService()
         self.embeddings_repo = EmbeddingsDBRepository(self.db_manager, embedding_engine=self.local_embedding_service)
@@ -188,6 +200,31 @@ class ApplicationContainer:
         self.terminal_command_filter = TerminalCommandFilter()
         self.tool_dispatcher_service = ToolDispatcherService(command_filter=self.terminal_command_filter)
         
+        # Initialize other ATM agents (Engineer, Implementer, Designer)
+        self.engineer_agent_service = EngineerAgentService(
+            llm_orchestrator=self.llm_orchestrator,
+            context_builder=self.context_builder_service,
+            tool_dispatcher=self.tool_dispatcher_service,
+            event_bus=self.event_bus
+        )
+        self.implementer_agent_service = ImplementerAgentService(
+            llm_orchestrator=self.llm_orchestrator,
+            context_builder=self.context_builder_service,
+            tool_dispatcher=self.tool_dispatcher_service,
+            event_bus=self.event_bus
+        )
+        self.designer_agent_service = DesignerAgentService(
+            llm_orchestrator=self.llm_orchestrator,
+            context_builder=self.context_builder_service,
+            tool_dispatcher=self.tool_dispatcher_service,
+            event_bus=self.event_bus
+        )
+        
+        # Initialize OAuth services
+        self.github_oauth_service = GitHubOAuthService(oauth_repository=self.oauth_repo)
+        self.x_oauth_service = XOAuthService(oauth_repository=self.oauth_repo)
+        self.reddit_oauth_service = RedditOAuthService(oauth_repository=self.oauth_repo)
+        
         self.agent_loop_coordinator = AgentLoopCoordinator(
             orchestrator_service=self.llm_orchestrator,
             architect_agent=self.architect_agent_service,
@@ -212,6 +249,11 @@ class ApplicationContainer:
         self.register(LLMOrchestratorService, self.llm_orchestrator, name="llm_orchestrator")
         self.register(FileIntelligenceService, self.file_intelligence_service, name="file_intelligence")
         
+        # Register OAuth services
+        self.register(GitHubOAuthService, self.github_oauth_service, name="github_oauth")
+        self.register(XOAuthService, self.x_oauth_service, name="x_oauth")
+        self.register(RedditOAuthService, self.reddit_oauth_service, name="reddit_oauth")
+        
         self._named_services.update({
             "event_bus": self.event_bus,
             "db_manager": self.db_manager,
@@ -230,6 +272,7 @@ class ApplicationContainer:
             "social_feed_repo": self.social_feed_repo,
             "graph_repo": self.graph_repo,
             "decision_repo": self.decision_repo,
+            "oauth_repo": self.oauth_repo,
             "embeddings_repo": self.embeddings_repo,
             "storage_repo": self.graph_repo,
             "workspace_manager": self.workspace_manager_service,
