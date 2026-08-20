@@ -1,69 +1,26 @@
-# ── 1. ВИРТУАЛЬНЫЕ ОКРУЖЕНИЯ И ЗАВИСИМОСТИ ──
-.venv/
-venv/
-ENV/
-env/
-/env/
-/venv/
-/.venv/
-bin/
-lib/
-share/
-include/
-.python-version
-pip-log.txt
-pip-delete-this-directory.txt
-    
-# ── 2. КЭШ И СИСТЕМНЫЕ ФАЙЛЫ PYTHON ──
+```
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
-# ── 3. КОНФИДЕНЦИАЛЬНЫЕ ДАННЫЕ И КЛЮЧИ (КРИТИЧЕСКОЕ) ──
 .env
+.env.local
 .env.*
-*.env
-secrets.json
-*.pem
-*.key
-*.pub
-*.secrets
-# Конфиги ИИ-ассистентов (Aider, OpenClaw и т.д.)
-.aider*
-.openclaw*
-aider.log
-
-# ── 4. БАЗЫ ДАННЫХ И ЛОКАЛЬНЫЙ СТАТЕ ──
-*.db
-*.sqlite3
-*.sqlite3-journal
-*.log
-*.local
-
-# ── 5. FRONTEND & TAILWIND ──
-node_modules/
-.npm/
-package-lock.json
-.eslintcache
-dist/
-
-# ── 6. НАСТРОЙКИ IDE И РЕДАКТОРОВ ──
 .vscode/
 .idea/
-*.swp
-*.swo
-.project
-.pydevproject
-
-# ── 7. СИСТЕМНЫЙ МУСОР ──
+*.log
+*.tmp
 .DS_Store
 Thumbs.db
-Desktop.ini
-
-repomix-output.xml
+coverage/
+htmlcov/
+.coverage
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+target/
+node_modules/
+venv/
+.venv/
+```

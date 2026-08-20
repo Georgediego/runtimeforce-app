@@ -4,9 +4,6 @@ from typing import Any, Dict, Optional
 # Core Events & Interfaces
 from app.core.events.event_bus import EventBus
 from app.core.interfaces.architect_agent_interface import IArchitectAgentService
-from app.core.interfaces.critic_agent_interface import ICriticAgentService
-from app.core.interfaces.role_router_interface import IRoleRouterService
-from app.core.interfaces.role_selector_interface import IRoleSelectorService
 from app.core.interfaces.rotation_service_interface import IRotationService
 from app.core.interfaces.workspace_driver_factory_interface import IWorkspaceDriverFactory
 from app.core.interfaces.embedding_engine_interface import IEmbeddingEngine
@@ -54,10 +51,7 @@ from app.services.llm.llm_scoring_service import LLMScoringService
 from app.services.llm.llm_orchestrator_service import LLMOrchestratorService
 from app.services.llm.llm_rotation_service import LLMRotationService
 
-# Role-Based Orchestration Services
-from app.services.llm.role_selector_service import RoleSelectorService
-from app.services.llm.role_router_service import RoleRouterService
-from app.services.agent.critic_agent_service import CriticAgentService
+# Agent Services
 from app.services.agent.architect_agent_service import ArchitectAgentService
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 
@@ -185,29 +179,9 @@ class ApplicationContainer:
             rotation_service=self.llm_rotation_service
         )
         
-        self.role_selector_service = RoleSelectorService(
-            llm_registry=self.llm_registry,
-            rotation_service=self.llm_rotation_service,
-            provider_keys_repo=self.provider_keys_repo
-        )
-        
-        self.role_router_service = RoleRouterService(
-            llm_orchestrator=self.llm_orchestrator,
-            role_selector=self.role_selector_service,
-            event_bus=self.event_bus
-        )
-        
-        self.critic_agent_service = CriticAgentService(
-            llm_orchestrator=self.llm_orchestrator,
-            storage_repository=self.graph_repo,
-            role_selector=self.role_selector_service,
-            event_bus=self.event_bus
-        )
-        
         self.architect_agent_service = ArchitectAgentService(
             llm_orchestrator=self.llm_orchestrator,
             context_builder=self.context_builder_service,
-            role_selector=self.role_selector_service,
             event_bus=self.event_bus
         )
         
@@ -216,9 +190,6 @@ class ApplicationContainer:
         
         self.agent_loop_coordinator = AgentLoopCoordinator(
             orchestrator_service=self.llm_orchestrator,
-            role_router=self.role_router_service,
-            role_selector=self.role_selector_service,
-            critic_agent=self.critic_agent_service,
             architect_agent=self.architect_agent_service,
             storage_repository=self.graph_repo,
             conversation_repo=self.conversation_repo,
@@ -236,9 +207,6 @@ class ApplicationContainer:
         self.register(LLMRotationService, self.llm_rotation_service, name="rotation_service_impl")
         self.register(IEmbeddingEngine, self.local_embedding_service, name="embedding_engine")
         self.register(IWorkspaceDriverFactory, self.workspace_driver_factory, name="workspace_driver_factory")
-        self.register(IRoleSelectorService, self.role_selector_service, name="role_selector")
-        self.register(IRoleRouterService, self.role_router_service, name="role_router")
-        self.register(ICriticAgentService, self.critic_agent_service, name="critic_agent")
         self.register(IArchitectAgentService, self.architect_agent_service, name="architect_agent")
         self.register(AgentLoopCoordinator, self.agent_loop_coordinator, name="agent_coordinator")
         self.register(LLMOrchestratorService, self.llm_orchestrator, name="llm_orchestrator")
@@ -277,9 +245,6 @@ class ApplicationContainer:
             "llm_router": self.llm_router,
             "llm_scoring": self.llm_scoring,
             "llm_rotation": self.llm_rotation_service,
-            "role_selector": self.role_selector_service,
-            "role_router": self.role_router_service,
-            "critic_agent": self.critic_agent_service,
             "architect_agent": self.architect_agent_service,
             "agent_coordinator": self.agent_loop_coordinator,
             "tool_dispatcher": self.tool_dispatcher_service,
@@ -398,20 +363,11 @@ def get_llm_orchestrator() -> LLMOrchestratorService:
 def get_rotation_service() -> IRotationService:
     return container.llm_rotation_service
 
-def get_role_selector() -> IRoleSelectorService:
-    return container.role_selector_service
-
-def get_role_router() -> IRoleRouterService:
-    return container.role_router_service
-
-def get_critic_agent() -> ICriticAgentService:
-    return container.critic_agent_service
-
 def get_architect_agent() -> IArchitectAgentService:
     return container.architect_agent_service
 
 def get_agent_coordinator() -> AgentLoopCoordinator:
-    return container.agent_coordinator
+    return container.agent_loop_coordinator
 
 def get_license_service() -> LicenseService:
     return container.license_service

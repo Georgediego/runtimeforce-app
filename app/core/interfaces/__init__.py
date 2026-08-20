@@ -14,10 +14,7 @@ from app.core.interfaces.byok_key_service_interface import IByokKeyService
 from app.core.interfaces.project_service_interface import IProjectService
 from app.core.interfaces.versioning_service_interface import IVersioningService
 from app.core.interfaces.social_module_interface import ISocialModuleService
-from app.core.interfaces.role_selector_interface import IRoleSelectorService
-from app.core.interfaces.role_router_interface import IRoleRouterService
 from app.core.interfaces.architect_agent_interface import IArchitectAgentService
-from app.core.interfaces.critic_agent_interface import ICriticAgentService
 from app.core.interfaces.rotation_service_interface import IRotationService
 from app.core.interfaces.embedding_engine_interface import IEmbeddingEngine
 from app.core.interfaces.workspace_driver_factory_interface import IWorkspaceDriverFactory
@@ -35,10 +32,7 @@ __all__ = [
     "IProjectService",
     "IVersioningService",
     "ISocialModuleService",
-    "IRoleSelectorService",
-    "IRoleRouterService",
     "IArchitectAgentService",
-    "ICriticAgentService",
     "IRotationService",
     "IEmbeddingEngine",
     "IWorkspaceDriverFactory",
