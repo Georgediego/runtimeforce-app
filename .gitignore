@@ -1,69 +1,59 @@
-# ── 1. ВИРТУАЛЬНЫЕ ОКРУЖЕНИЯ И ЗАВИСИМОСТИ ──
-.venv/
+```
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
 venv/
 ENV/
-env/
-/env/
-/venv/
-/.venv/
-bin/
-lib/
-share/
-include/
-.python-version
-pip-log.txt
-pip-delete-this-directory.txt
-    
-# ── 2. КЭШ И СИСТЕМНЫЕ ФАЙЛЫ PYTHON ──
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
+env.bak/
+.venv/
 
-# ── 3. КОНФИДЕНЦИАЛЬНЫЕ ДАННЫЕ И КЛЮЧИ (КРИТИЧЕСКОЕ) ──
-.env
-.env.*
-*.env
-secrets.json
-*.pem
-*.key
-*.pub
-*.secrets
-# Конфиги ИИ-ассистентов (Aider, OpenClaw и т.д.)
-.aider*
-.openclaw*
-aider.log
-
-# ── 4. БАЗЫ ДАННЫХ И ЛОКАЛЬНЫЙ СТАТЕ ──
-*.db
-*.sqlite3
-*.sqlite3-journal
-*.log
-*.local
-
-# ── 5. FRONTEND & TAILWIND ──
-node_modules/
-.npm/
-package-lock.json
-.eslintcache
-dist/
-
-# ── 6. НАСТРОЙКИ IDE И РЕДАКТОРОВ ──
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-.project
-.pydevproject
 
-# ── 7. СИСТЕМНЫЙ МУСОР ──
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+
+# OS
 .DS_Store
 Thumbs.db
-Desktop.ini
 
-repomix-output.xml
+# Temporary files
+*.tmp
+```

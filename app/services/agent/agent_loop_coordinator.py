@@ -10,13 +10,9 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.core.events.event_bus import EventBus
 from app.core.interfaces.architect_agent_interface import IArchitectAgentService
-from app.core.interfaces.critic_agent_interface import ICriticAgentService
-from app.core.interfaces.role_router_interface import IRoleRouterService
-from app.core.interfaces.role_selector_interface import IRoleSelectorService
 from app.core.interfaces.workspace_driver_interface import IWorkspaceDriver
 from app.services.agent.agent_loop_detector import AgentLoopDetector
 from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
-from app.services.llm.llm_consilium_service import LLMConsiliumService
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
@@ -67,9 +63,6 @@ class AgentLoopCoordinator:
     def __init__(
         self,
         orchestrator_service: Any,
-        role_router: IRoleRouterService,
-        role_selector: IRoleSelectorService,
-        critic_agent: ICriticAgentService,
         architect_agent: Optional[IArchitectAgentService] = None,
         storage_repository: Optional[Any] = None,
         conversation_repo: Optional[Any] = None,
@@ -81,9 +74,6 @@ class AgentLoopCoordinator:
         provider_keys_repo: Optional[Any] = None,
     ):
         self._orchestrator = orchestrator_service
-        self._role_router = role_router
-        self._role_selector = role_selector
-        self._critic_agent = critic_agent
         self._architect_agent = architect_agent
         self._storage_repo = storage_repository
         self._conversation_repo = conversation_repo
@@ -182,61 +172,8 @@ class AgentLoopCoordinator:
             except Exception as e:
                 logger.warning(f"[AgentCoordinator] Project details failed: {e}")
 
-        if strategy_upper == "CONSILIUM":
-            yield {"status": "phase", "label": "Consilium Step 1: Draft generating...", "role": "Draft"}
-            candidates = await self._role_selector.select_candidate_models_for_role(
-                role="coding", required_capabilities=["code"], mode="CONSILIUM",
-                user_plan=plan, user_id=user_id, enabled_models=strict_enabled, limit=3
-            )
-            if not candidates:
-                err_msg = "No enabled models available for Consilium. Please check Settings -> Providers."
-                yield {"status": "error", "error": err_msg}
-                yield {"status": "done"}
-                return
-
-            draft_model = candidates[0]["model_id"]
-            critic_model = candidates[1]["model_id"] if len(candidates) > 1 else draft_model
-            synth_model = candidates[2]["model_id"] if len(candidates) > 2 else (candidates[1]["model_id"] if len(candidates) > 1 else draft_model)
-
-            draft_text = ""
-            async for chunk in self._orchestrator.stream_completion(
-                messages=[{"role": "user", "content": user_prompt}],
-                model_id=draft_model, provider=draft_model.split("/", 1)[0] if "/" in draft_model else "unknown",
-                user_id=user_id
-            ):
-                if chunk.get("content"):
-                    draft_text += chunk["content"]
-
-            yield {"status": "phase", "label": "Consilium Step 2: Critic auditing...", "role": "Critic", "model": critic_model}
-            audit_prompt = LLMConsiliumService.prepare_audit_prompt(user_prompt, draft_text)
-            critique_text = ""
-            async for chunk in self._orchestrator.stream_completion(
-                messages=[{"role": "user", "content": audit_prompt}],
-                model_id=critic_model, provider=critic_model.split("/", 1)[0] if "/" in critic_model else "unknown",
-                user_id=user_id
-            ):
-                if chunk.get("content"):
-                    critique_text += chunk["content"]
-
-            yield {"status": "phase", "label": "Consilium Step 3: Synth synthesizing final answer...", "role": "Synth", "model": synth_model}
-            synth_prompt = LLMConsiliumService.prepare_synthesis_prompt(user_prompt, draft_text, critique_text)
-            final_synth_text = ""
-            async for chunk in self._orchestrator.stream_completion(
-                messages=[{"role": "user", "content": synth_prompt}],
-                model_id=synth_model, provider=synth_model.split("/", 1)[0] if "/" in synth_model else "unknown",
-                user_id=user_id
-            ):
-                if chunk.get("status") == "streaming":
-                    final_synth_text += chunk.get("content", "")
-                    yield chunk
-
-            if self._conversation_repo and final_synth_text.strip():
-                self._conversation_repo.append_message(
-                    session_id=session_id, role="assistant", content=final_synth_text,
-                    user_id=user_id, project_id=project_id,
-                )
-            yield {"status": "done"}
-            return
+        # Удаление блока CONSILIUM - режим удален из архитектуры
+        # Ранее здесь была логика многоагентских дебатов, теперь только ATM/AUTO/LOCAL/MANUAL
 
         yield {"status": "phase", "label": "Routing task...", "role": "Router"}
         routing = await self._role_router.classify_and_route(

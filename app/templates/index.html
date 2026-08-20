@@ -241,7 +241,6 @@
                                     <option value="coding">⚡ ATM</option>
                                     <option value="local">🏠 LOCAL</option>
                                     <option value="manual">✋ MANUAL</option>
-                                    <option value="consilium">👥 CONSILIUM</option>
                                 </select>
                             </div>
 
@@ -326,48 +325,6 @@
                                         <div id="model-lock-dropdown" class="hidden absolute left-0 bottom-full mb-1 w-full bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-2xl z-50 p-1.5 flex flex-col gap-1 max-h-56 overflow-y-auto custom-scrollbar">
                                             <input type="text" placeholder="Filter models..." class="custom-model-search bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded px-2 py-1 text-[10px] text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] font-mono sticky top-0 z-10">
                                             <div id="model-lock-options" class="custom-options flex flex-col gap-0.5 mt-1"></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Consilium Mode Panel -->
-                                <div id="settings-consilium-panel" class="hidden flex items-center gap-1.5 dynamic-consilium-wrapper max-w-[420px]">
-                                    <div class="flex flex-col text-left relative custom-select-wrapper flex-1">
-                                        <span class="text-[8px] uppercase font-bold text-[var(--ide-text-muted)] leading-tight mb-0.5">Draft</span>
-                                        <input type="hidden" id="consilium-draft-select" value="auto">
-                                        <div id="consilium-draft-trigger" class="w-[115px] bg-[var(--ide-surface)] text-[var(--ide-text-primary)] border border-[var(--ide-border-subtle)] rounded px-1.5 py-0.5 text-[10px] cursor-pointer truncate flex justify-between items-center select-none hover:border-[var(--ide-accent)] transition-colors">
-                                            <span class="truncate">-- Auto --</span>
-                                            <span class="text-[8px] text-[var(--ide-text-muted)] ml-0.5">▲</span>
-                                        </div>
-                                        <div id="consilium-draft-dropdown" class="hidden absolute left-0 bottom-[calc(100%+4px)] w-[150px] bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-2xl z-50 p-1.5 flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                            <input type="text" placeholder="Filter draft..." class="custom-model-search bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded px-1.5 py-0.5 text-[9px] text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] font-mono sticky top-0 z-10">
-                                            <div id="consilium-draft-options" class="custom-options flex flex-col gap-0.5 mt-1 text-[10px]"></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col text-left relative custom-select-wrapper flex-1">
-                                        <span class="text-[8px] uppercase font-bold text-[var(--ide-text-muted)] leading-tight mb-0.5">Critic</span>
-                                        <input type="hidden" id="consilium-critic-select" value="auto">
-                                        <div id="consilium-critic-trigger" class="w-[115px] bg-[var(--ide-surface)] text-[var(--ide-text-primary)] border border-[var(--ide-border-subtle)] rounded px-1.5 py-0.5 text-[10px] cursor-pointer truncate flex justify-between items-center select-none hover:border-[var(--ide-accent)] transition-colors">
-                                            <span class="truncate">-- Auto --</span>
-                                            <span class="text-[8px] text-[var(--ide-text-muted)] ml-0.5">▲</span>
-                                        </div>
-                                        <div id="consilium-critic-dropdown" class="hidden absolute left-0 bottom-[calc(100%+4px)] w-[150px] bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-2xl z-50 p-1.5 flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                            <input type="text" placeholder="Filter critic..." class="custom-model-search bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded px-1.5 py-0.5 text-[9px] text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] font-mono sticky top-0 z-10">
-                                            <div id="consilium-critic-options" class="custom-options flex flex-col gap-0.5 mt-1 text-[10px]"></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col text-left relative custom-select-wrapper flex-1">
-                                        <span class="text-[8px] uppercase font-bold text-[var(--ide-text-muted)] leading-tight mb-0.5">Synth</span>
-                                        <input type="hidden" id="consilium-synth-select" value="auto">
-                                        <div id="consilium-synth-trigger" class="w-[115px] bg-[var(--ide-surface)] text-[var(--ide-text-primary)] border border-[var(--ide-border-subtle)] rounded px-1.5 py-0.5 text-[10px] cursor-pointer truncate flex justify-between items-center select-none hover:border-[var(--ide-accent)] transition-colors">
-                                            <span class="truncate">-- Auto --</span>
-                                            <span class="text-[8px] text-[var(--ide-text-muted)] ml-0.5">▲</span>
-                                        </div>
-                                        <div id="consilium-synth-dropdown" class="hidden absolute left-0 bottom-[calc(100%+4px)] w-[150px] bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-2xl z-50 p-1.5 flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                            <input type="text" placeholder="Filter synth..." class="custom-model-search bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded px-1.5 py-0.5 text-[9px] text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)] font-mono sticky top-0 z-10">
-                                            <div id="consilium-synth-options" class="custom-options flex flex-col gap-0.5 mt-1 text-[10px]"></div>
                                         </div>
                                     </div>
                                 </div>

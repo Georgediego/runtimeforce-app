@@ -70,10 +70,9 @@ export const orchestratorUIController = {
         const plan = localStorage.getItem("rf_plan") || "free";
         const modes = [
             { id: "auto", name: "Auto", icon: "zap", color: "border-blue-500/40 text-blue-400 bg-blue-500/5", desc: "Smart local routing", premium: false },
-            { id: "coding", name: "Autonomous Team (ATM)", icon: "users", color: "border-emerald-500/40 text-emerald-400 bg-emerald-500/5", desc: "Architect -> Engineer -> Designer -> Tester -> Critic", premium: plan === "free" },
+            { id: "coding", name: "Autonomous Team (ATM)", icon: "users", color: "border-emerald-500/40 text-emerald-400 bg-emerald-500/5", desc: "Architect -> Engineer -> Implementer -> Designer", premium: plan === "free" },
             { id: "local", name: "Local", icon: "server", color: "border-purple-500/40 text-purple-400 bg-purple-500/5", desc: "Offline-first (Ollama/LM Studio)", premium: false },
             { id: "manual", name: "Manual", icon: "settings", color: "border-amber-500/40 text-amber-400 bg-amber-500/5", desc: "Lock to specific model", premium: false },
-            { id: "consilium", name: "Consilium", icon: "brain", color: "border-pink-500/40 text-pink-400 bg-pink-500/5", desc: "Multi-model debate", premium: plan === "free" },
         ];
         const currentStrategy = document.getElementById("strategy-select")?.value || "auto";
         container.innerHTML = modes
@@ -161,7 +160,6 @@ export const orchestratorUIController = {
     handleStrategyChange(strategy) {
         const settingsPanel = document.getElementById("orchestrator-settings");
         const manualPanel = document.getElementById("settings-manual-panel");
-        const consiliumPanel = document.getElementById("settings-consilium-panel");
         const atmPanel = document.getElementById("settings-atm-panel");
         const filtersContainer = document.getElementById("model-filters-container");
 
@@ -169,13 +167,10 @@ export const orchestratorUIController = {
         if (filtersContainer) filtersContainer.classList.remove("hidden");
 
         manualPanel?.classList.add("hidden");
-        consiliumPanel?.classList.add("hidden");
         atmPanel?.classList.add("hidden");
 
         if (strategy === "manual") {
             manualPanel?.classList.remove("hidden");
-        } else if (strategy === "consilium") {
-            consiliumPanel?.classList.remove("hidden");
         } else if (strategy === "coding") {
             atmPanel?.classList.remove("hidden");
             this.populateATMDropdowns();
@@ -270,9 +265,6 @@ export const orchestratorUIController = {
 
             const panels = [
                 { hiddenInputId: "model-lock-select", triggerId: "model-lock-trigger", optionsContainerId: "model-lock-options" },
-                { hiddenInputId: "consilium-draft-select", triggerId: "consilium-draft-trigger", optionsContainerId: "consilium-draft-options" },
-                { hiddenInputId: "consilium-critic-select", triggerId: "consilium-critic-trigger", optionsContainerId: "consilium-critic-options" },
-                { hiddenInputId: "consilium-synth-select", triggerId: "consilium-synth-trigger", optionsContainerId: "consilium-synth-options" },
             ];
             panels.forEach((p) => {
                 const container = document.getElementById(p.optionsContainerId);

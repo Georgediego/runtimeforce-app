@@ -159,9 +159,7 @@ class LLMRouterService:
         if not candidates:
             raise ValueError(f"No enabled models available for strategy '{strategy_clean}'. Please select models in Settings -> Providers.")
 
-        if strategy_clean == "consilium":
-            candidates.sort(key=lambda m: (-m.context_window, m.name))
-            return [m.id for m in candidates[:3]]
+        # CONSILIUM удален из архитектуры - теперь только ATM/AUTO/LOCAL/MANUAL
 
         if strategy_clean == "local":
             local_candidates = [

@@ -14,10 +14,11 @@ class ChatCompletionPayload(BaseModel):
     model_lock: Optional[str] = None
     temperature: Optional[float] = 0.2
     
-    # Ручной выбор участников для трех шагов Консилиума
-    consilium_draft_model: Optional[str] = None
-    consilium_critic_model: Optional[str] = None
-    consilium_synth_model: Optional[str] = None
+    # ATM roles configuration (Architect, Engineer, Implementer, Designer)
+    atm_architect_model: Optional[str] = None
+    atm_engineer_model: Optional[str] = None
+    atm_implementer_model: Optional[str] = None
+    atm_designer_model: Optional[str] = None
 
 
 class KeysUpdatePayload(BaseModel):
