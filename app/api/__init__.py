@@ -3,6 +3,8 @@ Unified API Router Registry with Memory API.
 """
 from app.api.http.workspace_http_router import router as workspace_router
 from app.api.http.git_http_router import router as git_router
+from app.api.http.git_oauth_http_router import router as git_oauth_router
+from app.api.http.social_oauth_http_router import router as social_oauth_router
 from app.api.http.session_http_router import router as session_router
 from app.api.http.message_http_router import router as message_router
 from app.api.http.model_http_router import router as model_router
@@ -20,6 +22,8 @@ from app.api.websocket.chat_ws_router import router as chat_ws_router
 ALL_ROUTERS = [
     workspace_router,
     git_router,
+    git_oauth_router,
+    social_oauth_router,
     session_router,
     message_router,
     model_router,

@@ -5,11 +5,8 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-env/
 venv/
 .venv/
-.ENV
-.ENV.local
 .env
 .env.local
 .env.*
@@ -17,7 +14,7 @@ venv/
 # Logs
 *.log
 
-# Testing
+# Coverage
 .coverage
 coverage/
 htmlcov/
@@ -33,7 +30,24 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Dependencies
-.mypy_cache/
+# Build
+build/
+dist/
+*.egg-info/
+
+# Testing
 .pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+
+# Compiled
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
 ```
