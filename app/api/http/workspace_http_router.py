@@ -65,13 +65,22 @@ async def get_workspace_tree(
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
+            logger.error(f"No workspace driver found for project {target_project_id}")
             return {"tree": None}
-        target_path = path or getattr(driver, "root", "~")
+        target_path = path or getattr(driver, "root", "/")
+        logger.info(f"Getting tree for path: {target_path}, driver type: {type(driver).__name__}")
         tree = await WorkspaceTreeService.get_tree(driver, target_path)
+        logger.info(f"Tree retrieved successfully: {len(tree) if tree else 0} entries")
         return {"tree": tree}
+    except FileNotFoundError as e:
+        logger.error(f"Workspace path not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        logger.error(f"Workspace permission denied: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.error(f"Error getting workspace tree: {e}")
-        return {"tree": None}
+        logger.error(f"Error getting workspace tree: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tree/children")
 async def get_workspace_tree_children(
@@ -83,12 +92,21 @@ async def get_workspace_tree_children(
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
+            logger.error(f"No workspace driver found for project {target_project_id}")
             return {"path": path, "children": []}
+        logger.info(f"Getting tree children for path: {path}, driver type: {type(driver).__name__}")
         res = await WorkspaceTreeService.get_tree_children(driver, path)
+        logger.info(f"Tree children retrieved successfully: {len(res.get('children', []))} entries")
         return res
+    except FileNotFoundError as e:
+        logger.error(f"Workspace path not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        logger.error(f"Workspace permission denied: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.error(f"Error getting tree children for path {path}: {e}")
-        return {"path": path, "children": []}
+        logger.error(f"Error getting tree children for path {path}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/file")
 async def read_workspace_file(
