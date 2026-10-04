@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us — RuntimeForce{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-6 pt-32 pb-24">
+    <div class="text-center mb-12">
+        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">Contact RuntimeForce</h1>
+        <p class="text-brand-muted text-lg max-w-2xl mx-auto">
+            We are here to help with technical questions, enterprise inquiries, and billing assistance.
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <!-- Customer Support -->
+        <div class="feature-card p-6 rounded-2xl border-t-4 border-[var(--accent)]">
+            <div class="w-10 h-10 rounded-lg bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] mb-4">
+                <i class="fa-solid fa-headset text-lg"></i>
+            </div>
+            <h3 class="text-lg font-bold mb-1">Customer & Technical Support</h3>
+            <p class="text-xs text-brand-muted mb-4">Questions about local IDE setup, model orchestration, or bug reports.</p>
+            <a href="mailto:support@runtimeforce.dev" class="text-xs font-bold text-[var(--accent)] hover:underline flex items-center gap-1.5">
+                <i class="fa-solid fa-envelope"></i> support@runtimeforce.dev
+            </a>
+        </div>
+
+        <!-- Billing & Paddle Support -->
+        <div class="feature-card p-6 rounded-2xl border-t-4 border-blue-400">
+            <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
+                <i class="fa-solid fa-credit-card text-lg"></i>
+            </div>
+            <h3 class="text-lg font-bold mb-1">Billing & Invoicing (Paddle)</h3>
+            <p class="text-xs text-brand-muted mb-4">Subscription management, VAT/tax questions, or refund requests.</p>
+            <a href="mailto:billing@runtimeforce.dev" class="text-xs font-bold text-blue-400 hover:underline flex items-center gap-1.5">
+                <i class="fa-solid fa-envelope"></i> billing@runtimeforce.dev
+            </a>
+        </div>
+    </div>
+
+    <!-- Legal & Business Entity Details -->
+    <div class="glass-card p-8 rounded-2xl border border-[var(--border-color)] space-y-4">
+        <h2 class="text-xl font-bold text-brand-text mb-2 flex items-center gap-2.5">
+            <i class="fa-solid fa-building text-[var(--accent)]"></i> Legal Business Information
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-brand-muted leading-relaxed">
+            <div>
+                <strong class="text-brand-text block mb-1">Company / Legal Entity:</strong>
+                Individual Entrepreneur (IT Small Business Registry), Georgia.<br>
+                Registration Jurisdiction: Tbilisi, Georgia.
+            </div>
+            <div>
+                <strong class="text-brand-text block mb-1">Merchant of Record:</strong>
+                Our online reseller Paddle.com handles all checkout orders, invoices, and global tax compliance (VAT / Sales Tax).
+            </div>
+            <div>
+                <strong class="text-brand-text block mb-1">Security & Privacy:</strong>
+                <a href="mailto:privacy@runtimeforce.dev" class="text-brand-accent underline">privacy@runtimeforce.dev</a>
+            </div>
+            <div>
+                <strong class="text-brand-text block mb-1">Response Timeframe:</strong>
+                Our support team responds to all inquiries within 24–48 business hours.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
