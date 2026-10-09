@@ -5,6 +5,7 @@ import os
 import socket
 import argparse
 import logging
+import re
 from pathlib import Path
 from contextlib import asynccontextmanager
 import uvicorn
@@ -78,9 +79,22 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 register_all(app)
 
+def get_version_from_changelog() -> str:
+    try:
+        changelog_path = Path(__file__).parent.parent / "CHANGELOG.md"
+        if changelog_path.exists():
+            content = changelog_path.read_text(encoding="utf-8")
+            match = re.search(r"##\s+\[([0-9]+\.[0-9]+\.[0-9]+[^\]]*)\]", content)
+            if match:
+                ver = match.group(1).strip()
+                return f"v{ver}" if not ver.startswith("v") else ver
+    except Exception:
+        pass
+    return "v0.2.0"
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(request, "index.html", {"request": request, "app_version": get_version_from_changelog()})
 
 @app.get("/health")
 async def health():
