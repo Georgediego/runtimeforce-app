@@ -4,6 +4,7 @@ from typing import Any, AsyncGenerator, Dict, List
 from app.container import ApplicationContainer
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 from app.services.agent.architect_agent_service import ArchitectAgentService
+from app.services.agent.role_router_service import RoleRouterService
 from app.services.workspace.workspace_local_driver import WorkspaceLocalDriver
 
 class MockOrchestrator:
@@ -22,10 +23,6 @@ class MockOrchestrator:
 
     async def generate_with_context(self, *args, **kwargs) -> str:
         return "Mock architectural recommendation plan."
-
-class MockRoleRouter:
-    async def classify_and_route(self, **kwargs) -> Dict[str, Any]:
-        return {"role": "coding", "suggested_capabilities": ["code"]}
 
 class MockRoleSelector:
     async def select_candidate_models_for_role(self, **kwargs) -> List[Dict[str, Any]]:
@@ -47,7 +44,6 @@ def container():
     
     if hasattr(c, "agent_loop_coordinator"):
         c.agent_loop_coordinator._orchestrator = c.llm_orchestrator
-        c.agent_loop_coordinator._role_router = MockRoleRouter()
         c.agent_loop_coordinator._role_selector = MockRoleSelector()
         c.agent_loop_coordinator._critic_agent = MockCriticAgent()
         c.agent_loop_coordinator._context_builder = mock_context_builder
@@ -84,6 +80,22 @@ async def test_agent_loop_smoke_modes(container, tmp_path):
             pytest.fail(f"Mode {mode} raised exception: {e}")
         
         assert len(events) > 0, f"No events yielded for mode {mode}"
+
+@pytest.mark.asyncio
+async def test_role_router_bilingual_classification():
+    router = RoleRouterService()
+    
+    # English design prompt
+    res_en = await router.classify_and_route(user_prompt="Please make a nice UI design for button")
+    assert res_en["role"] == "Designer"
+
+    # Russian design prompt
+    res_ru = await router.classify_and_route(user_prompt="Сделай дизайн кнопки пожалуйста")
+    assert res_ru["role"] == "Designer"
+
+    # Russian implementation prompt
+    res_impl = await router.classify_and_route(user_prompt="Исправь баг и напиши код")
+    assert res_impl["role"] == "Implementer"
 
 @pytest.mark.asyncio
 async def test_architect_agent_consult(container):
