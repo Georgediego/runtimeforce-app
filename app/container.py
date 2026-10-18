@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional
 
 # Core Events & Interfaces
 from app.core.events.event_bus import EventBus
-from app.core.interfaces.architect_agent_interface import IArchitectAgentService
 from app.core.interfaces.rotation_service_interface import IRotationService
 from app.core.interfaces.workspace_driver_factory_interface import IWorkspaceDriverFactory
 from app.core.interfaces.embedding_engine_interface import IEmbeddingEngine
@@ -54,9 +53,6 @@ from app.services.llm.llm_rotation_service import LLMRotationService
 
 # Agent Services
 from app.services.agent.architect_agent_service import ArchitectAgentService
-from app.services.agent.engineer_agent_service import EngineerAgentService
-from app.services.agent.implementer_agent_service import ImplementerAgentService
-from app.services.agent.designer_agent_service import DesignerAgentService
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 
 # Git & OAuth Services
@@ -200,26 +196,6 @@ class ApplicationContainer:
         self.terminal_command_filter = TerminalCommandFilter()
         self.tool_dispatcher_service = ToolDispatcherService(command_filter=self.terminal_command_filter)
         
-        # Initialize other ATM agents (Engineer, Implementer, Designer)
-        self.engineer_agent_service = EngineerAgentService(
-            llm_orchestrator=self.llm_orchestrator,
-            context_builder=self.context_builder_service,
-            tool_dispatcher=self.tool_dispatcher_service,
-            event_bus=self.event_bus
-        )
-        self.implementer_agent_service = ImplementerAgentService(
-            llm_orchestrator=self.llm_orchestrator,
-            context_builder=self.context_builder_service,
-            tool_dispatcher=self.tool_dispatcher_service,
-            event_bus=self.event_bus
-        )
-        self.designer_agent_service = DesignerAgentService(
-            llm_orchestrator=self.llm_orchestrator,
-            context_builder=self.context_builder_service,
-            tool_dispatcher=self.tool_dispatcher_service,
-            event_bus=self.event_bus
-        )
-        
         # Initialize OAuth services
         self.github_oauth_service = GitHubOAuthService(oauth_repository=self.oauth_repo)
         self.x_oauth_service = XOAuthService(oauth_repository=self.oauth_repo)
@@ -244,7 +220,7 @@ class ApplicationContainer:
         self.register(LLMRotationService, self.llm_rotation_service, name="rotation_service_impl")
         self.register(IEmbeddingEngine, self.local_embedding_service, name="embedding_engine")
         self.register(IWorkspaceDriverFactory, self.workspace_driver_factory, name="workspace_driver_factory")
-        self.register(IArchitectAgentService, self.architect_agent_service, name="architect_agent")
+        self.register(ArchitectAgentService, self.architect_agent_service, name="architect_agent")
         self.register(AgentLoopCoordinator, self.agent_loop_coordinator, name="agent_coordinator")
         self.register(LLMOrchestratorService, self.llm_orchestrator, name="llm_orchestrator")
         self.register(FileIntelligenceService, self.file_intelligence_service, name="file_intelligence")
@@ -406,7 +382,7 @@ def get_llm_orchestrator() -> LLMOrchestratorService:
 def get_rotation_service() -> IRotationService:
     return container.llm_rotation_service
 
-def get_architect_agent() -> IArchitectAgentService:
+def get_architect_agent() -> ArchitectAgentService:
     return container.architect_agent_service
 
 def get_agent_coordinator() -> AgentLoopCoordinator:

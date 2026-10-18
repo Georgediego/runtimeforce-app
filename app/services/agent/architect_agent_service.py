@@ -8,12 +8,11 @@ from typing import Any, Dict, List, Optional
 import json
 
 from app.core.events.event_bus import EventBus
-from app.core.interfaces.architect_agent_interface import IArchitectAgentService
 
 logger = logging.getLogger(__name__)
 
 
-class ArchitectAgentService(IArchitectAgentService):
+class ArchitectAgentService:
     """
     Architect role in Autonomous Team Mode (ATM).
     

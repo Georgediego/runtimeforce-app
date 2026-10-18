@@ -9,7 +9,7 @@ import re
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.core.events.event_bus import EventBus
-from app.core.interfaces.architect_agent_interface import IArchitectAgentService
+from app.services.agent.architect_agent_service import ArchitectAgentService
 from app.core.interfaces.workspace_driver_interface import IWorkspaceDriver
 from app.services.agent.agent_loop_detector import AgentLoopDetector
 from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
@@ -63,7 +63,7 @@ class AgentLoopCoordinator:
     def __init__(
         self,
         orchestrator_service: Any,
-        architect_agent: Optional[IArchitectAgentService] = None,
+        architect_agent: Optional[ArchitectAgentService] = None,
         storage_repository: Optional[Any] = None,
         conversation_repo: Optional[Any] = None,
         context_builder: Optional[Any] = None,
