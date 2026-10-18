@@ -59,6 +59,8 @@ REFUSAL_PATTERNS = [
     r"вы можете создать",
 ]
 
+from app.services.agent.role_router_service import RoleRouterService
+
 class AgentLoopCoordinator:
     def __init__(
         self,
@@ -72,6 +74,7 @@ class AgentLoopCoordinator:
         event_bus: Optional[EventBus] = None,
         graph_memory: Optional[Any] = None,
         provider_keys_repo: Optional[Any] = None,
+        role_router: Optional[Any] = None,
     ):
         self._orchestrator = orchestrator_service
         self._architect_agent = architect_agent
@@ -83,6 +86,7 @@ class AgentLoopCoordinator:
         self._event_bus = event_bus
         self._graph_memory = graph_memory
         self._provider_keys_repo = provider_keys_repo
+        self._role_router = role_router or RoleRouterService()
         self._cooldown_models: Dict[str, float] = {}
 
     def _resolve_strict_whitelist(self, enabled_models: Optional[List[str]], user_id: str) -> Optional[List[str]]:

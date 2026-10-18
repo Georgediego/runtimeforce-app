@@ -53,6 +53,7 @@ from app.services.llm.llm_rotation_service import LLMRotationService
 
 # Agent Services
 from app.services.agent.architect_agent_service import ArchitectAgentService
+from app.services.agent.role_router_service import RoleRouterService
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 
 # Git & OAuth Services
@@ -201,6 +202,8 @@ class ApplicationContainer:
         self.x_oauth_service = XOAuthService(oauth_repository=self.oauth_repo)
         self.reddit_oauth_service = RedditOAuthService(oauth_repository=self.oauth_repo)
         
+        self.role_router_service = RoleRouterService()
+
         self.agent_loop_coordinator = AgentLoopCoordinator(
             orchestrator_service=self.llm_orchestrator,
             architect_agent=self.architect_agent_service,
@@ -212,6 +215,7 @@ class ApplicationContainer:
             event_bus=self.event_bus,
             graph_memory=self.graph_memory_service,
             provider_keys_repo=self.provider_keys_repo,
+            role_router=self.role_router_service,
         )
         
         self.register(EventBus, self.event_bus, name="event_bus")
