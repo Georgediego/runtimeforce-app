@@ -1,5 +1,7 @@
 import pytest
 import asyncio
+import ast
+import os
 from typing import Any, AsyncGenerator, Dict, List
 from app.container import ApplicationContainer
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
@@ -24,14 +26,6 @@ class MockOrchestrator:
     async def generate_with_context(self, *args, **kwargs) -> str:
         return "Mock architectural recommendation plan."
 
-class MockRoleSelector:
-    async def select_candidate_models_for_role(self, **kwargs) -> List[Dict[str, Any]]:
-        return [{"model_id": "openai/gpt-4o-mini", "provider": "openai"}]
-
-class MockCriticAgent:
-    async def validate_result(self, **kwargs) -> Dict[str, Any]:
-        return {"status": "ok"}
-
 class MockContextBuilder:
     async def build_optimal_context(self, *args, **kwargs) -> Dict[str, Any]:
         return {"compiled_memory_context": "mock memory"}
@@ -42,15 +36,13 @@ def container():
     c.llm_orchestrator = MockOrchestrator()
     mock_context_builder = MockContextBuilder()
     
-    if hasattr(c, "agent_loop_coordinator"):
-        c.agent_loop_coordinator._orchestrator = c.llm_orchestrator
-        c.agent_loop_coordinator._role_selector = MockRoleSelector()
-        c.agent_loop_coordinator._critic_agent = MockCriticAgent()
-        c.agent_loop_coordinator._context_builder = mock_context_builder
-
     if hasattr(c, "architect_agent_service"):
         c.architect_agent_service._orchestrator = c.llm_orchestrator
         c.architect_agent_service._context_builder = mock_context_builder
+
+    if hasattr(c, "agent_loop_coordinator"):
+        c.agent_loop_coordinator._orchestrator = c.llm_orchestrator
+        c.agent_loop_coordinator._context_builder = mock_context_builder
 
     return c
 
@@ -74,26 +66,22 @@ async def test_agent_loop_smoke_modes(container, tmp_path):
                 user_id="test_user"
             ):
                 events.append(chunk)
-                if len(events) > 10:
-                    break
         except Exception as e:
             pytest.fail(f"Mode {mode} raised exception: {e}")
         
         assert len(events) > 0, f"No events yielded for mode {mode}"
+        assert any(e.get("status") == "done" for e in events), f"Mode {mode} did not reach 'done' status"
 
 @pytest.mark.asyncio
 async def test_role_router_bilingual_classification():
     router = RoleRouterService()
     
-    # English design prompt
     res_en = await router.classify_and_route(user_prompt="Please make a nice UI design for button")
     assert res_en["role"] == "Designer"
 
-    # Russian design prompt
     res_ru = await router.classify_and_route(user_prompt="Сделай дизайн кнопки пожалуйста")
     assert res_ru["role"] == "Designer"
 
-    # Russian implementation prompt
     res_impl = await router.classify_and_route(user_prompt="Исправь баг и напиши код")
     assert res_impl["role"] == "Implementer"
 
@@ -110,3 +98,38 @@ async def test_architect_agent_consult(container):
         user_plan="free"
     )
     assert isinstance(res, dict)
+
+def test_ast_no_unassigned_self_attributes():
+    agent_dir = "app/services/agent"
+    for root, dirs, files in os.walk(agent_dir):
+        for file in files:
+            if file.endswith(".py"):
+                filepath = os.path.join(root, file)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    tree = ast.parse(f.read(), filename=filepath)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        assigned = set()
+                        used = set()
+                        methods = set()
+                        for subnode in ast.walk(node):
+                            if isinstance(subnode, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                                methods.add(subnode.name)
+                        for body_item in node.body:
+                            if isinstance(body_item, ast.Assign):
+                                for target in body_item.targets:
+                                    if isinstance(target, ast.Name):
+                                        assigned.add(target.id)
+                        for subnode in ast.walk(node):
+                            if isinstance(subnode, ast.Assign):
+                                for target in subnode.targets:
+                                    if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == 'self':
+                                        assigned.add(target.attr)
+                            elif isinstance(subnode, ast.Attribute) and isinstance(subnode.value, ast.Name) and subnode.value.id == 'self':
+                                if isinstance(subnode.ctx, ast.Load):
+                                    used.add(subnode.attr)
+                                elif isinstance(subnode.ctx, ast.Store):
+                                    assigned.add(subnode.attr)
+                        unassigned = used - assigned - methods
+                        unassigned = {attr for attr in unassigned if not attr.startswith('__')}
+                        assert not unassigned, f"Class {node.name} in {filepath} uses unassigned self._ attributes: {sorted(unassigned)}"

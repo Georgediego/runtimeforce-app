@@ -216,6 +216,7 @@ class ApplicationContainer:
             graph_memory=self.graph_memory_service,
             provider_keys_repo=self.provider_keys_repo,
             role_router=self.role_router_service,
+            llm_router=self.llm_router,
         )
         
         self.register(EventBus, self.event_bus, name="event_bus")

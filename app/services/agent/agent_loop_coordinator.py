@@ -75,6 +75,7 @@ class AgentLoopCoordinator:
         graph_memory: Optional[Any] = None,
         provider_keys_repo: Optional[Any] = None,
         role_router: Optional[Any] = None,
+        llm_router: Optional[LLMRouterService] = None,
     ):
         self._orchestrator = orchestrator_service
         self._architect_agent = architect_agent
@@ -86,7 +87,8 @@ class AgentLoopCoordinator:
         self._event_bus = event_bus
         self._graph_memory = graph_memory
         self._provider_keys_repo = provider_keys_repo
-        self._role_router = role_router or RoleRouterService()
+        self._role_router = role_router
+        self._llm_router = llm_router
         self._cooldown_models: Dict[str, float] = {}
 
     def _resolve_strict_whitelist(self, enabled_models: Optional[List[str]], user_id: str) -> Optional[List[str]]:
@@ -203,25 +205,34 @@ class AgentLoopCoordinator:
 
         candidate_models: List[Dict[str, Any]] = []
         is_manual_override = model_lock not in NO_LOCK_SENTINELS or strategy_upper == "MANUAL"
-        prompt_tokens_est = len(user_prompt) // 4 + len(memory_context_str) // 4
 
-        if is_manual_override and model_lock not in NO_LOCK_SENTINELS:
-            if strict_enabled is not None and model_lock not in strict_enabled:
-                err_msg = f"Locked model '{model_lock}' is not enabled in settings."
-                yield {"status": "error", "error": err_msg}
-                yield {"status": "done"}
-                return
-            provider_guess = model_lock.split("/", 1)[0] if "/" in model_lock else "unknown"
-            candidate_models = [{"model_id": model_lock, "provider": provider_guess}]
-        else:
-            if hasattr(self._role_selector, "select_candidate_models_for_role"):
-                candidate_models = await self._role_selector.select_candidate_models_for_role(
-                    role=routing.get("role", "coding"),
-                    required_capabilities=routing.get("suggested_capabilities", ["code"]),
-                    mode=strategy_upper, user_plan=plan, user_id=user_id,
-                    enabled_models=strict_enabled, limit=10,
-                    prompt_tokens=prompt_tokens_est
+        provider_keys = {}
+        if self._provider_keys_repo:
+            try:
+                provider_keys = self._provider_keys_repo.get_all_provider_keys(user_id) or {}
+            except Exception:
+                pass
+
+        if self._llm_router:
+            try:
+                routed_model_ids = self._llm_router.build_route(
+                    strategy=strategy_upper,
+                    model_lock=model_lock,
+                    plan=plan,
+                    provider_keys=provider_keys,
+                    scores={},
+                    user_prompt=user_prompt,
+                    enabled_models=strict_enabled,
+                    required_capability="chat_completion"
                 )
+                for mid in routed_model_ids:
+                    prov = mid.split("/", 1)[0] if "/" in mid else "unknown"
+                    candidate_models.append({"model_id": mid, "provider": prov})
+            except Exception as e:
+                logger.warning(f"[AgentCoordinator] LLMRouter build_route failed: {e}")
+
+        if not candidate_models and model_lock in NO_LOCK_SENTINELS:
+            candidate_models = [{"model_id": "openai/gpt-4o-mini", "provider": "openai"}]
 
         if strategy_upper == "LOCAL":
             candidate_models = [m for m in candidate_models if m.get("provider", "").lower() in ("ollama", "lm_studio")]
@@ -515,32 +526,5 @@ class AgentLoopCoordinator:
                 session_id=session_id, role="assistant", content=final_text,
                 user_id=user_id, project_id=project_id,
             )
-
-        if strategy_upper in ("ATM", "CODING") and self._critic_agent:
-            yield {
-                "status": "phase",
-                "label": "ATM Verification: Critic evaluating...",
-                "role": "Critic",
-                "model": atm_critic_model or "auto"
-            }
-            try:
-                specialist_result = {
-                    "status": "completed", "content": final_text,
-                    "model_used": active_candidates[active_specialist_index]["model_id"] if active_specialist_index < len(active_candidates) else "unknown",
-                }
-                await asyncio.wait_for(
-                    self._critic_agent.validate_result(
-                        specialist_result=specialist_result,
-                        task_context={"task_type": routing.get("task_type", "coding")},
-                        user_id=user_id, project_id=project_id,
-                        user_plan=plan, enabled_models=strict_enabled,
-                        override_model=atm_critic_model
-                    ),
-                    timeout=20.0,
-                )
-            except asyncio.TimeoutError:
-                logger.warning("[AgentCoordinator] Critic timed out")
-            except Exception as e:
-                logger.warning(f"[AgentCoordinator] Critic failed: {e}")
 
         yield {"status": "done"}
