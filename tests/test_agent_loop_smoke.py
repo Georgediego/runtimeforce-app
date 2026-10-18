@@ -2,11 +2,13 @@ import pytest
 import asyncio
 import ast
 import os
+import inspect
 from typing import Any, AsyncGenerator, Dict, List
 from app.container import ApplicationContainer
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 from app.services.agent.architect_agent_service import ArchitectAgentService
 from app.services.agent.role_router_service import RoleRouterService
+from app.services.memory.context_builder_service import ContextBuilderService
 from app.services.workspace.workspace_local_driver import WorkspaceLocalDriver
 
 class MockOrchestrator:
@@ -27,7 +29,15 @@ class MockOrchestrator:
         return "Mock architectural recommendation plan."
 
 class MockContextBuilder:
-    async def build_optimal_context(self, *args, **kwargs) -> Dict[str, Any]:
+    async def build_optimal_context(
+        self,
+        user_prompt: str,
+        session_id: str,
+        user_id: str,
+        project_id: str,
+        max_token_budget: int = 128000,
+        max_context_tokens: int = 8000
+    ) -> Dict[str, Any]:
         return {"compiled_memory_context": "mock memory"}
 
 @pytest.fixture
@@ -133,3 +143,14 @@ def test_ast_no_unassigned_self_attributes():
                         unassigned = used - assigned - methods
                         unassigned = {attr for attr in unassigned if not attr.startswith('__')}
                         assert not unassigned, f"Class {node.name} in {filepath} uses unassigned self._ attributes: {sorted(unassigned)}"
+
+def test_ast_inspect_method_signatures():
+    # Verify build_optimal_context signature against ContextBuilderService
+    sig = inspect.signature(ContextBuilderService.build_optimal_context)
+    required_params = [
+        name for name, param in sig.parameters.items()
+        if param.default == inspect.Parameter.empty and name != 'self'
+    ]
+    # Check that required parameters include user_prompt, session_id, user_id, project_id
+    for req in ['user_prompt', 'session_id', 'user_id', 'project_id']:
+        assert req in required_params, f"Required parameter {req} missing in build_optimal_context"

@@ -85,8 +85,10 @@ Respond in structured JSON format when creating plans."""
 
         # Build context for architectural decision
         context = await self._context_builder.build_optimal_context(
-            project_id=project_id,
-            user_prompt=user_prompt
+            user_prompt=user_prompt,
+            session_id=f"architect_{project_id}",
+            user_id=user_id,
+            project_id=project_id
         )
         
         # Decompose task if no user plan provided
