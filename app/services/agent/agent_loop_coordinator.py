@@ -187,7 +187,7 @@ class AgentLoopCoordinator:
             except Exception as e:
                 logger.warning(f"[AgentCoordinator] Project details failed: {e}")
 
-        # Удаление блока CONSILIUM - режим удален из архитектуры
+
         # Ранее здесь была логика многоагентских дебатов, теперь только ATM/AUTO/LOCAL/MANUAL
 
         yield {"status": "phase", "label": "Routing task...", "role": "Router"}

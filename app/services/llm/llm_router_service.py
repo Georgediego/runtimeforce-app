@@ -159,7 +159,7 @@ class LLMRouterService:
         if not candidates:
             raise ValueError(f"No enabled models available for strategy '{strategy_clean}'. Please select models in Settings -> Providers.")
 
-        # CONSILIUM удален из архитектуры - теперь только ATM/AUTO/LOCAL/MANUAL
+
 
         if strategy_clean == "local":
             local_candidates = [
