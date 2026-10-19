@@ -128,6 +128,15 @@ class AgentLoopCoordinator:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
+
+        if strategy_upper == "CONSILIUM":
+            err_msg = "Mode CONSILIUM is no longer available. Use AUTO, ATM, MANUAL or LOCAL"
+            if self._conversation_repo:
+                self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
+            yield {"status": "error", "error_code": "CONSILIUM_REMOVED", "error": err_msg}
+            yield {"status": "done"}
+            return
+
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)

@@ -62,7 +62,7 @@ async def test_agent_loop_smoke_modes(container, tmp_path):
     assert coordinator is not None
 
     driver = WorkspaceLocalDriver(root_path=str(tmp_path))
-    modes = ["AUTO", "ATM", "CONSILIUM", "LOCAL", "MANUAL"]
+    modes = ["AUTO", "ATM", "LOCAL", "MANUAL"]
 
     for mode in modes:
         messages = [{"role": "user", "content": f"Test task for mode {mode}"}]
@@ -81,6 +81,24 @@ async def test_agent_loop_smoke_modes(container, tmp_path):
         
         assert len(events) > 0, f"No events yielded for mode {mode}"
         assert any(e.get("status") == "done" for e in events), f"Mode {mode} did not reach 'done' status"
+
+@pytest.mark.asyncio
+async def test_consilium_removed_error(container, tmp_path):
+    coordinator = container.agent_loop_coordinator
+    driver = WorkspaceLocalDriver(root_path=str(tmp_path))
+    events = []
+    async for chunk in coordinator.run_agent_loop(
+        session_id="test_consilium",
+        messages=[{"role": "user", "content": "test"}],
+        driver=driver,
+        strategy="CONSILIUM",
+        user_id="test_user"
+    ):
+        events.append(chunk)
+    
+    error_event = next((e for e in events if e.get("status") == "error"), None)
+    assert error_event is not None
+    assert "Mode CONSILIUM is no longer available" in error_event.get("error", "")
 
 @pytest.mark.asyncio
 async def test_role_router_bilingual_classification():
