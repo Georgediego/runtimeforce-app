@@ -54,13 +54,12 @@ export const providersUIController = {
         }
     },
 
+    _selectedModelsMap: {},
+
     async syncSelectedModelsFromSQLite() {
         try {
             const data = await keysApi.getSelectedModels();
-            const selectedMap = data.selected_models || {};
-            Object.entries(selectedMap).forEach(([pId, models]) => {
-                localStorage.setItem(`rf_selected_models_${pId}`, JSON.stringify(models));
-            });
+            this._selectedModelsMap = data.selected_models || {};
         } catch (e) {
             console.warn("Failed to sync selected models from SQLite:", e);
         }
@@ -296,17 +295,13 @@ export const providersUIController = {
     },
 
     getSelectedModelsCount(providerName) {
-        const storageKey = `rf_selected_models_${providerName}`;
-        const selected = localStorage.getItem(storageKey);
-        if (!selected) return 0;
-        try { return JSON.parse(selected).length; } catch { return 0; }
+        const list = this._selectedModelsMap[(providerName || "").toLowerCase()] || [];
+        return list.length;
     },
 
     isModelSelected(providerName, modelId) {
-        const storageKey = `rf_selected_models_${providerName}`;
-        const selected = localStorage.getItem(storageKey);
-        if (!selected) return false;
-        try { return JSON.parse(selected).includes(modelId); } catch { return false; }
+        const list = this._selectedModelsMap[(providerName || "").toLowerCase()] || [];
+        return list.includes(modelId);
     },
 
     async toggleLocalModelSelection(providerName, modelId, checked) {
@@ -314,9 +309,8 @@ export const providersUIController = {
             showToast(`⚠️ CPU-only warning: '${modelId}' may take 10-20s per response. Recommended to use Groq/Gemini Free for 500+ tok/s!`, "warning", 5000);
         }
 
-        const storageKey = `rf_selected_models_${providerName}`;
-        let selected = [];
-        try { selected = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { selected = []; }
+        const pKey = (providerName || "").toLowerCase();
+        let selected = [...(this._selectedModelsMap[pKey] || [])];
 
         if (checked) {
             if (!selected.includes(modelId)) selected.push(modelId);
@@ -324,7 +318,7 @@ export const providersUIController = {
             selected = selected.filter(id => id !== modelId);
         }
 
-        localStorage.setItem(storageKey, JSON.stringify(selected));
+        this._selectedModelsMap[pKey] = selected;
         keysApi.saveSelectedModels(providerName, selected).catch(() => {});
         this.renderExistingLocalProviders();
         eventBus.emit("providers.updated");
@@ -343,7 +337,8 @@ export const providersUIController = {
 
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-            localStorage.removeItem(`rf_selected_models_${providerName}`);
+            delete this._selectedModelsMap[(providerName || "").toLowerCase()];
+            keysApi.saveSelectedModels(providerName, []).catch(() => {});
             showToast(`Removed ${providerName}`, "success");
             await this.renderExistingLocalProviders();
             eventBus.emit("providers.updated");
@@ -353,7 +348,7 @@ export const providersUIController = {
     },
 
     providerCardHTML(p) {
-        const savedSelections = JSON.parse(localStorage.getItem(`rf_selected_models_${p.id}`) || "null");
+        const savedSelections = this._selectedModelsMap[(p.id || "").toLowerCase()] || null;
         const countBadgeText = Array.isArray(savedSelections) ? `${savedSelections.length} models selected` : "";
         const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
 
@@ -396,7 +391,7 @@ export const providersUIController = {
             [...FREE_PROVIDERS, ...PRO_PROVIDERS].forEach(p => {
                 const statusEl = document.querySelector(`.key-status-${p.id}`);
                 const configBtn = document.querySelector(`.configure-models-btn[data-provider="${p.id}"]`);
-                const savedSelections = JSON.parse(localStorage.getItem(`rf_selected_models_${p.id}`) || "null");
+                const savedSelections = this._selectedModelsMap[p.id.toLowerCase()] || null;
                 const availableModels = availableModelsMap[p.id] || [];
                 const totalAvailable = availableModels.length;
 
@@ -460,7 +455,7 @@ export const providersUIController = {
             return;
         }
 
-        const savedSelections = JSON.parse(localStorage.getItem(`rf_selected_models_${activePickerProvider}`) || "null");
+        const savedSelections = this._selectedModelsMap[(activePickerProvider || "").toLowerCase()] || null;
         const selectedSet = new Set(Array.isArray(savedSelections) ? savedSelections : []);
 
         listEl.innerHTML = models.map(m => {
@@ -557,7 +552,7 @@ export const providersUIController = {
             const res = await keysApi.autoselect(providerId);
             const autoselected = res.autoselected_models || [];
             
-            localStorage.setItem(`rf_selected_models_${providerId}`, JSON.stringify(autoselected));
+            this._selectedModelsMap[(providerId || "").toLowerCase()] = autoselected;
             
             if (activePickerProvider === providerId) {
                 this.renderModelPickerList(providerModelsMap[providerId] || []);
@@ -575,7 +570,7 @@ export const providersUIController = {
     savePickerSelections() {
         if (!activePickerProvider) return;
         const checked = Array.from(document.querySelectorAll("#model-picker-list .model-picker-cb:checked")).map(cb => cb.value);
-        localStorage.setItem(`rf_selected_models_${activePickerProvider}`, JSON.stringify(checked));
+        this._selectedModelsMap[(activePickerProvider || "").toLowerCase()] = checked;
         keysApi.saveSelectedModels(activePickerProvider, checked).catch(() => {});
         this.updateStatus();
     },
@@ -589,6 +584,7 @@ export const providersUIController = {
     },
 
     init() {
+        this.syncSelectedModelsFromSQLite().then(() => this.updateStatus());
         eventBus.on("providers.updated", () => this.updateStatus());
 
         document.getElementById("autoselect-btn")?.addEventListener("click", () => {

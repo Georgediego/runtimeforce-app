@@ -310,6 +310,87 @@
                     <div class="w-full h-1.5 bg-[var(--ide-elevated-2)] rounded-full overflow-hidden relative">
                         <div id="orchestrator-progress-bar" class="h-full bg-[var(--ide-accent)] w-0 transition-all duration-300 shadow-[0_0_8px_var(--ide-accent)]"></div>
                     </div>
+                    <div id="orchestrator-settings" class="space-y-3 pt-2">
+                        <div id="model-filters-container" class="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)]">
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="filter-tier-free" class="rounded accent-[var(--ide-accent)]" checked> Free</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="filter-tier-pro" class="rounded accent-[var(--ide-accent)]" checked> Pro</label>
+                        </div>
+
+                        <!-- MANUAL Panel -->
+                        <div id="settings-manual-panel" class="hidden space-y-1.5">
+                            <div class="text-[10px] uppercase tracking-wider font-bold text-[var(--ide-text-muted)]">Model</div>
+                            <div class="custom-select-wrapper relative">
+                                <div id="model-lock-trigger" class="w-full bg-[var(--ide-elevated-2)] border border-[var(--ide-border-subtle)] rounded-lg px-2.5 py-1.5 text-xs flex items-center justify-between cursor-pointer text-[var(--ide-text-primary)]">
+                                    <span>Auto (recommended)</span>
+                                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[var(--ide-text-muted)]"></i>
+                                </div>
+                                <div id="model-lock-options" class="hidden absolute top-full left-0 right-0 mt-1 bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 space-y-0.5"></div>
+                                <input type="hidden" id="model-lock-select" value="">
+                            </div>
+                        </div>
+
+                        <!-- ATM Panel -->
+                        <div id="settings-atm-panel" class="hidden space-y-2 dynamic-atm-wrapper">
+                            <div class="text-[10px] uppercase tracking-wider font-bold text-[var(--ide-text-muted)]">ATM Role Models</div>
+                            <div class="grid grid-cols-1 gap-2">
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-[var(--ide-text-secondary)] mb-0.5">Architect model</label>
+                                    <div class="custom-select-wrapper relative">
+                                        <div id="atm-architect-trigger" class="w-full bg-[var(--ide-elevated-2)] border border-[var(--ide-border-subtle)] rounded-lg px-2.5 py-1.5 text-xs flex items-center justify-between cursor-pointer text-[var(--ide-text-primary)]">
+                                            <span>Auto (recommended)</span>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[var(--ide-text-muted)]"></i>
+                                        </div>
+                                        <div id="atm-architect-options" class="hidden absolute top-full left-0 right-0 mt-1 bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 space-y-0.5"></div>
+                                        <input type="hidden" id="atm-architect-select" value="">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-[var(--ide-text-secondary)] mb-0.5">Engineer model</label>
+                                    <div class="custom-select-wrapper relative">
+                                        <div id="atm-engineer-trigger" class="w-full bg-[var(--ide-elevated-2)] border border-[var(--ide-border-subtle)] rounded-lg px-2.5 py-1.5 text-xs flex items-center justify-between cursor-pointer text-[var(--ide-text-primary)]">
+                                            <span>Auto (recommended)</span>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[var(--ide-text-muted)]"></i>
+                                        </div>
+                                        <div id="atm-engineer-options" class="hidden absolute top-full left-0 right-0 mt-1 bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 space-y-0.5"></div>
+                                        <input type="hidden" id="atm-engineer-select" value="">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-[var(--ide-text-secondary)] mb-0.5">Designer model</label>
+                                    <div class="custom-select-wrapper relative">
+                                        <div id="atm-designer-trigger" class="w-full bg-[var(--ide-elevated-2)] border border-[var(--ide-border-subtle)] rounded-lg px-2.5 py-1.5 text-xs flex items-center justify-between cursor-pointer text-[var(--ide-text-primary)]">
+                                            <span>Auto (recommended)</span>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[var(--ide-text-muted)]"></i>
+                                        </div>
+                                        <div id="atm-designer-options" class="hidden absolute top-full left-0 right-0 mt-1 bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 space-y-0.5"></div>
+                                        <input type="hidden" id="atm-designer-select" value="">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-[var(--ide-text-secondary)] mb-0.5">Tester model</label>
+                                    <div class="custom-select-wrapper relative">
+                                        <div id="atm-tester-trigger" class="w-full bg-[var(--ide-elevated-2)] border border-[var(--ide-border-subtle)] rounded-lg px-2.5 py-1.5 text-xs flex items-center justify-between cursor-pointer text-[var(--ide-text-primary)]">
+                                            <span>Auto (recommended)</span>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[var(--ide-text-muted)]"></i>
+                                        </div>
+                                        <div id="atm-tester-options" class="hidden absolute top-full left-0 right-0 mt-1 bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 space-y-0.5"></div>
+                                        <input type="hidden" id="atm-tester-select" value="">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-[var(--ide-text-secondary)] mb-0.5">Critic model</label>
+                                    <div class="custom-select-wrapper relative">
+                                        <div id="atm-critic-trigger" class="w-full bg-[var(--ide-elevated-2)] border border-[var(--ide-border-subtle)] rounded-lg px-2.5 py-1.5 text-xs flex items-center justify-between cursor-pointer text-[var(--ide-text-primary)]">
+                                            <span>Auto (recommended)</span>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[var(--ide-text-muted)]"></i>
+                                        </div>
+                                        <div id="atm-critic-options" class="hidden absolute top-full left-0 right-0 mt-1 bg-[var(--ide-surface)] border border-[var(--ide-border-subtle)] rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 space-y-0.5"></div>
+                                        <input type="hidden" id="atm-critic-select" value="">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>               
             <div>

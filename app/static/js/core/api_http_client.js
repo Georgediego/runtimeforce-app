@@ -137,25 +137,46 @@ export const modelsApi = {
     list: () => request("/api/v1/models"),
 };
 
+let selectedModelsCache = null;
+
 export const keysApi = {
-    update: (keys) => request("/api/v1/keys/update", { method: "POST", body: JSON.stringify({ keys }) }),
-    delete: (provider) => request(`/api/v1/keys/${provider}`, { method: "DELETE" }),
+    update: (keys) => {
+        selectedModelsCache = null;
+        return request("/api/v1/keys/update", { method: "POST", body: JSON.stringify({ keys }) });
+    },
+    delete: (provider) => {
+        selectedModelsCache = null;
+        return request(`/api/v1/keys/${provider}`, { method: "DELETE" });
+    },
     status: () => request("/api/v1/keys/status"),
-    getSelectedModels: () => request("/api/v1/keys/selected-models"),
-    saveSelectedModels: (provider_id, model_ids) =>
-        request("/api/v1/keys/selected-models", {
+    getSelectedModels: async () => {
+        if (selectedModelsCache !== null) return selectedModelsCache;
+        selectedModelsCache = await request("/api/v1/keys/selected-models");
+        return selectedModelsCache;
+    },
+    saveSelectedModels: async (provider_id, model_ids) => {
+        const res = await request("/api/v1/keys/selected-models", {
             method: "POST",
             body: JSON.stringify({ provider_id, model_ids }),
-        }),
-    autoselect: (provider_id) =>
-        request("/api/v1/keys/autoselect", {
+        });
+        selectedModelsCache = null;
+        return res;
+    },
+    autoselect: async (provider_id) => {
+        const res = await request("/api/v1/keys/autoselect", {
             method: "POST",
             body: JSON.stringify({ provider_id }),
-        }),
-    autoselectAll: () =>
-        request("/api/v1/keys/autoselect-all", {
+        });
+        selectedModelsCache = null;
+        return res;
+    },
+    autoselectAll: async () => {
+        const res = await request("/api/v1/keys/autoselect-all", {
             method: "POST",
-        }),
+        });
+        selectedModelsCache = null;
+        return res;
+    },
 };
 
 export const billingApi = {
