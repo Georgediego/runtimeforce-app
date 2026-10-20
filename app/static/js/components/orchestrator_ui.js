@@ -58,7 +58,7 @@ export const orchestratorUIController = {
         }
 
         strategySelect?.addEventListener("change", (e) => this.handleStrategyChange(e.target.value));
-        this.initCustomDropdowns();
+        initCustomSelects();
         this.initModeCards();
         await this.loadModels();
         if (strategySelect) this.handleStrategyChange(strategySelect.value);
@@ -105,30 +105,61 @@ export const orchestratorUIController = {
         });
     },
 
-    initCustomDropdowns() {
-        document.querySelectorAll(".custom-select-wrapper").forEach((wrapper) => {
-            const trigger = wrapper.querySelector('[id$="-trigger"]');
-            const dropdown = wrapper.querySelector('[id$="-dropdown"]');
-            if (!trigger || !dropdown) return;
-            trigger.addEventListener("click", (e) => {
-                e.stopPropagation();
-                document.querySelectorAll('[id$="-dropdown"]').forEach((d) => {
-                    if (d !== dropdown) d.classList.add("hidden");
-                });
-                dropdown.classList.toggle("hidden");
-                if (!dropdown.classList.contains("hidden")) {
-                    const searchInput = dropdown.querySelector(".custom-model-search");
-                    if (searchInput) {
-                        searchInput.focus();
-                        searchInput.value = "";
-                        dropdown.querySelectorAll(".option-item").forEach((opt) => opt.classList.remove("hidden"));
-                    }
-                }
-            });
-        });
-        document.addEventListener("click", () => {
-            document.querySelectorAll('[id$="-dropdown"]').forEach((d) => d.classList.add("hidden"));
-        });
+// Click handling for custom dropdowns (trigger / options / hidden input pattern).
+export function initCustomSelects() {
+  if (window.__rfCustomSelectsInit) return;
+  window.__rfCustomSelectsInit = true;
+
+  const closeAll = (except) => {
+    document.querySelectorAll('.custom-select-wrapper [id$="-options"]').forEach((opts) => {
+      if (opts !== except) opts.classList.add('hidden');
+    });
+  };
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const option = target.closest('.custom-select-wrapper .option-item');
+    if (option) {
+      const wrapper = option.closest('.custom-select-wrapper');
+      const trigger = wrapper.querySelector('[id$="-trigger"]');
+      const options = wrapper.querySelector('[id$="-options"]');
+      const hidden = wrapper.querySelector('input[type="hidden"]');
+      const value = option.dataset.value || '';
+      if (hidden) {
+        hidden.value = value;
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const label = trigger ? trigger.querySelector('span') : null;
+      if (label) label.textContent = option.textContent.trim();
+      wrapper.querySelectorAll('.option-item').forEach((el) => el.classList.remove('font-bold'));
+      option.classList.add('font-bold');
+      if (options) options.classList.add('hidden');
+      return;
+    }
+
+    const trigger = target.closest('.custom-select-wrapper [id$="-trigger"]');
+    if (trigger) {
+      const wrapper = trigger.closest('.custom-select-wrapper');
+      const options = wrapper.querySelector('[id$="-options"]');
+      if (!options) return;
+      const willOpen = options.classList.contains('hidden');
+      closeAll(options);
+      options.classList.toggle('hidden', !willOpen);
+      return;
+    }
+
+    closeAll(null);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeAll(null);
+  });
+}
+
+    // Search input handling for custom dropdowns
+    setupSearchHandlers() {
         document.querySelectorAll(".custom-model-search").forEach((input) => {
             input.addEventListener("click", (e) => e.stopPropagation());
             input.addEventListener("input", (e) => {
