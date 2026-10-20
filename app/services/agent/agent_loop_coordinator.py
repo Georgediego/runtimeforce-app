@@ -92,15 +92,37 @@ class AgentLoopCoordinator:
         self._cooldown_models: Dict[str, float] = {}
 
     def _resolve_strict_whitelist(self, enabled_models: Optional[List[str]], user_id: str) -> Optional[List[str]]:
-        if enabled_models is not None:
-            return [m for m in enabled_models if LLMRouterService.is_text_model(m)]
+        db_allowed = []
+        has_global_models = False
         if self._provider_keys_repo:
+            try:
+                conn = self._provider_keys_repo.db.get_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) as cnt FROM provider_selected_models")
+                row = cur.fetchone()
+                if row and row["cnt"] > 0:
+                    has_global_models = True
+            except Exception:
+                pass
+
             selected_map = self._provider_keys_repo.get_all_selected_models(user_id)
             if selected_map:
-                flat = []
                 for mlist in selected_map.values():
-                    flat.extend(mlist)
-                return [m for m in flat if LLMRouterService.is_text_model(m)]
+                    if isinstance(mlist, list):
+                        db_allowed.extend(mlist)
+        db_set = set(db_allowed)
+
+        if enabled_models is not None:
+            if db_set:
+                return [m for m in enabled_models if m in db_set and LLMRouterService.is_text_model(m)]
+            return [m for m in enabled_models if LLMRouterService.is_text_model(m)]
+
+        if db_allowed:
+            return [m for m in db_allowed if LLMRouterService.is_text_model(m)]
+
+        if has_global_models:
+            return []
+
         return None
 
     @staticmethod
@@ -140,6 +162,41 @@ class AgentLoopCoordinator:
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
+
+        db_allowed_all = []
+        if self._provider_keys_repo:
+            selected_map = self._provider_keys_repo.get_all_selected_models(user_id)
+            if selected_map:
+                for mlist in selected_map.values():
+                    if isinstance(mlist, list):
+                        db_allowed_all.extend(mlist)
+        db_set_all = set(db_allowed_all)
+
+        if enabled_models is not None and db_set_all:
+            for em in enabled_models:
+                if em not in db_set_all:
+                    yield {"status": "warning", "warning": f"Manual model ignored: {em}"}
+
+        if model_lock and model_lock.lower() not in ("auto", "none", ""):
+            if strict_enabled is not None and model_lock not in strict_enabled:
+                yield {"status": "warning", "warning": f"Manual model ignored: {model_lock}"}
+                model_lock = None
+
+        for atm_val, name in [
+            (atm_architect_model, "architect"),
+            (atm_engineer_model, "engineer"),
+            (atm_tester_model, "tester"),
+            (atm_critic_model, "critic"),
+            (atm_designer_model, "designer"),
+        ]:
+            if atm_val and atm_val.lower() not in ("auto", "none", ""):
+                if strict_enabled is not None and atm_val not in strict_enabled:
+                    yield {"status": "warning", "warning": f"Manual model ignored: {atm_val}"}
+                    if name == "architect": atm_architect_model = None
+                    elif name == "engineer": atm_engineer_model = None
+                    elif name == "tester": atm_tester_model = None
+                    elif name == "critic": atm_critic_model = None
+                    elif name == "designer": atm_designer_model = None
 
         if self._conversation_repo and user_prompt:
             self._conversation_repo.append_message(
