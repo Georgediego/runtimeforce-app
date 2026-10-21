@@ -251,7 +251,8 @@ export const orchestratorUIController = {
                     if (triggerSpan) triggerSpan.textContent = opt.textContent;
                     container.querySelectorAll(".option-item").forEach((o) => o.classList.remove("bg-[var(--ide-border-subtle)]", "font-bold"));
                     opt.classList.add("bg-[var(--ide-border-subtle)]", "font-bold");
-                    const dropdown = container.closest('[id$="-dropdown"]');
+                    container.classList.add("hidden");
+                    const dropdown = container.closest('[id$="-dropdown"]') || container.closest('.custom-select-wrapper');
                     if (dropdown) dropdown.classList.add("hidden");
                 });
             });
@@ -298,7 +299,8 @@ export const orchestratorUIController = {
                         if (triggerSpan) triggerSpan.textContent = opt.textContent;
                         container.querySelectorAll(".option-item").forEach((o) => o.classList.remove("bg-[var(--ide-border-subtle)]", "font-bold"));
                         opt.classList.add("bg-[var(--ide-border-subtle)]", "font-bold");
-                        const dropdown = container.closest('[id$="-dropdown"]');
+                        container.classList.add("hidden");
+                        const dropdown = container.closest('[id$="-dropdown"]') || container.closest('.custom-select-wrapper');
                         if (dropdown) dropdown.classList.add("hidden");
                     });
                 });
@@ -331,7 +333,6 @@ export function initCustomSelects() {
     const option = target.closest('.custom-select-wrapper .option-item');
     if (option) {
       const wrapper = option.closest('.custom-select-wrapper');
-      if (wrapper.querySelector('[id$="-dropdown"]')) return;
       const trigger = wrapper.querySelector('[id$="-trigger"]');
       const options = wrapper.querySelector('[id$="-options"]');
       const hidden = wrapper.querySelector('input[type="hidden"]');
@@ -351,7 +352,6 @@ export function initCustomSelects() {
     const trigger = target.closest('.custom-select-wrapper [id$="-trigger"]');
     if (trigger) {
       const wrapper = trigger.closest('.custom-select-wrapper');
-      if (wrapper.querySelector('[id$="-dropdown"]')) return;
       const options = wrapper.querySelector('[id$="-options"]');
       if (!options) return;
       const willOpen = options.classList.contains('hidden');
