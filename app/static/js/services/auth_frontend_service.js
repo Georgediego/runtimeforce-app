@@ -75,7 +75,8 @@ export const authFrontendService = {
         }
         
         if (!this.isAuthenticated()) {
-            this.hideAuth();
+            this.showAuth();
+            eventBus.emit("auth:required");
         }
     },
 
