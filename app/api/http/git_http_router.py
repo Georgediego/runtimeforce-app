@@ -7,7 +7,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.container import get_workspace_manager, get_project_service
+from app.container import get_workspace_manager, get_project_service, get_github_api, container
+from fastapi.responses import JSONResponse
+from app.services.git.github_api_service import GitHubApiService, GitHubApiError
+from app.core.security.aes_crypto_service import AESCryptoService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
 from app.services.project.project_service import ProjectService
 from app.services.git.git_status_service import GitStatusService
@@ -143,3 +146,86 @@ async def git_branches(
         return {"is_repo": False, "branches": []}
     branches = await GitBranchService.branches(driver)
     return {"is_repo": True, "branches": branches}
+
+async def _get_github_token_and_project(project_id: Optional[str], user_id: str, project_service: ProjectService) -> str:
+    target_project_id = project_id
+    if not target_project_id:
+        active_proj = project_service.get_active_project(user_id)
+        if active_proj:
+            target_project_id = active_proj.get("id")
+    
+    if not target_project_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    proj = project_service.repo.get_project(target_project_id, user_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    oauth_token_data = await container.oauth_repo.get_token(target_project_id, "github")
+    if oauth_token_data and oauth_token_data.get("access_token"):
+        return oauth_token_data["access_token"]
+
+    pat_enc = proj.get("github_pat_enc")
+    if pat_enc:
+        try:
+            decrypted_pat = AESCryptoService.decrypt(pat_enc)
+            if decrypted_pat:
+                return decrypted_pat
+        except Exception:
+            pass
+
+    raise HTTPException(status_code=409, detail={"error": "github_not_connected"})
+
+@router.get("/github/repos")
+async def list_github_repos(
+    project_id: Optional[str] = None,
+    user_id: str = Depends(require_authenticated_user),
+    project_service: ProjectService = Depends(get_project_service),
+    github_api: GitHubApiService = Depends(get_github_api)
+):
+    try:
+        token = await _get_github_token_and_project(project_id, user_id, project_service)
+        repos = await github_api.list_repos(token)
+        return {"repos": repos}
+    except GitHubApiError as e:
+        status_map = {
+            "github_token_invalid": 401,
+            "github_rate_limited": 429,
+            "github_not_found": 404,
+            "invalid_repo_name": 400,
+            "github_unavailable": 502
+        }
+        status_code = status_map.get(e.code, 500)
+        return JSONResponse(status_code=status_code, content={"error": e.code})
+    except HTTPException as he:
+        if he.status_code == 409:
+            return JSONResponse(status_code=409, content={"error": "github_not_connected"})
+        raise he
+
+@router.get("/github/repos/{owner}/{repo}/branches")
+async def list_github_branches(
+    owner: str,
+    repo: str,
+    project_id: Optional[str] = None,
+    user_id: str = Depends(require_authenticated_user),
+    project_service: ProjectService = Depends(get_project_service),
+    github_api: GitHubApiService = Depends(get_github_api)
+):
+    try:
+        token = await _get_github_token_and_project(project_id, user_id, project_service)
+        result = await github_api.list_branches(token, owner, repo)
+        return result
+    except GitHubApiError as e:
+        status_map = {
+            "github_token_invalid": 401,
+            "github_rate_limited": 429,
+            "github_not_found": 404,
+            "invalid_repo_name": 400,
+            "github_unavailable": 502
+        }
+        status_code = status_map.get(e.code, 500)
+        return JSONResponse(status_code=status_code, content={"error": e.code})
+    except HTTPException as he:
+        if he.status_code == 409:
+            return JSONResponse(status_code=409, content={"error": "github_not_connected"})
+        raise he

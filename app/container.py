@@ -58,6 +58,7 @@ from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 
 # Git & OAuth Services
 from app.services.git.github_oauth_service import GitHubOAuthService
+from app.services.git.github_api_service import GitHubApiService
 
 # Social Media Services
 from app.services.social.x_oauth_service import XOAuthService
@@ -199,6 +200,7 @@ class ApplicationContainer:
         
         # Initialize OAuth services
         self.github_oauth_service = GitHubOAuthService(oauth_repository=self.oauth_repo)
+        self.github_api_service = GitHubApiService()
         self.x_oauth_service = XOAuthService(oauth_repository=self.oauth_repo)
         self.reddit_oauth_service = RedditOAuthService(oauth_repository=self.oauth_repo)
         
@@ -232,6 +234,7 @@ class ApplicationContainer:
         
         # Register OAuth services
         self.register(GitHubOAuthService, self.github_oauth_service, name="github_oauth")
+        self.register(GitHubApiService, self.github_api_service, name="github_api")
         self.register(XOAuthService, self.x_oauth_service, name="x_oauth")
         self.register(RedditOAuthService, self.reddit_oauth_service, name="reddit_oauth")
         
@@ -431,3 +434,6 @@ def get_social_service() -> SocialPostGeneratorService:
 
 def get_social_feedback_listener() -> SocialFeedbackListenerService:
     return container.social_feedback_listener_service
+
+def get_github_api() -> GitHubApiService:
+    return container.github_api_service
