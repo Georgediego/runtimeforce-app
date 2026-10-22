@@ -34,8 +34,10 @@ class WorkspaceSSHDriver(IWorkspaceDriver):
         await SSHSFTPService.write_file(self.conn, full, content)
 
     async def execute_command(
-        self, command: str, cwd: Optional[str] = None, timeout: float = 30.0
+        self, command: str, cwd: Optional[str] = None, timeout: float = 30.0, env: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
+        if env:
+            raise NotImplementedError("env is not supported for SSH workspaces")
         await self._ensure_connected()
         work_dir = cwd or self.root
         env_prefix = "export LC_ALL=C.UTF-8 LANG=C.UTF-8 LANGUAGE=en_US:en; "

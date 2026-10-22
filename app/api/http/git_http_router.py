@@ -6,12 +6,16 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
+import re
+import shlex
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
+from app.services.git.github_git_auth import git_auth_env
 from app.core.security.aes_crypto_service import AESCryptoService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
+from app.services.workspace.workspace_ssh_driver import WorkspaceSSHDriver
 from app.services.project.project_service import ProjectService
 from app.services.git.git_status_service import GitStatusService
 from app.services.git.git_diff_service import GitDiffService
@@ -91,7 +95,42 @@ async def git_push(
     branch = payload.branch or (active_proj.get("git_branch_main") if active_proj else "main")
     remote = payload.remote or "origin"
 
-    res = await driver.execute_command(f"git push {remote} {branch}")
+    token = None
+    target_project_id = payload.project_id
+    if not target_project_id and active_proj:
+        target_project_id = active_proj.get("id")
+
+    if target_project_id:
+        proj = project_service.repo.get_project(target_project_id, user_id)
+        if proj:
+            oauth_token_data = await container.oauth_repo.get_token(target_project_id, "github")
+            if oauth_token_data and oauth_token_data.get("access_token"):
+                token = oauth_token_data["access_token"]
+            else:
+                pat_enc = proj.get("github_pat_enc")
+                if pat_enc:
+                    try:
+                        decrypted_pat = AESCryptoService.decrypt(pat_enc)
+                        if decrypted_pat:
+                            token = decrypted_pat
+                    except Exception:
+                        pass
+
+    if token and isinstance(driver, WorkspaceSSHDriver):
+        raise HTTPException(status_code=400, detail="Token authentication is not supported for SSH workspaces yet")
+
+    if not re.match(r"^[A-Za-z0-9._/-]{1,200}$", remote) or not re.match(r"^[A-Za-z0-9._/-]{1,200}$", branch):
+        raise HTTPException(status_code=400, detail="Invalid remote or branch name")
+
+    safe_remote = shlex.quote(remote)
+    safe_branch = shlex.quote(branch)
+    cmd = f"git push {safe_remote} {safe_branch}"
+
+    if token:
+        res = await driver.execute_command(cmd, env=git_auth_env(token))
+    else:
+        res = await driver.execute_command(cmd)
+
     return {
         "success": res.get("exit_code") == 0,
         "stdout": res.get("stdout", ""),
