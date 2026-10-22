@@ -38,9 +38,6 @@ class OAuthDBRepository(IOAuthRepository):
         except Exception as e:
             print(f"[OAuthDBRepository] Error saving token: {e}")
             return False
-        finally:
-            if conn:
-                conn.close()
 
     async def get_token(self, project_id: str, provider: str) -> Optional[Dict[str, Any]]:
         """Retrieve OAuth token data for a project."""
@@ -66,9 +63,6 @@ class OAuthDBRepository(IOAuthRepository):
         except Exception as e:
             print(f"[OAuthDBRepository] Error getting token: {e}")
             return None
-        finally:
-            if conn:
-                conn.close()
 
     async def delete_token(self, project_id: str, provider: str) -> bool:
         """Revoke and delete OAuth token data."""
@@ -86,9 +80,6 @@ class OAuthDBRepository(IOAuthRepository):
         except Exception as e:
             print(f"[OAuthDBRepository] Error deleting token: {e}")
             return False
-        finally:
-            if conn:
-                conn.close()
 
     async def is_connected(self, project_id: str, provider: str) -> bool:
         """Check if a provider is connected."""
