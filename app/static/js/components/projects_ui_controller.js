@@ -296,14 +296,43 @@ export const projectsUIController = {
                 const ghStatusEl = document.getElementById("github-connected-status");
                 const ghConnectBtn = document.getElementById("connect-github-oauth-btn");
                 const ghDisconnectBtn = document.getElementById("disconnect-github-btn");
+                const ghRepoSelect = document.getElementById("ps-github-repo-select");
+                const urlInput = document.getElementById("ps-github-url");
                 if (data.github_connected) {
                     if (ghStatusEl) ghStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold font-mono text-[10px]">✓ Connected</span>`;
                     if (ghConnectBtn) ghConnectBtn.classList.add("hidden");
                     if (ghDisconnectBtn) ghDisconnectBtn.classList.remove("hidden");
+
+                    try {
+                        const reposRes = await fetch(`/api/v1/github/repos`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (reposRes.ok) {
+                            const reposData = await reposRes.json();
+                            const repos = reposData.repos || [];
+                            if (ghRepoSelect && repos.length > 0) {
+                                ghRepoSelect.innerHTML = `<option value="">-- Select repository parsed from GitHub --</option>` + repos.map(r => `
+                                    <option value="${r.clone_url}">${r.full_name} (${r.clone_url})</option>
+                                `).join('');
+                                ghRepoSelect.onchange = (e) => {
+                                    if (e.target.value && urlInput) {
+                                        urlInput.value = e.target.value;
+                                    }
+                                };
+                                ghRepoSelect.classList.remove("hidden");
+                            }
+                            if (urlInput && !urlInput.value && repos.length > 0) {
+                                urlInput.value = repos[0].clone_url;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("Could not fetch GitHub repos:", err);
+                    }
                 } else {
                     if (ghStatusEl) ghStatusEl.innerHTML = `<span class="text-[10px] text-[var(--ide-text-muted)]">Not connected</span>`;
                     if (ghConnectBtn) ghConnectBtn.classList.remove("hidden");
                     if (ghDisconnectBtn) ghDisconnectBtn.classList.add("hidden");
+                    if (ghRepoSelect) ghRepoSelect.classList.add("hidden");
                 }
 
                 const xStatusEl = document.getElementById("x-connected-status");
@@ -490,7 +519,7 @@ export const projectsUIController = {
             ssh_port: parseInt(getVal("ps-ssh-port")) || 22,
             ssh_username: getVal("ps-ssh-user"),
             github_remote_url: getVal("ps-github-url"),
-            github_pat_enc: getVal("ps-github-pat"),
+            github_pat_enc: "",
             git_mode: getVal("ps-git-mode") || "manual",
             git_branch_main: getVal("ps-branch-main") || "main",
             git_branch_dev: getVal("ps-branch-dev") || "dev",
