@@ -2,8 +2,10 @@
 RuntimeForce IDE — FastAPI main application entry point with LiteLLM & HuggingFace Log Suppression.
 """
 import os
+import re
 import logging
 from pathlib import Path
+from typing import Optional
 from contextlib import asynccontextmanager
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -72,6 +74,39 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+_cached_app_version: Optional[str] = None
+_changelog_mtime: float = 0.0
+
+def get_app_version() -> str:
+    global _cached_app_version, _changelog_mtime
+    try:
+        changelog_path = BASE_DIR.parent / "CHANGELOG.md"
+        if not changelog_path.exists():
+            changelog_path = Path("CHANGELOG.md")
+        if changelog_path.exists():
+            mtime = changelog_path.stat().st_mtime
+            if _cached_app_version is not None and _changelog_mtime == mtime:
+                return _cached_app_version
+            content = changelog_path.read_text(encoding="utf-8")
+            match = re.search(r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?", content, re.MULTILINE)
+            if match:
+                ver = match.group(1).strip()
+                _cached_app_version = f"v{ver}" if not ver.startswith("v") else ver
+                _changelog_mtime = mtime
+                return _cached_app_version
+    except Exception:
+        pass
+    if _cached_app_version is not None:
+        return _cached_app_version
+    _cached_app_version = "0.0.0"
+    return _cached_app_version
+
+templates.env.globals["app_version"] = get_app_version()
+
+@app.get("/api/v1/version")
+async def get_version_api():
+    return {"version": get_app_version()}
 
 register_all(app)
 
