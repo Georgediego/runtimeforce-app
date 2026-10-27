@@ -8,6 +8,18 @@ import { renderProfileAvatars } from "./avatar_ui_service.js";
 
 const SAAS_URL = "https://runtimeforce.dev";
 
+function generateTicket() {
+    const array = new Uint8Array(24);
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        crypto.getRandomValues(array);
+    } else {
+        for (let i = 0; i < array.length; i++) {
+            array[i] = Math.floor(Math.random() * 256);
+        }
+    }
+    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export const authFrontendService = {
     _pollInterval: null,
 
@@ -81,9 +93,7 @@ export const authFrontendService = {
     },
 
     syncViaPopup() {
-        const ticket = (typeof crypto !== "undefined" && crypto.randomUUID) 
-            ? crypto.randomUUID() 
-            : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        const ticket = generateTicket();
 
         const origin = encodeURIComponent(window.location.origin);
         const syncUrl = `${SAAS_URL}/auth/connect-client?ticket=${encodeURIComponent(ticket)}&origin=${origin}`;
@@ -183,9 +193,7 @@ export const authFrontendService = {
     },
 
     oauth(provider) {
-        const ticket = (typeof crypto !== "undefined" && crypto.randomUUID) 
-            ? crypto.randomUUID() 
-            : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        const ticket = generateTicket();
 
         const origin = encodeURIComponent(window.location.origin);
         const authUrl = `${SAAS_URL}/auth/${provider}?ticket=${encodeURIComponent(ticket)}&origin=${origin}`;

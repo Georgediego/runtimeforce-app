@@ -2,7 +2,7 @@
  * Chat UI Controller with Interactive Section 15.5 Dangerous Command Approval & Terminal Stream.
  */
 import { ChatWSClient } from "../core/chat_ws_client.js";
-import { sessionsApi } from "../core/api_http_client.js";
+import { sessionsApi, keysApi } from "../core/api_http_client.js";
 import { showToast, showConfirm, showPrompt, showMultiLinePrompt, showCommandApprovalModal } from "./toast_ui_controller.js";
 import { terminalUIController } from "./terminal.js";
 import { eventBus } from "../core/event_bus.js";
@@ -156,26 +156,27 @@ export const chatUIController = {
         }
     },
 
-    getEnabledModelsList() {
+    async getEnabledModelsList() {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
 
         const enabled = [];
         let hasAnySavedConfig = false;
-        ALL_PROVIDERS.forEach((p) => {
-            const isFreeProv = FREE_PROVIDERS_SET.has(p);
-            if (!allowFree && isFreeProv) return;
-            if (!allowPro && !isFreeProv) return;
-
-            const raw = localStorage.getItem(`rf_selected_models_${p}`);
-            if (raw !== null) {
-                hasAnySavedConfig = true;
-                try {
-                    const saved = JSON.parse(raw);
-                    if (Array.isArray(saved)) enabled.push(...saved);
-                } catch (e) {}
-            }
-        });
+        try {
+            const data = await keysApi.getSelectedModels();
+            const selectedMap = data.selected_models || {};
+            Object.entries(selectedMap).forEach(([p, modelIds]) => {
+                const isFreeProv = FREE_PROVIDERS_SET.has(p);
+                if (!allowFree && isFreeProv) return;
+                if (!allowPro && !isFreeProv) return;
+                if (Array.isArray(modelIds) && modelIds.length > 0) {
+                    hasAnySavedConfig = true;
+                    enabled.push(...modelIds);
+                }
+            });
+        } catch (e) {
+            console.warn("Failed to get enabled models list:", e);
+        }
         return hasAnySavedConfig ? enabled : null;
     },
 
@@ -525,7 +526,7 @@ export const chatUIController = {
             await wsClient.connect();
             const strategy = document.getElementById("strategy-select")?.value || "auto";
             const modelLock = document.getElementById("model-lock-select")?.value || null;
-            const explicitEnabled = this.getEnabledModelsList();
+            const explicitEnabled = await this.getEnabledModelsList();
             const atmModels = this.getATMModels();
             wsClient.send(agentPayloadPrompt, {
                 strategy,

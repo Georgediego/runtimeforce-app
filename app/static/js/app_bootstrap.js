@@ -2,6 +2,7 @@
  * Main Application Bootstrap Script.
  */
 import { eventBus } from "./core/event_bus.js";
+import { keysApi } from "./core/api_http_client.js";
 import { authFrontendService } from "./services/auth_frontend_service.js";
 import { fileTreeUIController } from "./components/file_tree_ui_controller.js";
 import { editorUIController } from "./components/editor_ui_controller.js";
@@ -19,6 +20,31 @@ import { setupWizardUIController } from "./components/setup_wizard_ui_controller
 
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("🚀 Initializing RuntimeForce IDE...");
+
+    // One-time migration from localStorage rf_selected_models_*
+    try {
+        const data = await keysApi.getSelectedModels();
+        const serverSelected = data.selected_models || {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("rf_selected_models_")) {
+                const providerId = key.replace("rf_selected_models_", "").toLowerCase();
+                const rawVal = localStorage.getItem(key);
+                if (rawVal) {
+                    const modelIds = JSON.parse(rawVal);
+                    if (Array.isArray(modelIds) && modelIds.length > 0) {
+                        if (!serverSelected[providerId] || serverSelected[providerId].length === 0) {
+                            await keysApi.saveSelectedModels(providerId, modelIds);
+                            console.log(`[Migration] Migrated selected models for provider '${providerId}' from localStorage to server.`);
+                        }
+                    }
+                }
+                localStorage.removeItem(key);
+            }
+        }
+    } catch (e) {
+        console.warn("[Migration] Failed to migrate localStorage selected models:", e);
+    }
 
     const controllers = [
         { name: "editorUIController", instance: editorUIController },

@@ -1,0 +1,204 @@
+import pytest
+import asyncio
+from typing import Any, AsyncGenerator, Dict, List
+from app.container import ApplicationContainer
+from app.repository.db_connection import DatabaseConnectionManager
+from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
+from app.services.workspace.workspace_local_driver import WorkspaceLocalDriver
+
+class MockOrchestrator:
+    async def stream_completion(
+        self,
+        messages: List[Dict[str, Any]],
+        model_id: str,
+        provider: str,
+        temperature: float = 0.2,
+        user_id: str = "default_user",
+        tools: Any = None,
+        strategy: str = "auto"
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        yield {"status": "streaming", "content": f"Response using model {model_id}"}
+        yield {"status": "done"}
+
+    async def generate_with_context(self, *args, **kwargs) -> str:
+        return "Mock architectural recommendation plan."
+
+class MockContextBuilder:
+    async def build_optimal_context(
+        self,
+        user_prompt: str,
+        session_id: str,
+        user_id: str,
+        project_id: str,
+        max_token_budget: int = 128000,
+        max_context_tokens: int = 8000
+    ) -> Dict[str, Any]:
+        return {"compiled_memory_context": "mock memory"}
+
+@pytest.fixture
+def temp_container(tmp_path):
+    c = ApplicationContainer()
+    db_path = str(tmp_path / "test_manual.db")
+    db_manager = DatabaseConnectionManager(db_path=db_path)
+    db_manager.init_db()
+    
+    provider_keys_repo = ProviderKeysDBRepository(db_manager)
+    c.provider_keys_repo = provider_keys_repo
+    c.agent_loop_coordinator._provider_keys_repo = provider_keys_repo
+    
+    c.llm_orchestrator = MockOrchestrator()
+    mock_context_builder = MockContextBuilder()
+    c.agent_loop_coordinator._context_builder = mock_context_builder
+    if hasattr(c, "architect_agent_service"):
+        c.architect_agent_service._orchestrator = c.llm_orchestrator
+        c.architect_agent_service._context_builder = mock_context_builder
+
+    return c, db_manager, tmp_path
+
+@pytest.mark.asyncio
+async def test_manual_model_ignored_and_warning(temp_container):
+    c, db_manager, tmp_path = temp_container
+    coordinator = c.agent_loop_coordinator
+    repo = c.provider_keys_repo
+    
+    user_id = "user_1"
+    # Seed DB with allowed model
+    repo.save_selected_models("openai", ["openai/gpt-4o-mini"], user_id)
+    
+    driver = WorkspaceLocalDriver(root_path=str(tmp_path))
+    messages = [{"role": "user", "content": "Hello"}]
+    
+    # 1. Client sends model not in provider_selected_models
+    events = []
+    async for event in coordinator.run_agent_loop(
+        session_id="session_1",
+        messages=messages,
+        driver=driver,
+        strategy="MANUAL",
+        model_lock="openai/unauthorized-model",
+        user_id=user_id,
+        enabled_models=["openai/unauthorized-model"]
+    ):
+        events.append(event)
+    
+    warning_event = next((e for e in events if e.get("status") == "warning"), None)
+    assert warning_event is not None
+    assert "Manual model ignored" in warning_event.get("warning", "")
+
+@pytest.mark.asyncio
+async def test_enabled_models_missing_takes_from_db(temp_container):
+    c, db_manager, tmp_path = temp_container
+    coordinator = c.agent_loop_coordinator
+    repo = c.provider_keys_repo
+    
+    user_id = "user_2"
+    repo.save_selected_models("openai", ["openai/gpt-4o-mini"], user_id)
+    
+    driver = WorkspaceLocalDriver(root_path=str(tmp_path))
+    events = []
+    # enabled_models=None (missing)
+    async for event in coordinator.run_agent_loop(
+        session_id="session_2",
+        messages=[{"role": "user", "content": "Test"}],
+        driver=driver,
+        strategy="AUTO",
+        enabled_models=None,
+        user_id=user_id
+    ):
+        events.append(event)
+    
+    assert any(e.get("status") == "done" for e in events)
+
+@pytest.mark.asyncio
+async def test_manual_with_valid_model_lock(temp_container):
+    c, db_manager, tmp_path = temp_container
+    coordinator = c.agent_loop_coordinator
+    repo = c.provider_keys_repo
+    
+    user_id = "user_3"
+    repo.save_selected_models("openai", ["openai/gpt-4o-mini"], user_id)
+    
+    driver = WorkspaceLocalDriver(root_path=str(tmp_path))
+    events = []
+    async for event in coordinator.run_agent_loop(
+        session_id="session_3",
+        messages=[{"role": "user", "content": "Test"}],
+        driver=driver,
+        strategy="MANUAL",
+        model_lock="openai/gpt-4o-mini",
+        user_id=user_id
+    ):
+        events.append(event)
+    
+    assert any(e.get("status") == "done" for e in events)
+
+@pytest.mark.asyncio
+async def test_atm_with_different_models_for_roles(temp_container):
+    c, db_manager, tmp_path = temp_container
+    coordinator = c.agent_loop_coordinator
+    repo = c.provider_keys_repo
+    
+    user_id = "user_4"
+    repo.save_selected_models("openai", ["openai/gpt-4o-mini", "openai/gpt-4o"], user_id)
+    
+    driver = WorkspaceLocalDriver(root_path=str(tmp_path))
+    events = []
+    async for event in coordinator.run_agent_loop(
+        session_id="session_4",
+        messages=[{"role": "user", "content": "Build feature"}],
+        driver=driver,
+        strategy="ATM",
+        atm_architect_model="openai/gpt-4o",
+        atm_engineer_model="openai/gpt-4o-mini",
+        user_id=user_id
+    ):
+        events.append(event)
+    
+    assert any(e.get("status") == "done" for e in events)
+
+@pytest.mark.asyncio
+async def test_user_isolation_selected_models(temp_container):
+    c, db_manager, tmp_path = temp_container
+    coordinator = c.agent_loop_coordinator
+    repo = c.provider_keys_repo
+    
+    user_a = "alice"
+    user_b = "bob"
+    
+    repo.save_selected_models("openai", ["openai/gpt-4o-mini"], user_a)
+    # bob has no selected models
+    
+    driver = WorkspaceLocalDriver(root_path=str(tmp_path))
+    events = []
+    # bob tries to use alice's model lock without selecting it
+    async for event in coordinator.run_agent_loop(
+        session_id="session_5",
+        messages=[{"role": "user", "content": "Test"}],
+        driver=driver,
+        strategy="MANUAL",
+        model_lock="openai/gpt-4o-mini",
+        user_id=user_b
+    ):
+        events.append(event)
+    
+    # Should get warning because bob has no models in db
+    warning_event = next((e for e in events if e.get("status") == "warning"), None)
+    assert warning_event is not None
+
+@pytest.mark.asyncio
+async def test_without_manual_fields_default_behavior(temp_container):
+    c, db_manager, tmp_path = temp_container
+    coordinator = c.agent_loop_coordinator
+    
+    driver = WorkspaceLocalDriver(root_path=str(tmp_path))
+    events = []
+    async for event in coordinator.run_agent_loop(
+        session_id="session_6",
+        messages=[{"role": "user", "content": "Default test"}],
+        driver=driver,
+        strategy="AUTO",
+        user_id="default_user"
+    ):
+        events.append(event)
+    
+    assert any(e.get("status") == "done" for e in events)

@@ -33,29 +33,34 @@ html.dark {
 
 /* LIGHT THEME (Improved contrast) */
 html.light {
-    --ide-bg: #f8fafc;
+    --ide-bg: #ffffff;
     --ide-surface: #ffffff;
-    --ide-elevated: #f1f5f9;
-    --ide-elevated-2: #e2e8f0;
-    --ide-text-primary: #0f172a;
-    --ide-text-secondary: #334155;
-    --ide-text-muted: #64748b;
-    --ide-accent: #07f77a;
-    --ide-accent-hover: #2ca258;
-    --ide-error: #ee4349;
-    --ide-error-hover: #ef4444;
-    --ide-success: #05d66a;
+    --ide-elevated: #f6f8fa;
+    --ide-elevated-2: #eaeef2;
+    --ide-text-primary: #1f2328;
+    --ide-text-secondary: #656d76;
+    --ide-text-muted: #8892a4;
+    --ide-accent: #00b35f;
+    --ide-accent-hover: #078144;
+    --ide-error: #dc2626;
+    --ide-error-hover: #b91c1c;
+    --ide-success: #00b35f;
     --ide-warning: #d97706;
-    --ide-border-subtle: #cbd5e1;
-    --ide-scrollbar: rgba(15, 23, 42, 0.2);
-    --ide-bg-rgb: 248, 250, 252;
+    --ide-border-subtle: rgba(31, 35, 40, 0.12);
+    --ide-scrollbar: rgba(31, 35, 40, 0.2);
+    --ide-bg-rgb: 255, 255, 255;
     --ide-text: var(--ide-text-primary);
     --ide-muted: var(--ide-text-secondary);
     --ide-border: var(--ide-border-subtle);
-    --ide-border-bright: rgba(15, 23, 42, 0.15);
-    --ide-hover: rgba(15, 23, 42, 0.05);
-    --ide-overlay: rgba(255, 255, 255, 0.8);
-    --ide-shadow: rgba(15, 23, 42, 0.1);
+    --ide-border-bright: rgba(31, 35, 40, 0.2);
+    --ide-hover: rgba(31, 35, 40, 0.05);
+    --ide-overlay: rgba(255, 255, 255, 0.9);
+    --ide-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+}
+
+/* Ensure custom dropdown options/dropdowns have higher z-index than Agent Trace */
+[id$="-options"], [id$="-dropdown"], .custom-select-wrapper [id$="-options"] {
+    z-index: 99999 !important;
 }
 
 /* Light Theme Text Contrast & Code Blocks Fix */

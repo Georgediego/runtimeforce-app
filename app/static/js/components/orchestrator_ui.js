@@ -1,7 +1,7 @@
 /**
  * Orchestrator UI Controller with ATM 5-Role Dropdowns (including Designer).
  */
-import { modelsApi } from "../core/api_http_client.js";
+import { modelsApi, keysApi } from "../core/api_http_client.js";
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "perplexity", "deepseek", "xai"];
 
@@ -59,6 +59,7 @@ export const orchestratorUIController = {
 
         strategySelect?.addEventListener("change", (e) => this.handleStrategyChange(e.target.value));
         this.initCustomDropdowns();
+        initCustomSelects();
         this.initModeCards();
         await this.loadModels();
         if (strategySelect) this.handleStrategyChange(strategySelect.value);
@@ -148,12 +149,17 @@ export const orchestratorUIController = {
         });
     },
 
-    getEnabledModelsSet() {
+    async getEnabledModelsSet() {
         const enabled = new Set();
-        ALL_PROVIDERS.forEach((p) => {
-            const saved = JSON.parse(localStorage.getItem(`rf_selected_models_${p}`) || "null");
-            if (Array.isArray(saved)) saved.forEach((id) => enabled.add(id));
-        });
+        try {
+            const data = await keysApi.getSelectedModels();
+            const selectedMap = data.selected_models || {};
+            Object.values(selectedMap).forEach((ids) => {
+                if (Array.isArray(ids)) ids.forEach((id) => enabled.add(id));
+            });
+        } catch (e) {
+            console.warn("Failed to get selected models:", e);
+        }
         return enabled;
     },
 
@@ -197,10 +203,10 @@ export const orchestratorUIController = {
         return score;
     },
 
-    _filterModelsByTier(models) {
+    async _filterModelsByTier(models) {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
-        const enabledSet = this.getEnabledModelsSet();
+        const enabledSet = await this.getEnabledModelsSet();
         const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
 
         return models.filter((m) => {
@@ -212,10 +218,8 @@ export const orchestratorUIController = {
         });
     },
 
-    populateATMDropdowns() {
-        const filtered = this._filterModelsByTier(this._cachedModels);
-        if (!filtered.length) return;
-
+    async populateATMDropdowns() {
+        const filtered = await this._filterModelsByTier(this._cachedModels);
         const roles = ["architect", "engineer", "designer", "tester", "critic"];
         roles.forEach((roleKey) => {
             const container = document.getElementById(`atm-${roleKey}-options`);
@@ -223,18 +227,23 @@ export const orchestratorUIController = {
             const triggerSpan = document.getElementById(`atm-${roleKey}-trigger`)?.querySelector("span:first-child");
             if (!container) return;
 
-            const scored = filtered.map((m) => ({ model: m, score: this._scoreModelForRole(m, roleKey) }));
-            scored.sort((a, b) => b.score - a.score);
-            const top = scored.filter((s) => s.score > 0).slice(0, 20);
-            const list = top.length > 0 ? top.map((s) => s.model) : filtered.slice(0, 20);
+            let optionsHTML = `<div data-value="" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded bg-[var(--ide-elevated-2)] font-bold">Auto (recommended)</div>`;
+            if (!filtered.length) {
+                optionsHTML += `<div class="option-item px-2 py-1 text-[var(--ide-text-muted)] cursor-not-allowed rounded" style="pointer-events: none;">No models selected. Open Providers to choose models.</div>`;
+            } else {
+                const scored = filtered.map((m) => ({ model: m, score: this._scoreModelForRole(m, roleKey) }));
+                scored.sort((a, b) => b.score - a.score);
+                const top = scored.filter((s) => s.score > 0).slice(0, 20);
+                const list = top.length > 0 ? top.map((s) => s.model) : filtered.slice(0, 20);
 
-            let optionsHTML = `<div data-value="auto" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded bg-[var(--ide-elevated-2)] font-bold">-- Auto (Best) --</div>`;
-            list.forEach((m) => {
-                optionsHTML += `<div data-value="${m.id}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${m.name}">${m.name} (${m.provider})</div>`;
-            });
+                list.forEach((m) => {
+                    optionsHTML += `<div data-value="${m.id}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${m.name}">${m.name} (${m.provider})</div>`;
+                });
+            }
             container.innerHTML = optionsHTML;
 
             container.querySelectorAll(".option-item").forEach((opt) => {
+                if (!opt.dataset.value && opt.dataset.value !== "") return;
                 opt.addEventListener("click", (e) => {
                     e.stopPropagation();
                     const val = opt.dataset.value;
@@ -242,7 +251,8 @@ export const orchestratorUIController = {
                     if (triggerSpan) triggerSpan.textContent = opt.textContent;
                     container.querySelectorAll(".option-item").forEach((o) => o.classList.remove("bg-[var(--ide-border-subtle)]", "font-bold"));
                     opt.classList.add("bg-[var(--ide-border-subtle)]", "font-bold");
-                    const dropdown = container.closest('[id$="-dropdown"]');
+                    container.classList.add("hidden");
+                    const dropdown = container.closest('[id$="-dropdown"]') || container.closest('.custom-select-wrapper');
                     if (dropdown) dropdown.classList.add("hidden");
                 });
             });
@@ -261,7 +271,7 @@ export const orchestratorUIController = {
             });
             this._cachedModels = allModels;
 
-            const filteredModels = this._filterModelsByTier(allModels);
+            const filteredModels = await this._filterModelsByTier(allModels);
 
             const panels = [
                 { hiddenInputId: "model-lock-select", triggerId: "model-lock-trigger", optionsContainerId: "model-lock-options" },
@@ -271,12 +281,17 @@ export const orchestratorUIController = {
                 const hiddenInput = document.getElementById(p.hiddenInputId);
                 const triggerSpan = document.getElementById(p.triggerId)?.querySelector("span:first-child");
                 if (!container) return;
-                let optionsHTML = `<div data-value="auto" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded bg-[var(--ide-elevated-2)] font-bold">-- Auto --</div>`;
-                filteredModels.forEach((m) => {
-                    optionsHTML += `<div data-value="${m.id}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${m.name}">${m.name} (${m.provider})</div>`;
-                });
+                let optionsHTML = `<div data-value="" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded bg-[var(--ide-elevated-2)] font-bold">Auto (recommended)</div>`;
+                if (!filteredModels.length) {
+                    optionsHTML += `<div class="option-item px-2 py-1 text-[var(--ide-text-muted)] cursor-not-allowed rounded" style="pointer-events: none;">No models selected. Open Providers to choose models.</div>`;
+                } else {
+                    filteredModels.forEach((m) => {
+                        optionsHTML += `<div data-value="${m.id}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${m.name}">${m.name} (${m.provider})</div>`;
+                    });
+                }
                 container.innerHTML = optionsHTML;
                 container.querySelectorAll(".option-item").forEach((opt) => {
+                    if (!opt.dataset.value && opt.dataset.value !== "") return;
                     opt.addEventListener("click", (e) => {
                         e.stopPropagation();
                         const val = opt.dataset.value;
@@ -284,16 +299,71 @@ export const orchestratorUIController = {
                         if (triggerSpan) triggerSpan.textContent = opt.textContent;
                         container.querySelectorAll(".option-item").forEach((o) => o.classList.remove("bg-[var(--ide-border-subtle)]", "font-bold"));
                         opt.classList.add("bg-[var(--ide-border-subtle)]", "font-bold");
-                        const dropdown = container.closest('[id$="-dropdown"]');
+                        container.classList.add("hidden");
+                        const dropdown = container.closest('[id$="-dropdown"]') || container.closest('.custom-select-wrapper');
                         if (dropdown) dropdown.classList.add("hidden");
                     });
                 });
             });
 
             const strategy = document.getElementById("strategy-select")?.value;
-            if (strategy === "coding") this.populateATMDropdowns();
+            if (strategy === "coding") await this.populateATMDropdowns();
         } catch (e) {
             console.warn("Failed to load models:", e);
         }
     },
 };
+
+// Click handling for custom dropdowns (trigger / options / hidden input pattern).
+// Wrappers that contain a "-dropdown" container are handled by initCustomDropdowns().
+export function initCustomSelects() {
+  if (window.__rfCustomSelectsInit) return;
+  window.__rfCustomSelectsInit = true;
+
+  const closeAll = (except) => {
+    document.querySelectorAll('.custom-select-wrapper [id$="-options"]').forEach((opts) => {
+      if (opts !== except && !opts.closest('[id$="-dropdown"]')) opts.classList.add('hidden');
+    });
+  };
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const option = target.closest('.custom-select-wrapper .option-item');
+    if (option) {
+      const wrapper = option.closest('.custom-select-wrapper');
+      const trigger = wrapper.querySelector('[id$="-trigger"]');
+      const options = wrapper.querySelector('[id$="-options"]');
+      const hidden = wrapper.querySelector('input[type="hidden"]');
+      const value = option.dataset.value || '';
+      if (hidden) {
+        hidden.value = value;
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const label = trigger ? trigger.querySelector('span') : null;
+      if (label) label.textContent = option.textContent.trim();
+      wrapper.querySelectorAll('.option-item').forEach((el) => el.classList.remove('font-bold'));
+      option.classList.add('font-bold');
+      if (options) options.classList.add('hidden');
+      return;
+    }
+
+    const trigger = target.closest('.custom-select-wrapper [id$="-trigger"]');
+    if (trigger) {
+      const wrapper = trigger.closest('.custom-select-wrapper');
+      const options = wrapper.querySelector('[id$="-options"]');
+      if (!options) return;
+      const willOpen = options.classList.contains('hidden');
+      closeAll(options);
+      options.classList.toggle('hidden', !willOpen);
+      return;
+    }
+
+    closeAll(null);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeAll(null);
+  });
+}

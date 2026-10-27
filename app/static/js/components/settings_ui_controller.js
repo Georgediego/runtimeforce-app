@@ -3,7 +3,6 @@
  */
 import { authFrontendService } from "../services/auth_frontend_service.js";
 import { providersUIController } from "./providers_ui_controller.js";
-import { billingUIController } from "./billing_ui_controller.js";
 import { showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -68,7 +67,6 @@ export const settingsUIController = {
         if (targetTab === "general") this.updateProfileInfo();
         if (targetTab === "providers") providersUIController.loadProvidersList();
         if (targetTab === "local-models") providersUIController.renderLocalModelsSection();
-        if (targetTab === "billing") this.loadBillingDetails();
     },
 
     updateProfileInfo() {
@@ -76,15 +74,5 @@ export const settingsUIController = {
         const nameEl = document.getElementById("rf-settings-name");
         if (nameEl) nameEl.textContent = email ? email.split("@")[0] : "User";
         authFrontendService.updateProfileUI();
-    },
-
-    async loadBillingDetails() {
-        const creditsData = await billingUIController.refreshCredits();
-        const display = document.getElementById("billing-credits-display");
-        if (display) {
-            const remaining = creditsData ? creditsData.credits_remaining : 5000;
-            const total = creditsData ? creditsData.total_allocated : 5000;
-            display.textContent = `${remaining} / ${total} Credits`;
-        }
     }
 };

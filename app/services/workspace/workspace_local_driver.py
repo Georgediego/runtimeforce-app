@@ -50,7 +50,7 @@ class WorkspaceLocalDriver(IWorkspaceDriver):
             f.write(content)
 
     async def execute_command(
-        self, command: str, cwd: Optional[str] = None, timeout: float = 30.0, password: Optional[str] = None
+        self, command: str, cwd: Optional[str] = None, timeout: float = 30.0, password: Optional[str] = None, env: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         work_dir = self._resolve(cwd) if cwd else self.root
         exec_cmd = command
@@ -59,10 +59,12 @@ class WorkspaceLocalDriver(IWorkspaceDriver):
             safe_pw = password.replace("'", "'\\''")
             exec_cmd = f"echo '{safe_pw}' | sudo -S -p '' {command[5:]}"
 
-        env = os.environ.copy()
-        env["LC_ALL"] = "C.UTF-8"
-        env["LANG"] = "C.UTF-8"
-        env["LANGUAGE"] = "en_US:en"
+        env_vars = os.environ.copy()
+        env_vars["LC_ALL"] = "C.UTF-8"
+        env_vars["LANG"] = "C.UTF-8"
+        env_vars["LANGUAGE"] = "en_US:en"
+        if env:
+            env_vars.update(env)
 
         try:
             proc = await asyncio.create_subprocess_shell(
@@ -70,7 +72,7 @@ class WorkspaceLocalDriver(IWorkspaceDriver):
                 cwd=work_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=env,
+                env=env_vars,
             )
             self._active_procs.append(proc)
             try:

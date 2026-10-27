@@ -18,7 +18,7 @@ class IWorkspaceDriver(ABC):
 
     @abstractmethod
     async def execute_command(
-        self, command: str, cwd: Optional[str] = None, timeout: float = 30.0
+        self, command: str, cwd: Optional[str] = None, timeout: float = 30.0, env: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """Execute shell command. Returns dict with stdout, stderr, exit_code."""
         pass
