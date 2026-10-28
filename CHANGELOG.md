@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Billing & Credits tab.
 
 ### Notes
-- Requires server >= 2.7.0.
+- Requires server >= 2.8.0.
 
 ## [0.2.0] - 2026-10-14
 - Initial release.
