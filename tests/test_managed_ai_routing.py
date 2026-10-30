@@ -2,6 +2,7 @@ import pytest
 
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 from app.services.llm.llm_orchestrator_service import LLMOrchestratorService
+from app.services.llm.llm_rotation_service import LLMRotationService
 from app.services.workspace.workspace_local_driver import WorkspaceLocalDriver
 
 
@@ -63,6 +64,16 @@ class _PartialFailureOrchestrator(_ManagedOrchestrator):
         self.calls.append(kwargs)
         yield {"status": "streaming", "content": "partial answer"}
         yield {"status": "error", "error_code": "MANAGED_AI_FAILED", "error": "provider disconnected"}
+
+
+class _ManagedAuthFailureOrchestrator(_ManagedOrchestrator):
+    async def stream_completion(self, **kwargs):
+        self.calls.append(kwargs)
+        yield {
+            "status": "error",
+            "error_code": "MANAGED_AI_FAILED",
+            "error": "All server models failed (upstream failures: openai: AuthenticationError (provider_auth))",
+        }
 
 
 def test_auto_managed_strategy_uses_code_intent_in_latest_user_message():
@@ -216,3 +227,30 @@ async def test_managed_stream_failure_after_output_does_not_mix_fallback_answer(
     assert len(orchestrator.calls) == 1
     assert orchestrator.calls[0]["provider"] == "runtimeforce-managed"
     assert any(event.get("status") == "error" and event.get("error_code") == "PARTIAL_RESPONSE_FAILURE" for event in events)
+
+
+@pytest.mark.asyncio
+async def test_managed_upstream_auth_error_does_not_permanently_disable_proxy(tmp_path):
+    orchestrator = _ManagedAuthFailureOrchestrator()
+    rotation = LLMRotationService()
+    coordinator = AgentLoopCoordinator(
+        orchestrator_service=orchestrator,
+        provider_keys_repo=_ProviderKeys(),
+        role_router=_RoleRouter(),
+        llm_router=_NoLocalRoute(),
+        rotation_service=rotation,
+    )
+    events = [event async for event in coordinator.run_agent_loop(
+        session_id="studio-managed-upstream-auth",
+        messages=[{"role": "user", "content": "Ответь только ОК"}],
+        driver=WorkspaceLocalDriver(root_path=str(tmp_path)),
+        strategy="MANUAL",
+        plan="studio",
+        user_id="studio-user",
+        managed_ai_token="server-issued-test-token",
+    )]
+
+    assert any(event.get("status") == "error" and "openai" in event.get("error", "") for event in events)
+    assert orchestrator.calls[0]["provider"] == "runtimeforce-managed"
+    assert rotation.is_provider_available("runtimeforce-managed")
+    assert "runtimeforce-managed" not in rotation.get_status()["permanent_failures"]

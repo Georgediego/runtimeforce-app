@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Documentation
-- Clarified that recoverable pre-output failures from an explicitly selected server model can fall through to other Admin-selected Managed AI models; provider-wide quota/authentication failures skip models sharing that provider.
+## [0.4.3] - 2026-10-31
+
+### Fixed
+- Managed AI upstream authentication failures no longer mark the local `runtimeforce-managed` proxy as permanently unauthorized. The cooldown applies only to the failing route, so the local app does not confuse a server-side provider-key error with its own account authentication.
+- Managed AI failure summaries now include the safe upstream provider name and failure category, making it clear which Admin-configured provider needs attention without exposing credentials.
+- FastAPI version metadata now matches the `0.4.3` app release.
+
+### Notes
+- If all Admin-selected providers return `AuthenticationError`, check and replace the affected API key in the server Admin provider settings. The local app does not receive or store those keys.
+- Automated coverage verifies upstream provider diagnostics and that Managed AI authentication errors do not permanently disable the proxy route.
+- Documented server-side fallback for recoverable pre-output failures, including the rule to skip same-provider models on provider-wide quota or authentication errors.
 
 ## [0.4.2] - 2026-10-31
 

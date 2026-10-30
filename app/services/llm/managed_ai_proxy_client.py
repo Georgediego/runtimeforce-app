@@ -7,6 +7,16 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import httpx
 
 logger = logging.getLogger("runtimeforce.service.llm.managed_proxy")
+UPSTREAM_FAILURE_REASONS = {
+    "billing_or_quota",
+    "context_limit",
+    "empty_response",
+    "model_not_found",
+    "provider_auth",
+    "provider_error",
+    "provider_unavailable",
+    "rate_limit",
+}
 
 
 class ManagedAIProxyClient:
@@ -83,11 +93,30 @@ class ManagedAIProxyClient:
                                 and failure_type
                                 and failure_type.replace("_", "").isalnum()
                             ):
-                                upstream_failures.append(failure_type[:64])
-                                logger.warning("Managed AI upstream model failed (%s)", failure_type[:64])
+                                provider = event.get("provider")
+                                provider = (
+                                    provider[:64]
+                                    if isinstance(provider, str)
+                                    and provider
+                                    and all(char.isascii() and (char.isalnum() or char in "._-") for char in provider)
+                                    else ""
+                                )
+                                reason = event.get("reason")
+                                reason = reason if isinstance(reason, str) and reason in UPSTREAM_FAILURE_REASONS else ""
+                                failure_summary = " ".join(part for part in (
+                                    f"{provider}:" if provider else "",
+                                    failure_type[:64],
+                                    f"({reason})" if reason else "",
+                                ) if part)
+                                upstream_failures.append(failure_summary)
+                                logger.warning("Managed AI upstream model failed (%s)", failure_summary)
                             yield {
                                 "status": "phase",
-                                "label": "Configured model unavailable; trying the next server model...",
+                                "label": (
+                                    "Configured model unavailable; no other server model is available."
+                                    if event.get("fallback_count") == 0
+                                    else "Configured model unavailable; trying the next server model..."
+                                ),
                                 "role": "Router",
                             }
                         elif event_status == "failed":

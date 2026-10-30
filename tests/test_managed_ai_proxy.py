@@ -84,7 +84,7 @@ async def test_managed_proxy_preserves_safe_upstream_failure_types():
             200,
             text=(
                 'data: {"status":"model_try","model":"openai/gpt-4o-mini"}\n\n'
-                'data: {"status":"fallback","model":"openai/gpt-4o-mini","error":"AuthenticationError"}\n\n'
+                'data: {"status":"fallback","model":"openai/gpt-4o-mini","provider":"openai","error":"AuthenticationError","reason":"provider_auth","fallback_count":0}\n\n'
                 'data: {"status":"failed","error":"All configured models failed."}\n\n'
             ),
             headers={"Content-Type": "text/event-stream"},
@@ -96,3 +96,6 @@ async def test_managed_proxy_preserves_safe_upstream_failure_types():
 
     assert events[-1]["status"] == "error"
     assert "AuthenticationError" in events[-1]["error"]
+    assert "openai" in events[-1]["error"]
+    assert "provider_auth" in events[-1]["error"]
+    assert any("no other server model" in event.get("label", "") for event in events if event.get("status") == "phase")

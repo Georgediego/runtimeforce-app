@@ -123,6 +123,17 @@ class LLMRotationService(IRotationService):
             return {"cooldown": duration, "type": "midstream"}
 
         if err_type == "auth":
+            if p == "runtimeforce-managed":
+                # Authentication failures here belong to the server's upstream provider key,
+                # not to the local app's Managed AI route or account token.
+                duration = GENERIC_COOLDOWN
+                self._model_cooldowns[model_id] = time.time() + duration
+                logger.warning(
+                    "Managed AI upstream authentication failed; cooling down only route %s for %ds",
+                    model_id,
+                    duration,
+                )
+                return {"cooldown": duration, "type": "upstream_auth"}
             self.mark_provider_permanent_failure(provider)
             return {"cooldown": 86400, "type": "auth"}
 
