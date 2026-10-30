@@ -6,12 +6,16 @@ This file summarizes the local IDE repository. The [workspace-level Project Cont
 
 `runtimeforce-app` is a local FastAPI application with a Vanilla JavaScript browser UI and a SQLite database. It manages local and SSH workspaces, project context and rules, file and Git operations, terminal sessions, chats, model configuration, BYOK credentials, and local memory. It can call local model runtimes or configured providers; Managed AI requests are sent to `runtimeforce-server`.
 
-The database path is selected by the app's OS-specific data-directory helper in `app/repository/db_connection.py`. Model allowlists are persisted in `provider_selected_models`; the keys API and agent coordinator read that stored selection. LLM requests use LiteLLM. The agent coordinator invokes `RoleRouterService`, but its returned route is currently unused; do not document the classifier as a decision source until that is fixed.
+The database path is selected by the app's OS-specific data-directory helper in `app/repository/db_connection.py`. Local model allowlists are persisted in `provider_selected_models`; the keys API and agent coordinator read that stored selection. For eligible paid plans, the app fetches the server Managed AI catalog and streams requests to the server. AUTO/CODING/ATM prefer server-managed candidates; AUTO makes a coarse code/analytics classification from the latest user message, LOCAL remains local, and explicit server model choices remain pinned to the server. The server verifies the account tier, decrypts active provider keys, restricts requests to Admin-selected models, and streams model attempts, content, tools, and fallback status. LLM requests use LiteLLM on both sides. The agent coordinator invokes `RoleRouterService`, but its returned route is currently unused; do not document the classifier as a decision source until that is fixed.
+
+The app's chat WebSocket receives its bearer token in an initial authentication message, not in the URL. The local app still decodes JWT claims without verifying the signature; server-side Managed AI requests independently validate the bearer token against the server's current account and tier.
 
 ## Security facts to preserve in future edits
 
 - `JWTAuthService` currently extracts claims by decoding the JWT payload and does not verify its signature. Do not treat those claims as proof of paid entitlement.
+- WebSocket URL query-token exposure was removed. The token is now sent in the first WebSocket message; local JWT signature validation and session revocation remain separate security work.
 - `LicenseService` currently has a seven-day in-memory cache for Studio claims, not the 48-hour grace period described in earlier design proposals.
+- The hosted Managed AI Proxy enforces per-request token ceilings but does not currently deduct monthly credits; the billing UI's `tokens_used` counter is not updated by streamed completions.
 - `AESCryptoService` uses a local `MASTER_KEY` from the app's working-directory `.env`; its `jwt_token` parameter is not used by key derivation.
 - Keep `.env`, databases, provider keys, SSH credentials, and virtual environments private and out of source control.
 

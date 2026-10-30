@@ -2,8 +2,10 @@
  * Orchestrator UI Controller with ATM 5-Role Dropdowns (including Designer).
  */
 import { modelsApi, keysApi } from "../core/api_http_client.js";
+import { eventBus } from "../core/event_bus.js";
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "perplexity", "deepseek", "xai"];
+const SAAS_URL = "https://runtimeforce.dev";
 
 const ROLE_CAPABILITIES = {
     architect: {
@@ -58,6 +60,7 @@ export const orchestratorUIController = {
         }
 
         strategySelect?.addEventListener("change", (e) => this.handleStrategyChange(e.target.value));
+        eventBus.on("auth:success", () => this.loadModels());
         this.initCustomDropdowns();
         initCustomSelects();
         this.initModeCards();
@@ -203,6 +206,38 @@ export const orchestratorUIController = {
         return score;
     },
 
+    _escapeHtml(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    },
+
+    async _loadManagedModels() {
+        const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+        if (!token) return [];
+        try {
+            const response = await fetch(`${SAAS_URL}/api/v1/chat/models`, {
+                headers: { Authorization: `Bearer ${token.replace(/^Bearer\s+/i, "")}` },
+            });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return (data.models || []).filter((model) => model?.id).map((model) => ({
+                id: `runtimeforce-managed/${model.id}`,
+                name: `${model.name || model.id} (Managed)`,
+                provider: `Managed: ${model.provider || "server"}`,
+                tier: "pro",
+                managed: true,
+                capabilities: ["chat_completion", "tools"],
+            }));
+        } catch (error) {
+            console.debug("Managed model catalog is unavailable:", error);
+            return [];
+        }
+    },
+
     async _filterModelsByTier(models) {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
@@ -210,7 +245,7 @@ export const orchestratorUIController = {
         const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
 
         return models.filter((m) => {
-            if (enabledSet.size > 0 && !enabledSet.has(m.id)) return false;
+            if (!m.managed && enabledSet.size > 0 && !enabledSet.has(m.id)) return false;
             const isFree = m.tier === "free" || FREE_PROVIDERS_SET.has(m.provider);
             if (isFree && !allowFree) return false;
             if (!isFree && !allowPro) return false;
@@ -219,7 +254,9 @@ export const orchestratorUIController = {
     },
 
     async populateATMDropdowns() {
-        const filtered = await this._filterModelsByTier(this._cachedModels);
+        // ATM role overrides are not currently wired through the coordinator's per-role execution path.
+        // Keep this legacy selector local-only until each role has a real server route.
+        const filtered = (await this._filterModelsByTier(this._cachedModels)).filter((model) => !model.managed);
         const roles = ["architect", "engineer", "designer", "tester", "critic"];
         roles.forEach((roleKey) => {
             const container = document.getElementById(`atm-${roleKey}-options`);
@@ -237,7 +274,10 @@ export const orchestratorUIController = {
                 const list = top.length > 0 ? top.map((s) => s.model) : filtered.slice(0, 20);
 
                 list.forEach((m) => {
-                    optionsHTML += `<div data-value="${m.id}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${m.name}">${m.name} (${m.provider})</div>`;
+                    const modelId = this._escapeHtml(m.id);
+                    const modelName = this._escapeHtml(m.name);
+                    const provider = this._escapeHtml(m.provider);
+                    optionsHTML += `<div data-value="${modelId}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${modelName}">${modelName} (${provider})</div>`;
                 });
             }
             container.innerHTML = optionsHTML;
@@ -261,14 +301,21 @@ export const orchestratorUIController = {
 
     async loadModels() {
         try {
-            const data = await modelsApi.list();
-            const modelsByProvider = data.models || {};
             const allModels = [];
+            const [localResult, managedModels] = await Promise.all([
+                modelsApi.list().catch((error) => {
+                    console.warn("Local model catalog is unavailable:", error);
+                    return { models: {} };
+                }),
+                this._loadManagedModels(),
+            ]);
+            const modelsByProvider = localResult.models || {};
             Object.entries(modelsByProvider).forEach(([provider, models]) => {
-                models.forEach((m) => {
-                    allModels.push({ ...m, provider });
+                (models || []).forEach((model) => {
+                    allModels.push({ ...model, provider });
                 });
             });
+            allModels.push(...managedModels);
             this._cachedModels = allModels;
 
             const filteredModels = await this._filterModelsByTier(allModels);
@@ -286,7 +333,10 @@ export const orchestratorUIController = {
                     optionsHTML += `<div class="option-item px-2 py-1 text-[var(--ide-text-muted)] cursor-not-allowed rounded" style="pointer-events: none;">No models selected. Open Providers to choose models.</div>`;
                 } else {
                     filteredModels.forEach((m) => {
-                        optionsHTML += `<div data-value="${m.id}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${m.name}">${m.name} (${m.provider})</div>`;
+                        const modelId = this._escapeHtml(m.id);
+                        const modelName = this._escapeHtml(m.name);
+                        const provider = this._escapeHtml(m.provider);
+                        optionsHTML += `<div data-value="${modelId}" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded truncate" title="${modelName}">${modelName} (${provider})</div>`;
                     });
                 }
                 container.innerHTML = optionsHTML;
@@ -320,9 +370,46 @@ export function initCustomSelects() {
   if (window.__rfCustomSelectsInit) return;
   window.__rfCustomSelectsInit = true;
 
+  let wrapperIndex = 0;
+  document.querySelectorAll('.custom-select-wrapper').forEach((wrapper) => {
+    if (!wrapper.id) wrapper.id = `rf-custom-select-${wrapperIndex++}`;
+    const options = wrapper.querySelector('[id$="-options"]');
+    const trigger = wrapper.querySelector('[id$="-trigger"]');
+    const hidden = wrapper.querySelector('input[type="hidden"]');
+    if (options) {
+      options.dataset.ownerId = wrapper.id;
+      options.dataset.triggerId = trigger?.id || '';
+      options.dataset.hiddenId = hidden?.id || '';
+      if (trigger) trigger.dataset.optionsId = options.id;
+    }
+  });
+
   const closeAll = (except) => {
-    document.querySelectorAll('.custom-select-wrapper [id$="-options"]').forEach((opts) => {
+    document.querySelectorAll('.custom-select-wrapper [id$="-options"], .custom-select-portal').forEach((opts) => {
       if (opts !== except && !opts.closest('[id$="-dropdown"]')) opts.classList.add('hidden');
+    });
+  };
+
+  const openPortal = (options, trigger) => {
+    const rect = trigger.getBoundingClientRect();
+    const padding = 8;
+    const roomBelow = Math.max(0, window.innerHeight - rect.bottom - padding);
+    const roomAbove = Math.max(0, rect.top - padding);
+    const openUp = roomBelow < 180 && roomAbove > roomBelow;
+    const available = openUp ? roomAbove : roomBelow;
+    const maxHeight = Math.max(80, Math.min(240, available));
+
+    if (options.parentElement !== document.body) document.body.appendChild(options);
+    options.classList.add('custom-select-portal');
+    Object.assign(options.style, {
+      position: 'fixed',
+      top: `${openUp ? Math.max(padding, rect.top - maxHeight - 4) : rect.bottom + 4}px`,
+      bottom: 'auto',
+      left: `${Math.min(Math.max(padding, rect.left), window.innerWidth - rect.width - padding)}px`,
+      right: 'auto',
+      width: `${rect.width}px`,
+      maxHeight: `${maxHeight}px`,
+      zIndex: '10000',
     });
   };
 
@@ -330,12 +417,12 @@ export function initCustomSelects() {
     const target = event.target;
     if (!(target instanceof Element)) return;
 
-    const option = target.closest('.custom-select-wrapper .option-item');
+    const option = target.closest('.custom-select-wrapper .option-item, .custom-select-portal .option-item');
     if (option) {
-      const wrapper = option.closest('.custom-select-wrapper');
-      const trigger = wrapper.querySelector('[id$="-trigger"]');
-      const options = wrapper.querySelector('[id$="-options"]');
-      const hidden = wrapper.querySelector('input[type="hidden"]');
+      const options = option.closest('[id$="-options"]');
+      const wrapper = document.getElementById(options?.dataset.ownerId || '') || option.closest('.custom-select-wrapper');
+      const trigger = document.getElementById(options?.dataset.triggerId || '') || wrapper?.querySelector('[id$="-trigger"]');
+      const hidden = document.getElementById(options?.dataset.hiddenId || '') || wrapper?.querySelector('input[type="hidden"]');
       const value = option.dataset.value || '';
       if (hidden) {
         hidden.value = value;
@@ -343,7 +430,7 @@ export function initCustomSelects() {
       }
       const label = trigger ? trigger.querySelector('span') : null;
       if (label) label.textContent = option.textContent.trim();
-      wrapper.querySelectorAll('.option-item').forEach((el) => el.classList.remove('font-bold'));
+      wrapper?.querySelectorAll('.option-item').forEach((el) => el.classList.remove('font-bold'));
       option.classList.add('font-bold');
       if (options) options.classList.add('hidden');
       return;
@@ -352,11 +439,16 @@ export function initCustomSelects() {
     const trigger = target.closest('.custom-select-wrapper [id$="-trigger"]');
     if (trigger) {
       const wrapper = trigger.closest('.custom-select-wrapper');
-      const options = wrapper.querySelector('[id$="-options"]');
+      const options = document.getElementById(trigger.dataset.optionsId || '') || wrapper.querySelector('[id$="-options"]');
       if (!options) return;
       const willOpen = options.classList.contains('hidden');
       closeAll(options);
-      options.classList.toggle('hidden', !willOpen);
+      if (willOpen) {
+        openPortal(options, trigger);
+        options.classList.remove('hidden');
+      } else {
+        options.classList.add('hidden');
+      }
       return;
     }
 
@@ -366,4 +458,6 @@ export function initCustomSelects() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeAll(null);
   });
+  document.addEventListener('scroll', () => closeAll(null), true);
+  window.addEventListener('resize', () => closeAll(null));
 }

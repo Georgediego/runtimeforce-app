@@ -18,11 +18,21 @@ active_tasks: Dict[str, asyncio.Task] = {}
 @router.websocket("/ws/chat/{session_id}")
 async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
-    logger.info(f"WebSocket connected for session: {session_id}")
-    
-    token = websocket.query_params.get("token") or ""
+    try:
+        auth_message = json.loads(await websocket.receive_text())
+        if not isinstance(auth_message, dict) or auth_message.get("action") != "authenticate":
+            await websocket.close(code=1008, reason="Authentication required")
+            return
+    except (WebSocketDisconnect, json.JSONDecodeError, TypeError):
+        return
+
+    token = str(auth_message.get("token") or "")
     user_id = JWTAuthService.extract_user_from_jwt(token) or "default_user"
+    if user_id == "default_user":
+        await websocket.close(code=1008, reason="Authentication required")
+        return
     plan = JWTAuthService.extract_plan_from_jwt(token) or "free"
+    logger.info(f"WebSocket authenticated for session: {session_id}")
     
     coordinator = container.agent_loop_coordinator
     conv_repo = container.conversation_repo
@@ -91,6 +101,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     model_lock=model_lock,
                     plan=plan,
                     user_id=user_id,
+                    managed_ai_token=token,
                     enabled_models=enabled_models,
                     project_id=project_id,
                     atm_architect_model=atm_architect,

@@ -21,7 +21,7 @@ The current server seeds Free, Pro, Studio, and Enterprise rows, while app-side 
 
 - Document backup and recovery for the local SQLite database and its encryption key.
 - Improve error reporting for provider discovery, SSH reconnect, and Managed AI streaming.
-- Keep selected-model state and provider allowlists server-enforced within the local app's routing path.
+- Verify the server-managed catalog UI and streaming route against live subscription/provider configuration; keep local BYOK allowlists and server Admin allowlists as separate authorities.
 - Add targeted coverage for workspace isolation, persistence, and model selection regressions.
 
 ## Later
@@ -32,7 +32,7 @@ The current server seeds Free, Pro, Studio, and Enterprise rows, while app-side 
 
 ## Excluded from current scope
 
-- Consilium debate mode and the removed support bot.
+- The removed support bot.
 - New interface layers without multiple implementations.
 - Duplicated plan prices or user model selections in browser storage.
 - Automatic commits, pushes, service restarts, or deployment as part of routine local edits.

@@ -14,9 +14,12 @@ export class ChatWSClient {
         return new Promise((resolve, reject) => {
             const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
             const proto = location.protocol === "https:" ? "wss:" : "ws:";
-            const url = `${proto}//${location.host}/ws/chat/${this.sessionId}?token=${encodeURIComponent(token)}`;
+            const url = `${proto}//${location.host}/ws/chat/${encodeURIComponent(this.sessionId)}`;
             this.ws = new WebSocket(url);
-            this.ws.onopen = () => resolve();
+            this.ws.onopen = () => {
+                this.ws.send(JSON.stringify({ action: "authenticate", token: token.replace(/^Bearer\s+/i, "") }));
+                resolve();
+            };
             this.ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);

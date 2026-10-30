@@ -586,6 +586,7 @@ export const chatUIController = {
             if (event.role) currentAgentRole = event.role;
             if (event.model) currentAgentModel = event.model;
             this.updateActiveRoleUI();
+            this.appendTrace("PHASE", event.label);
             if (assistantDiv) this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
         } else if (event.status === "model_try") {
             const modelName = (event.model || "auto").split("/").pop();
@@ -598,13 +599,14 @@ export const chatUIController = {
             if (assistantDiv) this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
             this.setOrchestratorProgress(40);
         } else if (event.status === "reasoning" && event.reasoning) {
-            fullReasoningText += event.reasoning;
+            currentPhaseLabel = "Model is processing the request...";
             if (assistantDiv) {
                 this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
                 this.scrollToBottom();
             }
             this.setOrchestratorProgress(50);
         } else if (event.status === "streaming" && event.content) {
+            currentPhaseLabel = "Generating response...";
             fullResponseText += event.content;
             if (assistantDiv) {
                 this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
@@ -682,11 +684,13 @@ export const chatUIController = {
 
             this.setOrchestratorProgress(85);
         } else if (event.status === "aborted") {
+            currentPhaseLabel = "Stopped";
             this.appendTrace("ABORT", "Generation aborted by user");
             if (assistantDiv) this.renderErrorBox(assistantDiv, "Generation aborted by user.");
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setGeneratingState(false);
         } else if (event.status === "error" || event.status === "failed") {
+            currentPhaseLabel = "Request failed";
             const errText = event.error || "Execution error";
             this.appendTrace("ERROR", errText);
             if (assistantDiv) {
@@ -695,6 +699,11 @@ export const chatUIController = {
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setGeneratingState(false);
         } else if (event.status === "done") {
+            if (currentPhaseLabel === "Request failed") {
+                this.setGeneratingState(false);
+                return;
+            }
+            currentPhaseLabel = "Completed";
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setOrchestratorProgress(100);
             this.setGeneratingState(false);
@@ -714,15 +723,11 @@ export const chatUIController = {
     renderAssistantBubble(container, responseText, reasoningText) {
         if (!container) return;
         let textToRender = responseText || "";
-        let inlineReasoning = reasoningText || "";
-        if (textToRender.includes("<think>")) {
-            const parts = textToRender.split("</think>");
-            if (parts.length > 1) {
-                const thinkMatch = textToRender.match(/<think>([\s\S]*?)<\/think>/);
-                if (thinkMatch) inlineReasoning += (inlineReasoning ? "\n" : "") + thinkMatch[1].trim();
-                textToRender = parts[parts.length - 1].replace(/<think>[\s\S]*$/g, "").trim();
-            }
-        }
+        // Keep hidden model reasoning private; show operational phases below instead.
+        textToRender = textToRender
+            .replace(/<think>[\s\S]*?<\/think>/gi, "")
+            .replace(/<think>[\s\S]*$/gi, "")
+            .trim();
 
         const isBusy = isGenerating && container.parentElement?.classList.contains("assistant-bubble-generating");
 
@@ -736,24 +741,11 @@ export const chatUIController = {
             alt="AI"
         />
     </div>
+    <span class="live-phase-label text-[10px] text-[var(--ide-text-secondary)] truncate max-w-[260px]">${this.escapeHtml(currentPhaseLabel || "Processing request...")}</span>
     <span class="live-exec-timer font-bold text-[var(--ide-accent)] ml-auto font-mono text-[10px]">
         ${elapsedSeconds ? elapsedSeconds + 's' : ''}
     </span>
 </div>`;
-
-        const isDoneReasoning = Boolean(textToRender);
-        if (inlineReasoning) {
-            html += `
-            <details class="reasoning-box mb-2 p-2 rounded-lg bg-[var(--ide-elevated)] border border-[var(--ide-border-subtle)] clear-none" open>
-                <summary class="text-xs font-mono text-amber-400 font-bold cursor-pointer select-none flex items-center justify-between">
-                    <span class="flex items-center gap-1.5">
-                        ${isDoneReasoning ? '<span class="text-emerald-400 font-bold">&#10004;</span>' : '<span class="animate-spin text-amber-400">&#9881;</span>'}
-                        ${isDoneReasoning ? "Thought Process" : "Thinking in real-time..."}
-                    </span>
-                </summary>
-                <div class="reasoning-content mt-2 text-xs font-mono text-[var(--ide-text-secondary)] italic leading-relaxed custom-scrollbar">${this.escapeHtml(inlineReasoning)}</div>
-            </details>`;
-        }
 
         if (textToRender) {
             const parsedText = window.marked ? window.marked.parse(textToRender) : textToRender;
