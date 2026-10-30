@@ -74,3 +74,25 @@ async def test_managed_proxy_reports_server_fallback_as_a_progress_phase():
 
     assert any(event.get("status") == "phase" and "next server model" in event.get("label", "") for event in events)
     assert any(event.get("status") == "streaming" and event.get("content") == "answer" for event in events)
+
+
+@pytest.mark.asyncio
+async def test_managed_proxy_preserves_safe_upstream_failure_types():
+    client = ManagedAIProxyClient(
+        "https://server.example",
+        httpx.MockTransport(lambda request: httpx.Response(
+            200,
+            text=(
+                'data: {"status":"model_try","model":"openai/gpt-4o-mini"}\n\n'
+                'data: {"status":"fallback","model":"openai/gpt-4o-mini","error":"AuthenticationError"}\n\n'
+                'data: {"status":"failed","error":"All configured models failed."}\n\n'
+            ),
+            headers={"Content-Type": "text/event-stream"},
+        )),
+    )
+    events = [event async for event in client.stream_completion(
+        token="token", model="openai/gpt-4o-mini", strategy="manual", messages=[{"role": "user", "content": "hello"}]
+    )]
+
+    assert events[-1]["status"] == "error"
+    assert "AuthenticationError" in events[-1]["error"]

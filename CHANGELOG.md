@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-31
+
+### Fixed
+- Manual and ATM model menus stay open while the page or menu is scrolled, reposition within the viewport, and close after model selection or an outside click.
+- Manual and ATM model choices use the same delegated selection handler, so portaled options update the selected model consistently.
+- Managed AI errors now preserve safe upstream failure types from the server stream, making provider authentication, rate-limit, and empty-response failures distinguishable in the local trace.
+
+### Notes
+- Verified the local Manual and ATM menus with scroll and selection interactions. A live Studio request reached the server-managed OpenAI route and exposed that provider failure types were being dropped by the local client; this release preserves those safe diagnostics.
+
 ## [0.4.1] - 2026-10-30
 
 ### Fixed

@@ -260,8 +260,6 @@ export const orchestratorUIController = {
         const roles = ["architect", "engineer", "designer", "tester", "critic"];
         roles.forEach((roleKey) => {
             const container = document.getElementById(`atm-${roleKey}-options`);
-            const hiddenInput = document.getElementById(`atm-${roleKey}-select`);
-            const triggerSpan = document.getElementById(`atm-${roleKey}-trigger`)?.querySelector("span:first-child");
             if (!container) return;
 
             let optionsHTML = `<div data-value="" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded bg-[var(--ide-elevated-2)] font-bold">Auto (recommended)</div>`;
@@ -281,21 +279,6 @@ export const orchestratorUIController = {
                 });
             }
             container.innerHTML = optionsHTML;
-
-            container.querySelectorAll(".option-item").forEach((opt) => {
-                if (!opt.dataset.value && opt.dataset.value !== "") return;
-                opt.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    const val = opt.dataset.value;
-                    if (hiddenInput) hiddenInput.value = val;
-                    if (triggerSpan) triggerSpan.textContent = opt.textContent;
-                    container.querySelectorAll(".option-item").forEach((o) => o.classList.remove("bg-[var(--ide-border-subtle)]", "font-bold"));
-                    opt.classList.add("bg-[var(--ide-border-subtle)]", "font-bold");
-                    container.classList.add("hidden");
-                    const dropdown = container.closest('[id$="-dropdown"]') || container.closest('.custom-select-wrapper');
-                    if (dropdown) dropdown.classList.add("hidden");
-                });
-            });
         });
     },
 
@@ -320,13 +303,9 @@ export const orchestratorUIController = {
 
             const filteredModels = await this._filterModelsByTier(allModels);
 
-            const panels = [
-                { hiddenInputId: "model-lock-select", triggerId: "model-lock-trigger", optionsContainerId: "model-lock-options" },
-            ];
+            const panels = [{ optionsContainerId: "model-lock-options" }];
             panels.forEach((p) => {
                 const container = document.getElementById(p.optionsContainerId);
-                const hiddenInput = document.getElementById(p.hiddenInputId);
-                const triggerSpan = document.getElementById(p.triggerId)?.querySelector("span:first-child");
                 if (!container) return;
                 let optionsHTML = `<div data-value="" class="option-item px-2 py-1 hover:bg-[var(--ide-accent)] hover:text-black cursor-pointer rounded bg-[var(--ide-elevated-2)] font-bold">Auto (recommended)</div>`;
                 if (!filteredModels.length) {
@@ -340,20 +319,6 @@ export const orchestratorUIController = {
                     });
                 }
                 container.innerHTML = optionsHTML;
-                container.querySelectorAll(".option-item").forEach((opt) => {
-                    if (!opt.dataset.value && opt.dataset.value !== "") return;
-                    opt.addEventListener("click", (e) => {
-                        e.stopPropagation();
-                        const val = opt.dataset.value;
-                        if (hiddenInput) hiddenInput.value = val;
-                        if (triggerSpan) triggerSpan.textContent = opt.textContent;
-                        container.querySelectorAll(".option-item").forEach((o) => o.classList.remove("bg-[var(--ide-border-subtle)]", "font-bold"));
-                        opt.classList.add("bg-[var(--ide-border-subtle)]", "font-bold");
-                        container.classList.add("hidden");
-                        const dropdown = container.closest('[id$="-dropdown"]') || container.closest('.custom-select-wrapper');
-                        if (dropdown) dropdown.classList.add("hidden");
-                    });
-                });
             });
 
             const strategy = document.getElementById("strategy-select")?.value;
@@ -384,33 +349,50 @@ export function initCustomSelects() {
     }
   });
 
+  let activePortalOptions = null;
+  let activePortalTrigger = null;
+
   const closeAll = (except) => {
     document.querySelectorAll('.custom-select-wrapper [id$="-options"], .custom-select-portal').forEach((opts) => {
       if (opts !== except && !opts.closest('[id$="-dropdown"]')) opts.classList.add('hidden');
     });
+    if (activePortalOptions !== except) {
+      activePortalOptions = null;
+      activePortalTrigger = null;
+    }
   };
 
-  const openPortal = (options, trigger) => {
+  const positionPortal = (options, trigger) => {
     const rect = trigger.getBoundingClientRect();
     const padding = 8;
     const roomBelow = Math.max(0, window.innerHeight - rect.bottom - padding);
     const roomAbove = Math.max(0, rect.top - padding);
     const openUp = roomBelow < 180 && roomAbove > roomBelow;
     const available = openUp ? roomAbove : roomBelow;
-    const maxHeight = Math.max(80, Math.min(240, available));
+    const maxHeight = Math.max(80, Math.min(240, available || 240, window.innerHeight - padding * 2));
+    const width = Math.min(rect.width, window.innerWidth - padding * 2);
+    const left = Math.min(Math.max(padding, rect.left), Math.max(padding, window.innerWidth - width - padding));
+    const proposedTop = openUp ? rect.top - maxHeight - 4 : rect.bottom + 4;
+    const top = Math.min(Math.max(padding, proposedTop), Math.max(padding, window.innerHeight - maxHeight - padding));
 
     if (options.parentElement !== document.body) document.body.appendChild(options);
     options.classList.add('custom-select-portal');
     Object.assign(options.style, {
       position: 'fixed',
-      top: `${openUp ? Math.max(padding, rect.top - maxHeight - 4) : rect.bottom + 4}px`,
+      top: `${top}px`,
       bottom: 'auto',
-      left: `${Math.min(Math.max(padding, rect.left), window.innerWidth - rect.width - padding)}px`,
+      left: `${left}px`,
       right: 'auto',
-      width: `${rect.width}px`,
+      width: `${width}px`,
       maxHeight: `${maxHeight}px`,
       zIndex: '10000',
     });
+  };
+
+  const openPortal = (options, trigger) => {
+    activePortalOptions = options;
+    activePortalTrigger = trigger;
+    positionPortal(options, trigger);
   };
 
   document.addEventListener('click', (event) => {
@@ -430,9 +412,13 @@ export function initCustomSelects() {
       }
       const label = trigger ? trigger.querySelector('span') : null;
       if (label) label.textContent = option.textContent.trim();
-      wrapper?.querySelectorAll('.option-item').forEach((el) => el.classList.remove('font-bold'));
+      options?.querySelectorAll('.option-item').forEach((el) => el.classList.remove('font-bold'));
       option.classList.add('font-bold');
       if (options) options.classList.add('hidden');
+      if (activePortalOptions === options) {
+        activePortalOptions = null;
+        activePortalTrigger = null;
+      }
       return;
     }
 
@@ -448,6 +434,10 @@ export function initCustomSelects() {
         options.classList.remove('hidden');
       } else {
         options.classList.add('hidden');
+        if (activePortalOptions === options) {
+          activePortalOptions = null;
+          activePortalTrigger = null;
+        }
       }
       return;
     }
@@ -455,9 +445,11 @@ export function initCustomSelects() {
     closeAll(null);
   });
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeAll(null);
-  });
-  document.addEventListener('scroll', () => closeAll(null), true);
-  window.addEventListener('resize', () => closeAll(null));
+  const repositionOpenPortal = () => {
+    if (activePortalOptions && activePortalTrigger && !activePortalOptions.classList.contains('hidden')) {
+      positionPortal(activePortalOptions, activePortalTrigger);
+    }
+  };
+  document.addEventListener('scroll', repositionOpenPortal, true);
+  window.addEventListener('resize', repositionOpenPortal);
 }

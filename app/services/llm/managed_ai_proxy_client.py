@@ -37,6 +37,7 @@ class ManagedAIProxyClient:
             "max_tokens": max_tokens,
         }
         timeout = httpx.Timeout(120.0, connect=10.0, write=15.0, pool=10.0)
+        upstream_failures = []
 
         try:
             async with httpx.AsyncClient(timeout=timeout, transport=self.transport) as client:
@@ -76,16 +77,28 @@ class ManagedAIProxyClient:
 
                         event_status = event.get("status")
                         if event_status == "fallback":
+                            failure_type = event.get("error")
+                            if (
+                                isinstance(failure_type, str)
+                                and failure_type
+                                and failure_type.replace("_", "").isalnum()
+                            ):
+                                upstream_failures.append(failure_type[:64])
+                                logger.warning("Managed AI upstream model failed (%s)", failure_type[:64])
                             yield {
                                 "status": "phase",
                                 "label": "Configured model unavailable; trying the next server model...",
                                 "role": "Router",
                             }
                         elif event_status == "failed":
+                            detail = str(event.get("error") or "All server-configured models failed.")[:300]
+                            if upstream_failures:
+                                details = ", ".join(dict.fromkeys(upstream_failures))
+                                detail = f"{detail} (upstream failures: {details})"
                             yield {
                                 "status": "error",
                                 "error_code": "MANAGED_AI_FAILED",
-                                "error": str(event.get("error") or "All server-configured models failed.")[:300],
+                                "error": detail,
                             }
                             return
                         else:
