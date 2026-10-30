@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- Clarified that recoverable pre-output failures from an explicitly selected server model can fall through to other Admin-selected Managed AI models; provider-wide quota/authentication failures skip models sharing that provider.
+
 ## [0.4.2] - 2026-10-31
 
 ### Fixed
