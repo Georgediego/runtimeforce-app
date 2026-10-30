@@ -121,6 +121,30 @@ async def test_studio_manual_auto_uses_managed_server_when_no_local_keys(tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_managed_route_does_not_trust_stale_local_free_plan_claim(tmp_path):
+    orchestrator = _ManagedOrchestrator()
+    coordinator = AgentLoopCoordinator(
+        orchestrator_service=orchestrator,
+        provider_keys_repo=_ProviderKeys(),
+        role_router=_RoleRouter(),
+        llm_router=_NoLocalRoute(),
+    )
+
+    events = [event async for event in coordinator.run_agent_loop(
+        session_id="studio-stale-local-plan-claim",
+        messages=[{"role": "user", "content": "Check my Managed AI route"}],
+        driver=WorkspaceLocalDriver(root_path=str(tmp_path)),
+        strategy="AUTO",
+        plan="free",  # The server, not this unsigned local claim, decides entitlement.
+        user_id="studio-user",
+        managed_ai_token="server-issued-test-token",
+    )]
+
+    assert any(event.get("status") == "streaming" for event in events)
+    assert orchestrator.calls[0]["provider"] == "runtimeforce-managed"
+
+
+@pytest.mark.asyncio
 async def test_studio_auto_prefers_managed_server_before_local_byok(tmp_path):
     orchestrator = _ManagedOrchestrator()
     coordinator = AgentLoopCoordinator(

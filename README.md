@@ -31,7 +31,7 @@ Open <http://127.0.0.1:8000>. The app creates its SQLite database in the operati
 - Optional server Managed AI Proxy for supported plans. Paid-plan users can use the server administrator's selected provider models; the server validates the subscription and model selection for each request.
 - Browser chat, project context and rules, model selection, local memory, and usage views.
 
-Local provider selections are persisted in the app database and enforced by its routing path. Managed AI selections are fetched from the server and enforced again by the server before a provider call. Provider model IDs and availability can change independently of this README.
+Local provider selections are persisted in the app database and enforced by its routing path. Managed AI selections are fetched from the server and enforced again by the server before a provider call. The app tries the server whenever an authenticated session is available; the server is authoritative for plan access. Provider model IDs and availability can change independently of this README.
 
 ## Project documentation
 

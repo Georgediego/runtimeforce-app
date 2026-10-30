@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-30
+
+### Fixed
+- Managed AI routing now uses an authenticated session token as the signal to try the server. The server validates the real subscription, so a stale local plan claim no longer blocks a Studio account from reaching its configured server models.
+- Replaced the misleading local Groq/Gemini setup instruction with errors that reflect both local and Managed AI routing.
+
+### Notes
+- This patch release fixes the entitlement handoff between the local app and server. Free accounts remain denied by the server and can still use local provider routes.
+
 ## [0.4.0] - 2026-10-30
 
 ### Added

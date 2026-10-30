@@ -155,10 +155,10 @@ class AgentLoopCoordinator:
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
-        managed_ai_enabled = bool(
-            managed_ai_token
-            and plan.lower() in {"pro", "studio", "expert", "enterprise"}
-        )
+        # The server is authoritative for entitlements. A local JWT claim can be stale
+        # or absent, so any authenticated session may try Managed AI; Free is rejected
+        # by the server and can continue through local candidates.
+        managed_ai_enabled = bool(managed_ai_token)
 
         db_allowed_all = []
         if self._provider_keys_repo:
@@ -347,7 +347,10 @@ class AgentLoopCoordinator:
             active_candidates = candidate_models
 
         if not active_candidates:
-            err_msg = "No eligible models available. Please configure a free Groq or Gemini key in Settings -> Providers."
+            err_msg = (
+                "No eligible models are available. Configure a local provider, or sign in to use "
+                "Managed AI with a supported plan."
+            )
             if self._conversation_repo:
                 self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
             yield {"status": "error", "error_code": "NO_MODELS_AVAILABLE", "error": err_msg, "retry_after": 0}
@@ -503,7 +506,7 @@ class AgentLoopCoordinator:
                 active_specialist_index += 1
 
             if not iteration_success:
-                err_msg = f"All candidate models failed: {error_details}. Please configure a free Groq or Gemini key in Settings -> Providers."
+                err_msg = f"All candidate models failed: {error_details or 'No model returned a response.'}"
                 if self._conversation_repo:
                     self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
                 yield {"status": "error", "error": err_msg}
