@@ -124,6 +124,13 @@ class AgentLoopCoordinator:
         strategy_upper = (strategy or "AUTO").upper()
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
+        # MANUAL is a hard lock: never silently fall back to auto-selection.
+        if strategy_upper == "MANUAL" and model_lock in NO_LOCK_SENTINELS:
+            err_msg = "Manual mode requires an explicitly selected model. Choose a model and retry."
+            yield {"status": "error", "error_code": "MANUAL_MODEL_NOT_SELECTED", "error": err_msg}
+            yield {"status": "done"}
+            return
+
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
 
         if self._conversation_repo and user_prompt:
@@ -347,11 +354,24 @@ class AgentLoopCoordinator:
                         tool_calls = parsed_tools
                         iteration_text = clean_text
 
+                if is_manual_override and has_chunk_error and not is_stream_dropped:
+                    yield {"status": "error", "error_code": "MANUAL_MODEL_FAILED", "model": model_id,
+                           "provider": provider, "error": error_details or "The selected model request failed.",
+                           "suggestion": "Select another model manually and retry."}
+                    yield {"status": "done"}
+                    return
+
                 if is_stream_dropped:
                     logger.warning(f"[AgentCoordinator] Model {model_id} failed: {error_details}. Failing over.")
                     self._cooldown_models[model_id] = time.time() + 300
                     if self._rotation_service:
                         self._rotation_service.mark_model_failed(model_id, provider, error_details or "stream_dropped")
+                    if is_manual_override:
+                        yield {"status": "error", "error_code": "MANUAL_MODEL_FAILED", "model": model_id,
+                               "provider": provider, "error": error_details or "The selected model stream failed.",
+                               "suggestion": "Select another model manually and retry.", "retry_after": 180}
+                        yield {"status": "done"}
+                        return
                     iteration_text = ""
                     active_specialist_index += 1
                     continue
@@ -364,6 +384,12 @@ class AgentLoopCoordinator:
                     self._cooldown_models[model_id] = time.time() + 300
                     if self._rotation_service:
                         self._rotation_service.mark_model_failed(model_id, provider, "empty_response")
+                    if is_manual_override:
+                        yield {"status": "error", "error_code": "MANUAL_MODEL_FAILED", "model": model_id,
+                               "provider": provider, "error": "The selected model returned an empty response.",
+                               "suggestion": "Select another model manually and retry.", "retry_after": 180}
+                        yield {"status": "done"}
+                        return
                     active_specialist_index += 1
                     continue
 
@@ -374,6 +400,12 @@ class AgentLoopCoordinator:
                 self._cooldown_models[model_id] = time.time() + 300
                 if self._rotation_service:
                     self._rotation_service.mark_model_failed(model_id, provider, error_details or "failed")
+                if is_manual_override:
+                    yield {"status": "error", "error_code": "MANUAL_MODEL_FAILED", "model": model_id,
+                           "provider": provider, "error": error_details or "The selected model failed to complete the request.",
+                           "suggestion": "Select another model manually and retry.", "retry_after": 180}
+                    yield {"status": "done"}
+                    return
                 active_specialist_index += 1
 
             if not iteration_success:
