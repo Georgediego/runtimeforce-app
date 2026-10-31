@@ -28,6 +28,22 @@ export const authFrontendService = {
     },
 
     async init() {
+        if (!this._storageHandlerBound) {
+            this._storageHandlerBound = true;
+            window.addEventListener("storage", (event) => {
+                if (event.key === "rf_jwt_token" && event.newValue && !this.isAuthenticated()) {
+                    this.setSession(event.newValue, localStorage.getItem("rf_plan"), localStorage.getItem("rf_email"), localStorage.getItem("rf_avatar"));
+                    window.location.reload();
+                }
+                if (event.key === "rf_provider_oauth_result" && event.newValue) {
+                    try {
+                        const result = JSON.parse(event.newValue);
+                        localStorage.removeItem("rf_provider_oauth_result");
+                        eventBus.emit("auth:provider_oauth_success", result);
+                    } catch (error) { console.error("Invalid provider OAuth result", error); }
+                }
+            });
+        }
         const params = new URLSearchParams(window.location.search);
         const callbackCode = params.get("rf_auth_code");
         const callbackState = params.get("rf_auth_state");
@@ -84,33 +100,18 @@ export const authFrontendService = {
                     fail("Provider authorization did not return a usable token.");
                     return;
                 }
-                if (window.opener && !window.opener.closed) {
-                    window.opener.postMessage({
-                        type: "rf_provider_oauth_success",
-                        provider: auth.provider,
-                        provider_token: auth.provider_token,
-                        username: auth.username,
-                        email: auth.email
-                    }, window.location.origin);
-                    window.close();
-                } else {
-                    fail("The RuntimeForce window that started this provider connection is no longer open.");
-                }
+                localStorage.setItem("rf_provider_oauth_result", JSON.stringify({
+                    provider: auth.provider,
+                    provider_token: auth.provider_token,
+                    username: auth.username,
+                    email: auth.email,
+                    project_id: pending.context?.project_id || "default"
+                }));
+                window.close();
                 return;
             }
-            if (window.opener && !window.opener.closed) {
-                window.opener.postMessage({
-                    type: "rf_pkce_auth_success",
-                    access_token: auth.access_token,
-                    plan: auth.plan,
-                    email: auth.email,
-                    avatar: auth.avatar
-                }, window.location.origin);
-                window.close();
-            } else {
-                this.setSession(auth.access_token, auth.plan, auth.email, auth.avatar);
-                window.location.replace("/");
-            }
+            this.setSession(auth.access_token, auth.plan, auth.email, auth.avatar);
+            window.close();
         } catch (error) {
             fail(error.message || "Desktop authorization failed");
         }
@@ -163,31 +164,8 @@ export const authFrontendService = {
         try {
             const pkce = await this._createPkceRequest();
             localStorage.setItem("rf_pkce_pending", JSON.stringify({
-                verifier: pkce.verifier, state: pkce.state, createdAt: Date.now()
+                verifier: pkce.verifier, state: pkce.state, purpose, context, createdAt: Date.now()
             }));
-            const cleanup = () => {
-                window.removeEventListener("message", onMessage);
-                if (this._authTimeout) clearTimeout(this._authTimeout);
-                this._authPopup = null;
-            };
-            const onMessage = (event) => {
-                if (event.origin !== window.location.origin || event.source !== popup) return;
-                if (event.data?.type === "rf_provider_oauth_success") {
-                    cleanup();
-                    eventBus.emit("auth:provider_oauth_success", { ...event.data, project_id: context.project_id });
-                    return;
-                }
-                if (event.data?.type === "rf_pkce_auth_error") {
-                    cleanup();
-                    console.error(event.data.message || "RuntimeForce login failed");
-                    return;
-                }
-                if (event.data?.type !== "rf_pkce_auth_success" || !event.data.access_token) return;
-                cleanup();
-                this.setSession(event.data.access_token, event.data.plan, event.data.email, event.data.avatar);
-                window.location.reload();
-            };
-            window.addEventListener("message", onMessage);
             const params = new URLSearchParams({
                 ticket: pkce.ticket,
                 code_challenge: pkce.challenge,
@@ -198,8 +176,9 @@ export const authFrontendService = {
             if (provider) params.set("provider", provider);
             popup.location.href = `${SAAS_URL}/auth/connect-client?${params.toString()}`;
             this._authTimeout = setTimeout(() => {
-                localStorage.removeItem("rf_pkce_pending");
-                cleanup();
+                const pending = JSON.parse(localStorage.getItem("rf_pkce_pending") || "null");
+                if (pending?.state === pkce.state) localStorage.removeItem("rf_pkce_pending");
+                this._authPopup = null;
                 if (!popup.closed) popup.close();
             }, 180000);
         } catch (error) {
