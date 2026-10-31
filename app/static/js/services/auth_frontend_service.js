@@ -79,6 +79,25 @@ export const authFrontendService = {
             }
             localStorage.removeItem("rf_pkce_pending");
             window.history.replaceState({}, document.title, window.location.pathname);
+            if (auth.purpose === "provider_link") {
+                if (!auth.provider_token || !auth.provider) {
+                    fail("Provider authorization did not return a usable token.");
+                    return;
+                }
+                if (window.opener && !window.opener.closed) {
+                    window.opener.postMessage({
+                        type: "rf_provider_oauth_success",
+                        provider: auth.provider,
+                        provider_token: auth.provider_token,
+                        username: auth.username,
+                        email: auth.email
+                    }, window.location.origin);
+                    window.close();
+                } else {
+                    fail("The RuntimeForce window that started this provider connection is no longer open.");
+                }
+                return;
+            }
             if (window.opener && !window.opener.closed) {
                 window.opener.postMessage({
                     type: "rf_pkce_auth_success",
@@ -133,7 +152,7 @@ export const authFrontendService = {
         return { ticket, verifier, state, challenge: encode(new Uint8Array(digest)) };
     },
 
-    async _startPkceLogin(provider = null) {
+    async _startPkceLogin(provider = null, purpose = "login", context = {}) {
         if (this._authPopup && !this._authPopup.closed) this._authPopup.close();
         const popup = window.open("about:blank", "rf_sync_popup", "width=520,height=680");
         if (!popup) {
@@ -153,6 +172,11 @@ export const authFrontendService = {
             };
             const onMessage = (event) => {
                 if (event.origin !== window.location.origin || event.source !== popup) return;
+                if (event.data?.type === "rf_provider_oauth_success") {
+                    cleanup();
+                    eventBus.emit("auth:provider_oauth_success", { ...event.data, project_id: context.project_id });
+                    return;
+                }
                 if (event.data?.type === "rf_pkce_auth_error") {
                     cleanup();
                     console.error(event.data.message || "RuntimeForce login failed");
@@ -168,7 +192,8 @@ export const authFrontendService = {
                 ticket: pkce.ticket,
                 code_challenge: pkce.challenge,
                 state: pkce.state,
-                origin: window.location.origin
+                origin: window.location.origin,
+                purpose
             });
             if (provider) params.set("provider", provider);
             popup.location.href = `${SAAS_URL}/auth/connect-client?${params.toString()}`;
@@ -280,7 +305,11 @@ export const authFrontendService = {
         eventBus.emit("auth:required");
     },
 
+    connectProviderOAuth(provider, projectId) {
+        return this._startPkceLogin(provider, "provider_link", { project_id: projectId });
+    },
+
     oauth(provider) {
-        return this._startPkceLogin(provider);
+        return this._startPkceLogin(provider, "login");
     }
 };
