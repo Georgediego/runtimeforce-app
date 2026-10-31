@@ -17,7 +17,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.container import container
 from app.api import register_all
@@ -91,6 +91,18 @@ def get_version_from_changelog() -> str:
     except Exception:
         pass
     return "v0.2.0"
+
+@app.get("/auth/callback")
+async def desktop_auth_callback(rf_auth_code: str, rf_auth_state: str):
+    # The code is short-lived and PKCE-bound; the local frontend checks its pending browser state.
+    if not (16 <= len(rf_auth_code) <= 128 and 16 <= len(rf_auth_state) <= 128):
+        return HTMLResponse("Invalid RuntimeForce authorization callback.", status_code=400)
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", rf_auth_code) or not re.fullmatch(r"[A-Za-z0-9_-]+", rf_auth_state):
+        return HTMLResponse("Invalid RuntimeForce authorization callback.", status_code=400)
+    return RedirectResponse(
+        url=f"/?rf_auth_code={rf_auth_code}&rf_auth_state={rf_auth_state}",
+        status_code=303,
+    )
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
