@@ -92,13 +92,8 @@ class LLMOrchestratorService:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         provider = (provider or "unknown").lower()
 
-        # Sanitize Gemini model identifiers
-        model_lower = model_id.lower()
-        if "gemini" in model_lower and ("3." in model_lower or "customtools" in model_lower or "preview" in model_lower):
-            logger.info(f"[Orchestrator] Normalizing non-standard Gemini model '{model_id}' -> 'gemini/gemini-2.0-flash'")
-            model_id = "gemini/gemini-2.0-flash"
-            provider = "gemini"
-
+        # Preserve the exact selected Gemini model. Rewriting Pro/preview IDs to
+        # Flash silently ran a different model and made Pro selections unusable.
         if self.rotation_service and not self.rotation_service.is_provider_available(provider):
             yield {
                 "status": "error",
