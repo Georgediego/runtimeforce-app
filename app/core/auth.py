@@ -23,13 +23,12 @@ def _jwt_secret() -> str:
 def decode_token(token: str) -> dict:
     """Decode and verify a signed JWT, including its expiration."""
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             token,
             _jwt_secret(),
             algorithms=[os.getenv("JWT_ALGORITHM", "HS256")],
             options={"require": ["exp", "sub"]},
         )
-        return payload
     except RuntimeError:
         raise
     except jwt.PyJWTError as exc:
@@ -38,3 +37,22 @@ def decode_token(token: str) -> dict:
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
+
+def extract_user_id(payload: dict) -> str | None:
+    """Resolve the local data owner using the historical email-first contract.
+
+    Existing RuntimeForce data is keyed by normalized email. SaaS JWTs may
+    also contain a UUID in sub; preferring it would hide existing data.
+    """
+    if not isinstance(payload, dict):
+        return None
+
+    value = payload.get("email") or payload.get("sub") or payload.get("username")
+    if value is None:
+        return None
+
+    user_id = str(value).strip().lower()
+    if not user_id or user_id == "anonymous":
+        return None
+    return user_id
