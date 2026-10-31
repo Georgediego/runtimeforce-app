@@ -113,7 +113,7 @@ async def health():
     return {"status": "ok", "service": "runtimeforce-app"}
 
 
-def find_free_port(start_port: int = 8000, max_attempts: int = 20, host: str = "127.0.0.1") -> int:
+def find_free_port(start_port: int = 8000, max_attempts: int = 1, host: str = "127.0.0.1") -> int:
     port = start_port
     for _ in range(max_attempts):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -136,7 +136,9 @@ if __name__ == "__main__":
 
     env_port = os.getenv("PORT")
     initial_port = args.port if args.port is not None else (int(env_port) if env_port else 8000)
+    if initial_port != 8000:
+        raise RuntimeError("Secure RuntimeForce OAuth callback requires local port 8000. Remove the custom PORT/--port setting.")
 
-    final_port = find_free_port(start_port=initial_port, host=args.host)
+    final_port = find_free_port(start_port=initial_port, max_attempts=1, host=args.host)
 
     uvicorn.run("app.main:app", host=args.host, port=final_port, reload=True)
