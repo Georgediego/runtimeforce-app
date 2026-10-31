@@ -28,23 +28,10 @@ export const authFrontendService = {
     },
 
     async init() {
-        // 1. Прием токена через редирект с сервера (например, кнопка "Authorize Local IDE" из кабинета)
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get("rf_token");
-        if (token) {
-            this.setSession(
-                token,
-                urlParams.get("rf_plan") || "free",
-                urlParams.get("rf_email") || "",
-                urlParams.get("rf_avatar") || ""
-            );
-            window.history.replaceState({}, document.title, window.location.pathname);
-            return;
-        }
-
         // 2. Если уже авторизован локально
         if (this.isAuthenticated()) {
             this.hideAuth();
+            this.refreshEntitlements(this.getToken()).catch(() => {});
             eventBus.emit("auth:success", { email: this.getEmail(), plan: this.getPlan() });
             return;
         }
@@ -80,50 +67,109 @@ export const authFrontendService = {
         }
     },
 
-    syncViaPopup() {
-        const ticket = (typeof crypto !== "undefined" && crypto.randomUUID) 
-            ? crypto.randomUUID() 
-            : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    async _createPkceRequest() {
+        if (!window.crypto?.subtle || !window.crypto?.getRandomValues) {
+            throw new Error("Secure browser cryptography is unavailable");
+        }
+        const encode = (bytes) => btoa(String.fromCharCode(...bytes))
+            .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
+        const random = () => window.crypto.getRandomValues(new Uint8Array(32));
+        const ticket = encode(random());
+        const verifier = encode(random());
+        const state = encode(random());
+        const digest = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+        return { ticket, verifier, state, challenge: encode(new Uint8Array(digest)) };
+    },
 
-        const origin = encodeURIComponent(window.location.origin);
-        const syncUrl = `${SAAS_URL}/auth/connect-client?ticket=${encodeURIComponent(ticket)}&origin=${origin}`;
-
-        const onMessage = (e) => {
-            if (e.data && (e.data.type === "rf_auth_success" || e.data.type === "rf_auth_sync")) {
-                if (e.data.token) {
-                    cleanup();
-                    this.setSession(e.data.token, e.data.plan, e.data.email, e.data.avatar);
-                    window.location.reload();
-                }
-            }
-        };
-        window.addEventListener("message", onMessage);
-
+    async _startPkceLogin(provider = null) {
+        const popup = window.open("about:blank", "rf_sync_popup", "width=520,height=680");
+        if (!popup) {
+            console.warn("Allow popups to sign in to RuntimeForce.");
+            return;
+        }
         if (this._pollInterval) clearInterval(this._pollInterval);
-        this._pollInterval = setInterval(async () => {
-            try {
-                const res = await fetch(`${SAAS_URL}/api/v1/auth/poll-ticket?ticket=${encodeURIComponent(ticket)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.ready && data.token) {
-                        cleanup();
-                        this.setSession(data.token, data.plan, data.email, data.avatar);
-                        window.location.reload();
-                    }
-                }
-            } catch (pollErr) {}
-        }, 800);
-
+        let completed = false;
+        let exchanging = false;
         const cleanup = () => {
-            if (this._pollInterval) {
-                clearInterval(this._pollInterval);
-                this._pollInterval = null;
-            }
-            window.removeEventListener("message", onMessage);
+            if (this._pollInterval) { clearInterval(this._pollInterval); this._pollInterval = null; }
+            if (popup && !popup.closed) { try { popup.close(); } catch (e) {} }
         };
+        try {
+            const pkce = await this._createPkceRequest();
+            const params = new URLSearchParams({
+                ticket: pkce.ticket,
+                code_challenge: pkce.challenge,
+                state: pkce.state,
+                origin: window.location.origin
+            });
+            if (provider) params.set("provider", provider);
+            popup.location.href = `${SAAS_URL}/auth/connect-client?${params.toString()}`;
 
-        setTimeout(cleanup, 180000);
-        window.open(syncUrl, "rf_sync_popup", "width=500,height=600");
+            this._pollInterval = setInterval(async () => {
+                if (completed || exchanging) return;
+                try {
+                    const pollUrl = `${SAAS_URL}/api/v1/auth/poll-ticket?ticket=${encodeURIComponent(pkce.ticket)}&state=${encodeURIComponent(pkce.state)}`;
+                    const response = await fetch(pollUrl, { credentials: "omit", cache: "no-store" });
+                    if (!response.ok) return;
+                    const result = await response.json();
+                    if (!result.ready || !result.code) return;
+                    exchanging = true;
+                    const exchange = await fetch(`${SAAS_URL}/api/v1/auth/exchange-code`, {
+                        method: "POST",
+                        credentials: "omit",
+                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                        body: JSON.stringify({ code: result.code, code_verifier: pkce.verifier, state: pkce.state })
+                    });
+                    const auth = await exchange.json();
+                    if (!exchange.ok || !auth.access_token) {
+                        throw new Error(auth.detail || "Desktop authorization failed");
+                    }
+                    completed = true;
+                    cleanup();
+                    this.setSession(auth.access_token, auth.plan, auth.email, auth.avatar);
+                    window.location.reload();
+                } catch (error) {
+                    exchanging = false;
+                    console.debug("PKCE authorization polling:", error);
+                }
+            }, 800);
+            setTimeout(() => { if (!completed) cleanup(); }, 180000);
+        } catch (error) {
+            cleanup();
+            console.error("Could not start secure RuntimeForce login:", error);
+        }
+    },
+
+    syncViaPopup() {
+        return this._startPkceLogin();
+    },
+
+    async refreshEntitlements(accessToken) {
+        if (!accessToken) return false;
+        try {
+            const response = await fetch(`${SAAS_URL}/api/v1/auth/entitlements`, {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json" },
+                credentials: "omit"
+            });
+            if (!response.ok) return false;
+
+            const data = await response.json();
+            if (!data.entitlement_token) return false;
+
+            const localResponse = await fetch(`${window.location.origin}/api/v1/billing/entitlements`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ entitlement_token: data.entitlement_token })
+            });
+            return localResponse.ok;
+        } catch (error) {
+            console.debug("Entitlement refresh unavailable; using verified local cache:", error);
+            return false;
+        }
     },
 
     setSession(token, plan, email, avatar) {
@@ -136,6 +182,7 @@ export const authFrontendService = {
         this.hideAuth();
         this.updateProfileUI();
         eventBus.emit("auth:success", { email, plan });
+        this.refreshEntitlements(token).catch(() => {});
     },
 
     showAuth() {
@@ -173,6 +220,13 @@ export const authFrontendService = {
     },
 
     logout() {
+        const token = this.getToken();
+        if (token) {
+            fetch(`${window.location.origin}/api/v1/billing/entitlements`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${token}` }
+            }).catch(() => {});
+        }
         localStorage.removeItem("rf_jwt_token");
         localStorage.removeItem("access_token");
         localStorage.removeItem("rf_plan");
@@ -183,48 +237,6 @@ export const authFrontendService = {
     },
 
     oauth(provider) {
-        const ticket = (typeof crypto !== "undefined" && crypto.randomUUID) 
-            ? crypto.randomUUID() 
-            : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
-        const origin = encodeURIComponent(window.location.origin);
-        const authUrl = `${SAAS_URL}/auth/${provider}?ticket=${encodeURIComponent(ticket)}&origin=${origin}`;
-
-        const onMessage = (e) => {
-            if (e.data && (e.data.type === "rf_auth_success" || e.data.type === "rf_auth_sync")) {
-                if (e.data.token) {
-                    cleanup();
-                    this.setSession(e.data.token, e.data.plan, e.data.email, e.data.avatar);
-                    window.location.reload();
-                }
-            }
-        };
-        window.addEventListener("message", onMessage);
-
-        if (this._pollInterval) clearInterval(this._pollInterval);
-        this._pollInterval = setInterval(async () => {
-            try {
-                const res = await fetch(`${SAAS_URL}/api/v1/auth/poll-ticket?ticket=${encodeURIComponent(ticket)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.ready && data.token) {
-                        cleanup();
-                        this.setSession(data.token, data.plan, data.email, data.avatar);
-                        window.location.reload();
-                    }
-                }
-            } catch (pollErr) {}
-        }, 1000);
-
-        const cleanup = () => {
-            if (this._pollInterval) {
-                clearInterval(this._pollInterval);
-                this._pollInterval = null;
-            }
-            window.removeEventListener("message", onMessage);
-        };
-
-        setTimeout(cleanup, 300000);
-        window.open(authUrl, "_blank");
+        return this._startPkceLogin(provider);
     }
 };
