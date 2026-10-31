@@ -45,6 +45,7 @@ export const authFrontendService = {
         // 2. Если уже авторизован локально
         if (this.isAuthenticated()) {
             this.hideAuth();
+            this.refreshEntitlements(this.getToken()).catch(() => {});
             eventBus.emit("auth:success", { email: this.getEmail(), plan: this.getPlan() });
             return;
         }
@@ -126,6 +127,34 @@ export const authFrontendService = {
         window.open(syncUrl, "rf_sync_popup", "width=500,height=600");
     },
 
+    async refreshEntitlements(accessToken) {
+        if (!accessToken) return false;
+        try {
+            const response = await fetch(`${SAAS_URL}/api/v1/auth/entitlements`, {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${accessToken}`, "Accept": "application/json" },
+                credentials: "omit"
+            });
+            if (!response.ok) return false;
+
+            const data = await response.json();
+            if (!data.entitlement_token) return false;
+
+            const localResponse = await fetch(`${window.location.origin}/api/v1/billing/entitlements`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ entitlement_token: data.entitlement_token })
+            });
+            return localResponse.ok;
+        } catch (error) {
+            console.debug("Entitlement refresh unavailable; using verified local cache:", error);
+            return false;
+        }
+    },
+
     setSession(token, plan, email, avatar) {
         localStorage.setItem("rf_jwt_token", token);
         localStorage.setItem("rf_plan", plan || "free");
@@ -136,6 +165,7 @@ export const authFrontendService = {
         this.hideAuth();
         this.updateProfileUI();
         eventBus.emit("auth:success", { email, plan });
+        this.refreshEntitlements(token).catch(() => {});
     },
 
     showAuth() {
@@ -173,6 +203,13 @@ export const authFrontendService = {
     },
 
     logout() {
+        const token = this.getToken();
+        if (token) {
+            fetch(`${window.location.origin}/api/v1/billing/entitlements`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${token}` }
+            }).catch(() => {});
+        }
         localStorage.removeItem("rf_jwt_token");
         localStorage.removeItem("access_token");
         localStorage.removeItem("rf_plan");
