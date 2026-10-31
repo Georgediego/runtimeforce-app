@@ -86,7 +86,7 @@ export const authFrontendService = {
             throw new Error("Secure browser cryptography is unavailable");
         }
         const encode = (bytes) => btoa(String.fromCharCode(...bytes))
-            .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+            .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
         const random = () => window.crypto.getRandomValues(new Uint8Array(32));
         const ticket = encode(random());
         const verifier = encode(random());
