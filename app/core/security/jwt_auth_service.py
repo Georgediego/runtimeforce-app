@@ -3,12 +3,15 @@ Service for extracting and validating user identification and plan claims from J
 """
 import logging
 from typing import Optional
+
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.core.auth import decode_token
+
+from app.core.auth import decode_token, extract_user_id
 
 logger = logging.getLogger("runtimeforce.security.jwt")
 security = HTTPBearer(auto_error=False)
+
 
 class JWTAuthService:
     @staticmethod
@@ -26,13 +29,7 @@ class JWTAuthService:
 
     @classmethod
     def extract_user_from_jwt(cls, token: Optional[str]) -> Optional[str]:
-        data = cls._verified_payload(token)
-        if not data:
-            return None
-        user_id = data.get("sub") or data.get("email") or data.get("username")
-        if not user_id or str(user_id).lower().strip() == "anonymous":
-            return None
-        return str(user_id).lower().strip()
+        return extract_user_id(cls._verified_payload(token))
 
     @classmethod
     def extract_plan_from_jwt(cls, token: Optional[str]) -> str:
@@ -65,5 +62,8 @@ class JWTAuthService:
             raise HTTPException(status_code=401, detail="Authentication required")
         return user_id
 
-def require_authenticated_user(user_id: str = Depends(JWTAuthService.get_current_user)) -> str:
+
+def require_authenticated_user(
+    user_id: str = Depends(JWTAuthService.get_current_user)
+) -> str:
     return user_id
