@@ -28,7 +28,14 @@ export const authFrontendService = {
     },
 
     async init() {
-        // 2. Если уже авторизован локально
+        const params = new URLSearchParams(window.location.search);
+        const callbackCode = params.get("rf_auth_code");
+        const callbackState = params.get("rf_auth_state");
+        if (callbackCode || callbackState) {
+            await this._completePkceCallback(callbackCode, callbackState);
+            return;
+        }
+
         if (this.isAuthenticated()) {
             this.hideAuth();
             this.refreshEntitlements(this.getToken()).catch(() => {});
@@ -36,13 +43,58 @@ export const authFrontendService = {
             return;
         }
 
-        // 3. Тихая фоновая проверка активной сессии с сервера
         await this.syncSessionFromServer();
-
-        // 4. Привязка кнопки 1-кликовой синхронизации на оверлее
         document.getElementById("rf-auth-sync-btn")?.addEventListener("click", () => {
             this.syncViaPopup();
         });
+    },
+
+    async _completePkceCallback(code, state) {
+        const fail = (message) => {
+            localStorage.removeItem("rf_pkce_pending");
+            console.error("RuntimeForce login failed:", message);
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ type: "rf_pkce_auth_error", message }, window.location.origin);
+                window.close();
+            } else {
+                this.showAuth();
+            }
+        };
+        try {
+            const pending = JSON.parse(localStorage.getItem("rf_pkce_pending") || "null");
+            if (!code || !state || !pending?.verifier || pending.state !== state || Date.now() - pending.createdAt > 180000) {
+                fail("The login request expired or the browser state did not match. Start sign-in again.");
+                return;
+            }
+            const response = await fetch(`${SAAS_URL}/api/v1/auth/exchange-code`, {
+                method: "POST",
+                credentials: "omit",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify({ code, code_verifier: pending.verifier, state })
+            });
+            const auth = await response.json();
+            if (!response.ok || !auth.access_token) {
+                fail(auth.detail || "Desktop authorization failed");
+                return;
+            }
+            localStorage.removeItem("rf_pkce_pending");
+            window.history.replaceState({}, document.title, window.location.pathname);
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                    type: "rf_pkce_auth_success",
+                    access_token: auth.access_token,
+                    plan: auth.plan,
+                    email: auth.email,
+                    avatar: auth.avatar
+                }, window.location.origin);
+                window.close();
+            } else {
+                this.setSession(auth.access_token, auth.plan, auth.email, auth.avatar);
+                window.location.replace("/");
+            }
+        } catch (error) {
+            fail(error.message || "Desktop authorization failed");
+        }
     },
 
     async syncSessionFromServer() {
@@ -82,20 +134,36 @@ export const authFrontendService = {
     },
 
     async _startPkceLogin(provider = null) {
+        if (this._authPopup && !this._authPopup.closed) this._authPopup.close();
         const popup = window.open("about:blank", "rf_sync_popup", "width=520,height=680");
         if (!popup) {
             console.warn("Allow popups to sign in to RuntimeForce.");
             return;
         }
-        if (this._pollInterval) clearInterval(this._pollInterval);
-        let completed = false;
-        let exchanging = false;
-        const cleanup = () => {
-            if (this._pollInterval) { clearInterval(this._pollInterval); this._pollInterval = null; }
-            if (popup && !popup.closed) { try { popup.close(); } catch (e) {} }
-        };
+        this._authPopup = popup;
         try {
             const pkce = await this._createPkceRequest();
+            localStorage.setItem("rf_pkce_pending", JSON.stringify({
+                verifier: pkce.verifier, state: pkce.state, createdAt: Date.now()
+            }));
+            const cleanup = () => {
+                window.removeEventListener("message", onMessage);
+                if (this._authTimeout) clearTimeout(this._authTimeout);
+                this._authPopup = null;
+            };
+            const onMessage = (event) => {
+                if (event.origin !== window.location.origin || event.source !== popup) return;
+                if (event.data?.type === "rf_pkce_auth_error") {
+                    cleanup();
+                    console.error(event.data.message || "RuntimeForce login failed");
+                    return;
+                }
+                if (event.data?.type !== "rf_pkce_auth_success" || !event.data.access_token) return;
+                cleanup();
+                this.setSession(event.data.access_token, event.data.plan, event.data.email, event.data.avatar);
+                window.location.reload();
+            };
+            window.addEventListener("message", onMessage);
             const params = new URLSearchParams({
                 ticket: pkce.ticket,
                 code_challenge: pkce.challenge,
@@ -104,42 +172,18 @@ export const authFrontendService = {
             });
             if (provider) params.set("provider", provider);
             popup.location.href = `${SAAS_URL}/auth/connect-client?${params.toString()}`;
-
-            this._pollInterval = setInterval(async () => {
-                if (completed || exchanging) return;
-                try {
-                    const pollUrl = `${SAAS_URL}/api/v1/auth/poll-ticket?ticket=${encodeURIComponent(pkce.ticket)}&state=${encodeURIComponent(pkce.state)}`;
-                    const response = await fetch(pollUrl, { credentials: "omit", cache: "no-store" });
-                    if (!response.ok) return;
-                    const result = await response.json();
-                    if (!result.ready || !result.code) return;
-                    exchanging = true;
-                    const exchange = await fetch(`${SAAS_URL}/api/v1/auth/exchange-code`, {
-                        method: "POST",
-                        credentials: "omit",
-                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                        body: JSON.stringify({ code: result.code, code_verifier: pkce.verifier, state: pkce.state })
-                    });
-                    const auth = await exchange.json();
-                    if (!exchange.ok || !auth.access_token) {
-                        throw new Error(auth.detail || "Desktop authorization failed");
-                    }
-                    completed = true;
-                    cleanup();
-                    this.setSession(auth.access_token, auth.plan, auth.email, auth.avatar);
-                    window.location.reload();
-                } catch (error) {
-                    exchanging = false;
-                    console.debug("PKCE authorization polling:", error);
-                }
-            }, 800);
-            setTimeout(() => { if (!completed) cleanup(); }, 180000);
+            this._authTimeout = setTimeout(() => {
+                localStorage.removeItem("rf_pkce_pending");
+                cleanup();
+                if (!popup.closed) popup.close();
+            }, 180000);
         } catch (error) {
-            cleanup();
+            localStorage.removeItem("rf_pkce_pending");
+            this._authPopup = null;
+            if (!popup.closed) popup.close();
             console.error("Could not start secure RuntimeForce login:", error);
         }
     },
-
     syncViaPopup() {
         return this._startPkceLogin();
     },
