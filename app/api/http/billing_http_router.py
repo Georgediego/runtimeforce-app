@@ -43,6 +43,15 @@ async def cache_entitlements(
     return {"cached": True, "license": status_info}
 
 
+@router.delete("/entitlements")
+async def clear_entitlements(
+    user_id: str = Depends(require_authenticated_user),
+    license_service: LicenseService = Depends(get_license_service),
+):
+    license_service.clear_cache()
+    return {"cleared": True}
+
+
 @router.get("/status")
 async def billing_status(
     request: Request,
