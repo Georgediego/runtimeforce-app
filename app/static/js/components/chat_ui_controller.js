@@ -686,9 +686,14 @@ export const chatUIController = {
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setGeneratingState(false);
         } else if (event.status === "error" || event.status === "failed") {
-            const errText = event.error || "Execution error";
+            if (event.error_code === "MANUAL_MODEL_FAILED" || event.error_code === "MANUAL_MODEL_NOT_SELECTED") {
+                fullResponseText = "";
+                fullReasoningText = "";
+            }
+            const errText = [event.error || "Execution error", event.suggestion].filter(Boolean).join("\\n\\n");
             this.appendTrace("ERROR", errText);
             if (assistantDiv) {
+                assistantDiv.dataset.streamFailed = "true";
                 this.renderErrorBox(assistantDiv, errText);
             }
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
@@ -697,7 +702,9 @@ export const chatUIController = {
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setOrchestratorProgress(100);
             this.setGeneratingState(false);
-            if (assistantDiv) this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
+            if (assistantDiv && assistantDiv.dataset.streamFailed !== "true") {
+                this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
+            }
             this.loadSessionsList();
         }
     },
