@@ -422,7 +422,7 @@ export const projectsUIController = {
                 },
                 body: JSON.stringify({
                     project_id: projectId,
-                    token: data.token || "",
+                    token: data.provider_token || "",
                     username: username,
                     email: email
                 })
