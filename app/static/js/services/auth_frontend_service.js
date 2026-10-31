@@ -28,20 +28,6 @@ export const authFrontendService = {
     },
 
     async init() {
-        // 1. Прием токена через редирект с сервера (например, кнопка "Authorize Local IDE" из кабинета)
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get("rf_token");
-        if (token) {
-            this.setSession(
-                token,
-                urlParams.get("rf_plan") || "free",
-                urlParams.get("rf_email") || "",
-                urlParams.get("rf_avatar") || ""
-            );
-            window.history.replaceState({}, document.title, window.location.pathname);
-            return;
-        }
-
         // 2. Если уже авторизован локально
         if (this.isAuthenticated()) {
             this.hideAuth();
