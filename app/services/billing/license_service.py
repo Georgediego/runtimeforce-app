@@ -89,5 +89,11 @@ class LicenseService:
                 "reason": str(exc),
             }
 
+    def clear_cache(self) -> None:
+        try:
+            self.cache_path.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Could not clear entitlement cache: %s", exc)
+
     def is_offline_grace_valid(self) -> bool:
         return bool(self.validate_license().get("valid"))
