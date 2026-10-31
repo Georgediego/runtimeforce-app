@@ -16,10 +16,10 @@ from app.repository.project_db_repository import ProjectDBRepository
 logger = logging.getLogger("runtimeforce.service.social.oauth")
 
 SAAS_URL = os.getenv("SAAS_URL", "https://runtimeforce.dev").rstrip("/")
-GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "Ov23liCdIDC8Qxa5xDyB")
-GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "38a29b62e954acaa99dc0e8c957c98dcae44954f")
-X_CLIENT_ID = os.getenv("X_CLIENT_ID", "OGdQcUtzWGl4NlpmNDR4SXR5Tzc6MTpjaQ")
-REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "z_P_oV4hU2xL1A")
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
+X_CLIENT_ID = os.getenv("X_CLIENT_ID", "")
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
 
 _pkce_store: Dict[str, Dict[str, str]] = {}
