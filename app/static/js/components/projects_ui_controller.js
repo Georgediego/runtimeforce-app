@@ -7,8 +7,8 @@ import { eventBus } from "../core/event_bus.js";
 import { workspaceUIController } from "./workspace_ui_controller.js";
 import { fileTreeUIController } from "./file_tree_ui_controller.js";
 import { chatUIController } from "./chat_ui_controller.js";
+import { authFrontendService } from "../services/auth_frontend_service.js";
 
-const SAAS_URL = "https://runtimeforce.dev";
 let activeSettingsProjectId = null;
 let projectAttachedContextFiles = [];
 
@@ -24,6 +24,11 @@ function getVal(id) {
 
 export const projectsUIController = {
     init() {
+        eventBus.on("auth:provider_oauth_success", async (data) => {
+            if (!data?.provider || !data?.provider_token) return;
+            const projectId = data.project_id || activeSettingsProjectId || localStorage.getItem("rf_active_project_id") || "default";
+            await this.handleOAuthSuccess(data.provider, projectId, data);
+        });
         document.getElementById("refresh-projects-btn")?.addEventListener("click", () => this.loadProjectsList());
         document.getElementById("add-project-btn")?.addEventListener("click", () => this.openCreateProjectModal());
         document.getElementById("close-project-settings-btn")?.addEventListener("click", () => this.closeProjectSettingsModal());
@@ -349,59 +354,10 @@ export const projectsUIController = {
 
     async connectOAuth(provider) {
         const targetId = activeSettingsProjectId || localStorage.getItem("rf_active_project_id") || "default";
-        const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-
         try {
-            const ticket = (typeof crypto !== "undefined" && crypto.randomUUID)
-                ? crypto.randomUUID()
-                : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
-            const origin = encodeURIComponent(window.location.origin);
-            const authUrl = `${SAAS_URL}/auth/${provider}?ticket=${encodeURIComponent(ticket)}&origin=${origin}`;
-
-            const popup = window.open(authUrl, `${provider}_oauth`, "width=600,height=700,scrollbars=yes");
-
-            let resolved = false;
-
-            const onDone = async (data) => {
-                if (resolved) return;
-                resolved = true;
-                clearInterval(pollInterval);
-                window.removeEventListener("message", onMsg);
-                if (popup && !popup.closed) {
-                    try { popup.close(); } catch(e) {}
-                }
-                await this.handleOAuthSuccess(provider, targetId, data);
-            };
-
-            const pollInterval = setInterval(async () => {
-                try {
-                    const res = await fetch(`${SAAS_URL}/api/v1/auth/poll-ticket?ticket=${encodeURIComponent(ticket)}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.ready) {
-                            await onDone(data);
-                        }
-                    }
-                } catch (pollErr) {}
-            }, 1000);
-
-            const onMsg = async (e) => {
-                if (e.data && (e.data.type === "rf_auth_success" || e.data.type === `${provider}_connected`)) {
-                    await onDone(e.data);
-                }
-            };
-            window.addEventListener("message", onMsg);
-
-            setTimeout(() => {
-                if (!resolved) {
-                    clearInterval(pollInterval);
-                    window.removeEventListener("message", onMsg);
-                }
-            }, 180000);
-
-        } catch (e) {
-            showToast(`${provider.toUpperCase()} Auth Error: ${e.message}`, "error");
+            await authFrontendService.connectProviderOAuth(provider, targetId);
+        } catch (error) {
+            showToast(`${provider.toUpperCase()} Auth Error: ${error.message}`, "error");
         }
     },
 
