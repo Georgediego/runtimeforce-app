@@ -1,151 +1,113 @@
-# app/core/auth.py — Fixed: JWT with avatar, proper OAuth flow
+"""JWT verification for the local RuntimeForce client.
+
+Only RS256 tokens issued by RuntimeForce SaaS are accepted. The signing
+private key never exists in this application; the public JWKS is cached locally
+so already-issued tokens can be checked while offline.
+"""
+import json
 import os
-import hashlib
+from pathlib import Path
+from urllib.request import Request, urlopen
+
 import jwt
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-from fastapi import Depends, HTTPException, status, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.core.config import settings
-from app.core.database import get_db, AsyncSessionLocal
-from app.models.user import User, SubscriptionTier
-from app.core.security import get_password_hash, verify_password
+from fastapi import HTTPException, status
 
-ALGORITHM = settings.ALGORITHM
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-REFRESH_TOKEN_EXPIRE_DAYS = 30
+JWT_ISSUER = "https://runtimeforce.dev"
+JWT_AUDIENCE = "runtimeforce-ide"
+JWKS_URL = os.getenv("JWT_JWKS_URL", "https://runtimeforce.dev/api/v1/auth/jwks.json")
+_JWKS_CACHE = None
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire, "type": "access"})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+def _jwks_cache_path() -> Path:
+    return Path.home() / ".local" / "share" / "runtimeforce" / "jwks.json"
 
 
-def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
-    to_encode.update({"exp": expire, "type": "refresh"})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+def _read_cached_jwks():
+    path = _jwks_cache_path()
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _write_cached_jwks(data: dict) -> None:
+    path = _jwks_cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps(data), encoding="utf-8")
+    try:
+        os.chmod(temp, 0o600)
+    except OSError:
+        pass
+    temp.replace(path)
+
+
+def _load_jwks():
+    global _JWKS_CACHE
+    if _JWKS_CACHE:
+        return _JWKS_CACHE
+
+    cached = _read_cached_jwks()
+    try:
+        if not JWKS_URL.startswith("https://"):
+            raise RuntimeError("JWT JWKS URL must use HTTPS")
+        request = Request(JWKS_URL, headers={"Accept": "application/json"})
+        with urlopen(request, timeout=5) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        if not isinstance(data.get("keys"), list) or not data["keys"]:
+            raise ValueError("JWKS response has no signing keys")
+        _write_cached_jwks(data)
+        _JWKS_CACHE = data
+        return data
+    except Exception:
+        if cached and isinstance(cached.get("keys"), list) and cached["keys"]:
+            _JWKS_CACHE = cached
+            return cached
+        raise RuntimeError("Cannot load RuntimeForce signing keys; connect to the internet once")
+
+
+def _get_verification_key(token: str):
+    header = jwt.get_unverified_header(token)
+    if header.get("alg") != "RS256":
+        raise jwt.InvalidAlgorithmError("Only RS256 tokens are accepted")
+    kid = header.get("kid")
+    if not kid:
+        raise jwt.InvalidTokenError("JWT kid is missing")
+    for jwk_data in _load_jwks()["keys"]:
+        if jwk_data.get("kid") == kid and jwk_data.get("alg") == "RS256":
+            return jwt.PyJWK.from_dict(jwk_data, algorithm="RS256").key
+    raise jwt.InvalidTokenError("JWT signing key is unknown")
 
 
 def decode_token(token: str) -> dict:
+    """Verify RS256 signature, issuer, audience and expiration."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except jwt.PyJWTError:
+        return jwt.decode(
+            token,
+            _get_verification_key(token),
+            algorithms=["RS256"],
+            issuer=JWT_ISSUER,
+            audience=JWT_AUDIENCE,
+            options={"require": ["exp", "sub", "iss", "aud"]},
+        )
+    except RuntimeError:
+        raise
+    except jwt.PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Invalid or expired RuntimeForce token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
 
 
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    token = request.cookies.get("access_token")
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-    if not token:
-        raise credentials_exception
-    try:
-        payload = decode_token(token)
-        if payload.get("type") != "access":
-            raise credentials_exception
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except Exception:
-        raise credentials_exception
-
-    query = select(User).where(User.id == user_id)
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise credentials_exception
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Account deactivated")
-    return user
-
-
-def verify_subscription(required_tiers: list[SubscriptionTier]):
-    async def dependency(current_user: User = Depends(get_current_user)):
-        if current_user.tier not in required_tiers:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Subscription required: {', '.join(t.value for t in required_tiers)}"
-            )
-        return current_user
-    return dependency
-
-
-# --- GITHUB OAUTH ---
-GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "Ov23liCdIDC8Qxa5xDyB")
-GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "38a29b62e954acaa99dc0e8c957c98dcae44954f")
-GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "https://runtimeforce.dev/auth/github/callback")
-
-
-async def get_or_create_github_user(email: str, github_id: str, db: AsyncSession) -> User:
-    query = select(User).where(User.email == email)
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
-    if not user:
-        user = User(
-            email=email,
-            hashed_password=get_password_hash(f"github_{github_id}_oauth"),
-            tier=SubscriptionTier.FREE
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-    return user
-
-
-# --- GOOGLE OAUTH ---
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "658102812661-drd0gld8vhjc1cl8s1on7je686rfrfap.apps.googleusercontent.com")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "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")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://runtimeforce.dev/auth/google/callback")
-
-
-async def get_or_create_google_user(email: str, google_id: str, db: AsyncSession) -> User:
-    query = select(User).where(User.email == email)
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
-    if not user:
-        user = User(
-            email=email,
-            hashed_password=get_password_hash(f"google_{google_id}_oauth"),
-            tier=SubscriptionTier.FREE
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
-    return user
-
-
-async def get_current_user_optional(request: Request) -> Optional[User]:
-    token = request.cookies.get("access_token")
-    if not token:
+def extract_user_id(payload: dict) -> str | None:
+    """Keep the existing email-first local database namespace unchanged."""
+    if not isinstance(payload, dict):
         return None
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: str = payload.get("sub")
-        if not user_id:
-            return None
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
-            return user
-    except Exception:
+    value = payload.get("email") or payload.get("sub") or payload.get("username")
+    if value is None:
         return None
+    user_id = str(value).strip().lower()
+    if not user_id or user_id == "anonymous":
+        return None
+    return user_id
