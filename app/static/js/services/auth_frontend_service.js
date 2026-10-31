@@ -32,6 +32,8 @@ export const authFrontendService = {
             this._storageHandlerBound = true;
             window.addEventListener("storage", (event) => {
                 if (event.key === "rf_jwt_token" && event.newValue && !this.isAuthenticated()) {
+                    if (this._authTimeout) clearTimeout(this._authTimeout);
+                    this._authPopup = null;
                     this.setSession(event.newValue, localStorage.getItem("rf_plan"), localStorage.getItem("rf_email"), localStorage.getItem("rf_avatar"));
                     window.location.reload();
                 }
@@ -39,6 +41,8 @@ export const authFrontendService = {
                     try {
                         const result = JSON.parse(event.newValue);
                         localStorage.removeItem("rf_provider_oauth_result");
+                        if (this._authTimeout) clearTimeout(this._authTimeout);
+                        this._authPopup = null;
                         eventBus.emit("auth:provider_oauth_success", result);
                     } catch (error) { console.error("Invalid provider OAuth result", error); }
                 }
