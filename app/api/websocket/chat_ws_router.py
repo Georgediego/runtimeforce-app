@@ -17,12 +17,15 @@ active_tasks: Dict[str, asyncio.Task] = {}
 
 @router.websocket("/ws/chat/{session_id}")
 async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
+    token = websocket.query_params.get("token") or ""
+    user_id = JWTAuthService.extract_user_from_jwt(token)
+    if not user_id:
+        # Never downgrade an unauthenticated socket to the shared default account.
+        await websocket.close(code=4401, reason="Authentication required")
+        return
+    plan = JWTAuthService.extract_plan_from_jwt(token)
     await websocket.accept()
     logger.info(f"WebSocket connected for session: {session_id}")
-    
-    token = websocket.query_params.get("token") or ""
-    user_id = JWTAuthService.extract_user_from_jwt(token) or "default_user"
-    plan = JWTAuthService.extract_plan_from_jwt(token) or "free"
     
     coordinator = container.agent_loop_coordinator
     conv_repo = container.conversation_repo
