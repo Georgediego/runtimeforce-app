@@ -354,6 +354,13 @@ class AgentLoopCoordinator:
                         tool_calls = parsed_tools
                         iteration_text = clean_text
 
+                if is_manual_override and has_chunk_error and not is_stream_dropped:
+                    yield {"status": "error", "error_code": "MANUAL_MODEL_FAILED", "model": model_id,
+                           "provider": provider, "error": error_details or "The selected model request failed.",
+                           "suggestion": "Select another model manually and retry."}
+                    yield {"status": "done"}
+                    return
+
                 if is_stream_dropped:
                     logger.warning(f"[AgentCoordinator] Model {model_id} failed: {error_details}. Failing over.")
                     self._cooldown_models[model_id] = time.time() + 300
