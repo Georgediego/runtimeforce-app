@@ -33,23 +33,8 @@ def get_optional_user(request: Request) -> str:
 # ═══════════════════════════════════════════════════
 @router.get("/github/auth-url")
 @router.post("/github/auth-url")
-async def get_github_auth_url(
-    request: Request,
-    project_id: Optional[str] = Query(None),
-    ticket: Optional[str] = Query(None),
-    project_repo = Depends(get_project_repo)
-):
-    try:
-        user_id = get_optional_user(request)
-        pid = (project_id or "").strip() or "default"
-        smm = OAuthSMMService(project_repo)
-        base_url = str(request.base_url).rstrip("/")
-        url = smm.get_github_auth_url(pid, user_id, base_url=base_url, ticket=ticket)
-        return {"auth_url": url}
-    except Exception as e:
-        logger.error(f"Failed to get GitHub auth URL: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+async def get_github_auth_url(request: Request):
+    raise HTTPException(status_code=410, detail="Use the RuntimeForce UI PKCE flow to connect GitHub.")
 @router.post("/github/connect-oauth")
 async def connect_github_oauth(
     payload: ConnectOAuthPayload,
@@ -108,23 +93,8 @@ async def disconnect_github(
 # ═══════════════════════════════════════════════════
 @router.get("/x/auth-url")
 @router.post("/x/auth-url")
-async def get_x_auth_url(
-    request: Request,
-    project_id: Optional[str] = Query(None),
-    ticket: Optional[str] = Query(None),
-    project_repo = Depends(get_project_repo)
-):
-    try:
-        user_id = get_optional_user(request)
-        pid = (project_id or "").strip() or "default"
-        smm = OAuthSMMService(project_repo)
-        base_url = str(request.base_url).rstrip("/")
-        url = smm.get_x_auth_url(pid, user_id, base_url=base_url, ticket=ticket)
-        return {"auth_url": url}
-    except Exception as e:
-        logger.error(f"Failed to get X auth URL: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+async def get_x_auth_url(request: Request):
+    raise HTTPException(status_code=410, detail="Use the RuntimeForce UI PKCE flow to connect X.")
 @router.post("/x/connect-oauth")
 async def connect_x_oauth(
     payload: ConnectOAuthPayload,
@@ -184,23 +154,8 @@ async def disconnect_x(
 # ═══════════════════════════════════════════════════
 @router.get("/reddit/auth-url")
 @router.post("/reddit/auth-url")
-async def get_reddit_auth_url(
-    request: Request,
-    project_id: Optional[str] = Query(None),
-    ticket: Optional[str] = Query(None),
-    project_repo = Depends(get_project_repo)
-):
-    try:
-        user_id = get_optional_user(request)
-        pid = (project_id or "").strip() or "default"
-        smm = OAuthSMMService(project_repo)
-        base_url = str(request.base_url).rstrip("/")
-        url = smm.get_reddit_auth_url(pid, user_id, base_url=base_url, ticket=ticket)
-        return {"auth_url": url}
-    except Exception as e:
-        logger.error(f"Failed to get Reddit auth URL: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+async def get_reddit_auth_url(request: Request):
+    raise HTTPException(status_code=410, detail="Use the RuntimeForce UI PKCE flow to connect Reddit.")
 @router.post("/reddit/connect-oauth")
 async def connect_reddit_oauth(
     payload: ConnectOAuthPayload,
