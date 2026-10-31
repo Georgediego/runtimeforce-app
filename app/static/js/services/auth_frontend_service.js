@@ -31,7 +31,7 @@ export const authFrontendService = {
         if (!this._storageHandlerBound) {
             this._storageHandlerBound = true;
             window.addEventListener("storage", (event) => {
-                if (event.key === "rf_jwt_token" && event.newValue && !this.isAuthenticated()) {
+                if (event.key === "rf_jwt_token" && event.newValue) {
                     if (this._authTimeout) clearTimeout(this._authTimeout);
                     this._authPopup = null;
                     this.setSession(event.newValue, localStorage.getItem("rf_plan"), localStorage.getItem("rf_email"), localStorage.getItem("rf_avatar"));
