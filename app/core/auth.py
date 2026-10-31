@@ -91,8 +91,10 @@ def verify_subscription(required_tiers: list[SubscriptionTier]):
 
 
 # --- GITHUB OAUTH ---
-GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "Ov23liCdIDC8Qxa5xDyB")
-GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "38a29b62e954acaa99dc0e8c957c98dcae44954f")
+# OAuth client secrets must be configured through environment variables only.
+# Any credentials previously committed to source control must be rotated.
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
 GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "https://runtimeforce.dev/auth/github/callback")
 
 
@@ -113,8 +115,8 @@ async def get_or_create_github_user(email: str, github_id: str, db: AsyncSession
 
 
 # --- GOOGLE OAUTH ---
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "658102812661-drd0gld8vhjc1cl8s1on7je686rfrfap.apps.googleusercontent.com")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "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")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://runtimeforce.dev/auth/google/callback")
 
 
