@@ -42,6 +42,10 @@ export const authFrontendService = {
                         eventBus.emit("auth:provider_oauth_success", result);
                     } catch (error) { console.error("Invalid provider OAuth result", error); }
                 }
+                if (event.key === "rf_pkce_error" && event.newValue) {
+                    console.error(event.newValue);
+                    localStorage.removeItem("rf_pkce_error");
+                }
             });
         }
         const params = new URLSearchParams(window.location.search);
@@ -68,13 +72,9 @@ export const authFrontendService = {
     async _completePkceCallback(code, state) {
         const fail = (message) => {
             localStorage.removeItem("rf_pkce_pending");
+            localStorage.setItem("rf_pkce_error", String(message || "RuntimeForce login failed"));
             console.error("RuntimeForce login failed:", message);
-            if (window.opener && !window.opener.closed) {
-                window.opener.postMessage({ type: "rf_pkce_auth_error", message }, window.location.origin);
-                window.close();
-            } else {
-                this.showAuth();
-            }
+            window.close();
         };
         try {
             const pending = JSON.parse(localStorage.getItem("rf_pkce_pending") || "null");
