@@ -300,9 +300,11 @@ class LLMDiscoveryService:
             self.registry.register_model(meta)
 
     def _parse_gemini(self, provider: str, data: dict):
+        # Do not exclude text-capable Pro/preview models by broad name fragments.
+        # Supported generation methods below are the capability gate.
         unstable_markers = [
-            "customtools", "preview", "image", "robotics", "live", 
-            "audio", "embed", "tuning", "aqa", "vision", "bidi", "exp-", "3."
+            "customtools", "image", "robotics", "live",
+            "audio", "embed", "tuning", "aqa", "vision", "bidi", "exp-"
         ]
 
         for item in data.get("models", []):
@@ -325,11 +327,12 @@ class LLMDiscoveryService:
             if "pro" in mid_lower or "2.5" in mid_lower:
                 caps.append("reasoning")
 
+            is_pro_model = "pro" in mid_lower
             meta = ModelMetadata(
                 id=model_id, provider=provider, name=mid,
                 context_window=item.get("inputTokenLimit", 1000000),
                 max_output_tokens=item.get("outputTokenLimit", 8192),
-                tier="free", capabilities=caps,
+                tier="pro" if is_pro_model else "free", capabilities=caps,
                 supports_function_calling=True
             )
             self.registry.register_model(meta)
