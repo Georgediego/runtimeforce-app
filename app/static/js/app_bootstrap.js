@@ -183,8 +183,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("rf-auth-x-btn")?.addEventListener("click", () => authFrontendService.oauth("x"));
     document.getElementById("rf-auth-reddit-btn")?.addEventListener("click", () => authFrontendService.oauth("reddit"));
 
-    authFrontendService.init();
-    await projectsUIController.initActiveProject();
+    // Wait for the SaaS session/token before any project API request can run.
+    // The auth:success handler loads the active project after authentication.
+    await authFrontendService.init();
 
     if (window.lucide) window.lucide.createIcons();
 });
