@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-02
+
+### Fixed
+- Wait for local SaaS authentication/session synchronization to finish before requesting projects, preventing the startup race that caused `401 Authentication required` during project loading.
+
+### Notes
+- Existing SQLite files and records are not modified by this fix. Legacy identity migration remains a separate, non-destructive step.
+
 ## [0.4.3] - 2026-10-31
 
 ### Fixed
