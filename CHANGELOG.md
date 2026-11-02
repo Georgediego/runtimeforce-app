@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-03
+
+### Fixed
+- Use the verified, normalized account email as the local SQLite ownership key instead of the SaaS UUID, restoring access to existing local projects, provider settings, sessions, and drafts after account identity synchronization.
+- Reject authenticated SaaS responses without a verified email rather than falling back to a UUID and silently creating a second local data identity.
+- Add regression tests for email normalization and missing-email rejection.
+
+
 ### Security
 - Verify IDE access tokens against the official RuntimeForce SaaS authentication endpoint; do not trust locally decoded JWT claims.
 - Pin authentication and entitlement requests to `https://runtimeforce.dev`.
