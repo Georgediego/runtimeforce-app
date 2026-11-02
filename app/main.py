@@ -11,14 +11,16 @@ from contextlib import asynccontextmanager
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 from fastapi.responses import HTMLResponse
 
 from app.container import container
 from app.api import register_all
+from app.core.version_utils import is_newer_version
 
 # Suppress noisy third-party loggers completely
 logging.getLogger("litellm").setLevel(logging.ERROR)
@@ -107,6 +109,38 @@ templates.env.globals["app_version"] = get_app_version()
 @app.get("/api/v1/version")
 async def get_version_api():
     return {"version": get_app_version()}
+
+
+@app.get("/api/v1/updates/check")
+async def check_ide_updates(response: Response):
+    """Compare this local IDE version with the public stable main release."""
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    current_version = get_app_version()
+    try:
+        async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+            remote = await client.get(
+                "https://runtimeforce.dev/api/v1/ide-version",
+                headers={"Cache-Control": "no-cache"},
+            )
+            remote.raise_for_status()
+        payload = remote.json()
+        latest_version = str(payload.get("version") or "").strip()
+        if not latest_version:
+            raise ValueError("The update service returned an empty version")
+        return {
+            "current_version": current_version,
+            "latest_version": latest_version,
+            "update_available": is_newer_version(latest_version, current_version),
+            "checked": True,
+        }
+    except Exception as exc:
+        logger.info("IDE update check unavailable: %s", exc)
+        return {
+            "current_version": current_version,
+            "latest_version": current_version,
+            "update_available": False,
+            "checked": False,
+        }
 
 register_all(app)
 
