@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-02
+
+### Fixed
+- OpenAI model discovery now excludes transcription, audio, realtime, embedding, image-generation, and other non-chat model IDs from chat routing.
+- Deprecated OpenAI `o3-mini` model IDs are no longer offered for new chat requests.
+- Provider autoselection now matches complete model IDs, preventing `gpt-4o` from accidentally selecting `gpt-4o-transcribe-diarize`.
+- AI thinking orbit uses a fixed square box centered on the avatar, keeping its circular path perfectly round.
+
+### Notes
+- OpenAI API requests still require an active API billing balance. A valid API key alone does not provide credits.
+
 ## [0.4.4] - 2026-11-02
 
 ### Fixed
