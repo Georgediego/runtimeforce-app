@@ -107,6 +107,13 @@ def test_git_push_caplog_no_token(monkeypatch, caplog):
     app.dependency_overrides[get_project_service] = lambda: MockProjectService()
     app.dependency_overrides[get_workspace_manager] = lambda: MockWorkspaceManager()
 
+    class MockLicenseService:
+        async def get_entitlements(self, token):
+            return {"valid": True, "features": {"git": True}, "limits": {}}
+
+    from app.container import get_license_service
+    app.dependency_overrides[get_license_service] = lambda: MockLicenseService()
+
     secret_token = "secret_github_token_xyz_888"
     encoded_secret = base64.b64encode(f"x-access-token:{secret_token}".encode()).decode()
 
