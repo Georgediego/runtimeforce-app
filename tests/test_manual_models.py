@@ -8,6 +8,7 @@ from app.services.workspace.workspace_local_driver import WorkspaceLocalDriver
 from app.services.llm.llm_registry_service import LLMRegistryService, ModelMetadata
 from app.services.llm.llm_discovery_service import LLMDiscoveryService
 from app.services.llm.llm_router_service import LLMRouterService
+from app.services.llm.llm_rotation_service import LLMRotationService
 
 class MockOrchestrator:
     async def stream_completion(
@@ -245,3 +246,26 @@ def test_openai_autoselection_does_not_match_transcription_model_substrings():
     assert "openai/gpt-4o" in selected
     assert "openai/gpt-4o-mini" in selected
     assert "openai/gpt-4o-transcribe-diarize" not in selected
+
+ 
+ 
+def test_openai_no_credits_cools_down_provider_not_just_one_model():
+    rotation = LLMRotationService()
+    error = "litellm.RateLimitError: You have no credits remaining. Add credits to continue."
+
+    assert rotation.classify_error(error) == "billing_error"
+    rotation.report_failure("openai/gpt-4o", "openai", error)
+
+    assert rotation.is_provider_available("openai") is False
+    assert rotation.is_model_available("openai/gpt-4o-mini") is False
+
+
+def test_deprecated_model_error_is_model_specific():
+    rotation = LLMRotationService()
+    error = "litellm.NotFoundError: The model o3-mini has been deprecated."
+
+    assert rotation.classify_error(error) == "model_specific"
+    rotation.report_failure("openai/o3-mini", "openai", error)
+
+    assert rotation.is_model_available("openai/o3-mini") is False
+    assert rotation.is_provider_available("openai") is True
