@@ -354,7 +354,7 @@ export const projectsUIController = {
                 : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
             const origin = encodeURIComponent(window.location.origin);
-            const authUrl = `${SAAS_URL}/auth/${provider}?ticket=${encodeURIComponent(ticket)}&origin=${origin}`;
+            const authUrl = `${SAAS_URL}/auth/${provider}?mode=link&ticket=${encodeURIComponent(ticket)}&origin=${origin}`;
 
             const popup = window.open(authUrl, `${provider}_oauth`, "width=600,height=700,scrollbars=yes");
 
