@@ -369,6 +369,8 @@ export const projectsUIController = {
                 remoteInput.value = "";
                 return;
             }
+            const selectedMatch = selectedUrl.match(/github\.com[:/]([^/]+\/[^/.]+)/i)?.[1]?.toLowerCase() || "";
+            let selectedRepositoryUrl = "";
             repositories.forEach((repository) => {
                 const label = document.createElement("label");
                 label.className = "flex items-center gap-2 rounded px-2 py-2 hover:bg-[var(--ide-elevated)] cursor-pointer";
@@ -376,7 +378,8 @@ export const projectsUIController = {
                 checkbox.type = "checkbox";
                 checkbox.className = "github-repository-checkbox accent-[var(--ide-accent)]";
                 checkbox.value = repository.clone_url || repository.html_url;
-                checkbox.checked = checkbox.value === selectedUrl;
+                checkbox.checked = checkbox.value === selectedUrl || repository.full_name.toLowerCase() === selectedMatch;
+                if (checkbox.checked) selectedRepositoryUrl = checkbox.value;
                 const name = document.createElement("span");
                 name.className = "min-w-0 flex-1 truncate text-[var(--ide-text-primary)]";
                 name.textContent = repository.full_name;
@@ -392,7 +395,7 @@ export const projectsUIController = {
                 });
                 container.appendChild(label);
             });
-            remoteInput.value = selectedUrl;
+            remoteInput.value = selectedRepositoryUrl || selectedUrl;
         } catch (error) {
             container.textContent = `Could not load GitHub repositories: ${error.message}`;
         }
