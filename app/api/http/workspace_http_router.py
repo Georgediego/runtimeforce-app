@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel
 from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
+from app.core.security.entitlements import require_plan_feature
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
 
