@@ -31,5 +31,5 @@ All user data stays on the user's computer: project source, prompts, workspace d
 - Keep local BYOK functionality; only server-managed AI provider administration/proxy functionality is removed.
 - Keep code, UI labels, comments, and logs in English; project documentation and user communication in Russian.
 - Never read or print secret values. Never commit secrets or local databases.
-- Run relevant tests with `pytest tests/ -q`.
+- Run tests from the repository root with `python -m pytest -q`. Use `python -m` so the repository root is on `sys.path` and the `app` package resolves consistently.
 - After deploying/updating the local IDE, restart with `sudo systemctl restart runtimeforce-app.service`.
