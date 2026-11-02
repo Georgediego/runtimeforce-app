@@ -23,6 +23,11 @@ function snooze(version) {
 }
 
 function hasBlockingModal() {
+    const stopGenerationButton = document.getElementById("stop-gen-btn");
+    if (stopGenerationButton && !stopGenerationButton.classList.contains("hidden")) {
+        return true;
+    }
+
     const authOverlay = document.getElementById("rf-auth-overlay");
     if (authOverlay && window.getComputedStyle(authOverlay).display !== "none"
         && !authOverlay.classList.contains("hidden")) {
