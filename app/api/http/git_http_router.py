@@ -38,6 +38,15 @@ class PushPullPayload(BaseModel):
     remote: Optional[str] = "origin"
     branch: Optional[str] = None
 
+async def _is_github_remote(driver: Any, remote: str) -> bool:
+    try:
+        result = await driver.execute_command(f"git remote get-url {shlex.quote(remote)}")
+        url = (result.get("stdout") or "").strip().lower()
+        return bool(re.match(r"^(https?://github\\.com/|git@github\\.com:|ssh://git@github\\.com/)", url))
+    except Exception:
+        return False
+
+
 async def _get_saas_github_token(request: Request) -> Optional[str]:
     authorization = request.headers.get("Authorization", "")
     if not authorization.startswith("Bearer "):
@@ -138,7 +147,7 @@ async def git_push(
                     except Exception:
                         pass
 
-    if not token:
+    if not token and await _is_github_remote(driver, remote):
         token = await _get_saas_github_token(request)
 
     if token and isinstance(driver, WorkspaceSSHDriver):
@@ -180,7 +189,7 @@ async def git_pull(
     branch = payload.branch or (active_proj.get("git_branch_main") if active_proj else "main")
     remote = payload.remote or "origin"
 
-    token = await _get_saas_github_token(request)
+    token = await _get_saas_github_token(request) if await _is_github_remote(driver, remote) else None
     pull_command = f"git pull {shlex.quote(remote)} {shlex.quote(branch)}"
     res = await driver.execute_command(pull_command, env=git_auth_env(token)) if token else await driver.execute_command(pull_command)
     return {
