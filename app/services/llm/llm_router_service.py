@@ -45,7 +45,6 @@ AUTOSELECT_MATRIX: Dict[str, List[str]] = {
     "openai": [
         "gpt-4o",
         "gpt-4o-mini",
-        "o3-mini",
         "o1-mini"
     ],
     "anthropic": [
@@ -85,9 +84,10 @@ class LLMRouterService:
             return False
             
         blacklisted_substrings = [
-            "whisper", "tts", "dall-e", "dalle", "embedding", "embed", 
-            "audio", "speech", "guard", "moderation", "music", "video", 
-            "sdxl", "stable-diffusion", ":batch", "customtools", "robotics", "bidi"
+            "whisper", "transcribe", "transcription", "diarize", "tts", "dall-e", "dalle",
+            "embedding", "embed", "audio", "speech", "realtime", "guard", "moderation",
+            "music", "video", "gpt-image", "sora", "sdxl", "stable-diffusion",
+            ":batch", "customtools", "robotics", "bidi"
         ]
         return not any(kw in mid for kw in blacklisted_substrings)
 
@@ -105,7 +105,9 @@ class LLMRouterService:
             target_clean = target.lower()
             for mid in avail_ids:
                 mid_clean = mid.lower()
-                if target_clean in mid_clean or mid_clean.endswith(target_clean):
+                # Match the complete model ID, not a substring. For example,
+                # gpt-4o must never select gpt-4o-transcribe-diarize.
+                if mid_clean == target_clean or mid_clean.endswith("/" + target_clean):
                     if mid not in selected:
                         selected.append(mid)
 
