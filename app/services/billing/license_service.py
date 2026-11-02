@@ -6,13 +6,14 @@ import time
 from typing import Any, Dict, Optional
 
 import httpx
+from app.core.interfaces.license_service_interface import ILicenseService
 
 logger = logging.getLogger("runtimeforce.service.billing.license")
 DEFAULT_SERVER_URL = os.getenv("RUNTIMEFORCE_SERVER_URL", "https://runtimeforce.dev").rstrip("/")
 REQUEST_TIMEOUT_SECONDS = 5.0
 
 
-class LicenseService:
+class LicenseService(ILicenseService):
     def __init__(self):
         self._cache: Dict[str, Dict[str, Any]] = {}
 
