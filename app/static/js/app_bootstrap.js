@@ -17,6 +17,7 @@ import { projectsUIController } from "./components/projects_ui_controller.js";
 import { socialUIController } from "./components/social_ui_controller.js";
 import { traceUIController } from "./components/trace_ui_controller.js";
 import { setupWizardUIController } from "./components/setup_wizard_ui_controller.js";
+import { updateNotificationService } from "./services/update_notification_service.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("🚀 Initializing RuntimeForce IDE...");
@@ -186,6 +187,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Wait for the SaaS session/token before any project API request can run.
     // The auth:success handler loads the active project after authentication.
     await authFrontendService.init();
+    updateNotificationService.init();
 
     if (window.lucide) window.lucide.createIcons();
 });
