@@ -25,7 +25,6 @@ from app.repository.social_feed_db_repository import SocialFeedDBRepository
 from app.repository.graph_db_repository import GraphDBRepository
 from app.repository.decision_db_repository import DecisionDBRepository
 from app.repository.embeddings_db_repository import EmbeddingsDBRepository
-from app.repository.oauth_db_repository import OAuthDBRepository
 
 # Workspace & Project Services
 from app.services.workspace.workspace_driver_factory import WorkspaceDriverFactory
@@ -57,12 +56,9 @@ from app.services.agent.role_router_service import RoleRouterService
 from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 
 # Git & OAuth Services
-from app.services.git.github_oauth_service import GitHubOAuthService
 from app.services.git.github_api_service import GitHubApiService
 
 # Social Media Services
-from app.services.social.x_oauth_service import XOAuthService
-from app.services.social.reddit_oauth_service import RedditOAuthService
 
 # Tools Services
 from app.services.terminal.terminal_command_filter import TerminalCommandFilter
@@ -128,7 +124,6 @@ class ApplicationContainer:
         self.social_feed_repo = SocialFeedDBRepository(self.db_manager)
         self.graph_repo = GraphDBRepository(self.db_manager)
         self.decision_repo = DecisionDBRepository(self.db_manager)
-        self.oauth_repo = OAuthDBRepository(self.db_manager)
         
         self.local_embedding_service = LocalEmbeddingService()
         self.embeddings_repo = EmbeddingsDBRepository(self.db_manager, embedding_engine=self.local_embedding_service)
@@ -196,11 +191,7 @@ class ApplicationContainer:
         self.terminal_command_filter = TerminalCommandFilter()
         self.tool_dispatcher_service = ToolDispatcherService(command_filter=self.terminal_command_filter)
         
-        # Initialize OAuth services
-        self.github_oauth_service = GitHubOAuthService(oauth_repository=self.oauth_repo)
         self.github_api_service = GitHubApiService()
-        self.x_oauth_service = XOAuthService(oauth_repository=self.oauth_repo)
-        self.reddit_oauth_service = RedditOAuthService(oauth_repository=self.oauth_repo)
         
         self.role_router_service = RoleRouterService()
 
@@ -230,11 +221,7 @@ class ApplicationContainer:
         self.register(LLMOrchestratorService, self.llm_orchestrator, name="llm_orchestrator")
         self.register(FileIntelligenceService, self.file_intelligence_service, name="file_intelligence")
         
-        # Register OAuth services
-        self.register(GitHubOAuthService, self.github_oauth_service, name="github_oauth")
         self.register(GitHubApiService, self.github_api_service, name="github_api")
-        self.register(XOAuthService, self.x_oauth_service, name="x_oauth")
-        self.register(RedditOAuthService, self.reddit_oauth_service, name="reddit_oauth")
         
         self._named_services.update({
             "event_bus": self.event_bus,
@@ -254,7 +241,6 @@ class ApplicationContainer:
             "social_feed_repo": self.social_feed_repo,
             "graph_repo": self.graph_repo,
             "decision_repo": self.decision_repo,
-            "oauth_repo": self.oauth_repo,
             "embeddings_repo": self.embeddings_repo,
             "storage_repo": self.graph_repo,
             "workspace_manager": self.workspace_manager_service,
