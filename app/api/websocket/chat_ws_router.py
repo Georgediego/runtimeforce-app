@@ -101,7 +101,6 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     model_lock=model_lock,
                     plan=plan,
                     user_id=user_id,
-                    managed_ai_token=token,
                     enabled_models=enabled_models,
                     project_id=project_id,
                     atm_architect_model=atm_architect,
