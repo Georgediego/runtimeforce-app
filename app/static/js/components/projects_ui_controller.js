@@ -418,7 +418,7 @@ export const projectsUIController = {
         try {
             const ticket = (typeof crypto !== "undefined" && crypto.randomUUID)
                 ? crypto.randomUUID()
-                : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+                : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 18)}`;
             const origin = encodeURIComponent(window.location.origin);
             const authResponse = await fetch(
                 `${SAAS_URL}/api/v1/social/oauth/${provider}/start?ticket=${encodeURIComponent(ticket)}&origin=${origin}`,
