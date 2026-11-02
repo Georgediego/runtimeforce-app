@@ -90,7 +90,7 @@ def test_integration_endpoints_connection_alive(monkeypatch):
     from app.core.security.jwt_auth_service import require_authenticated_user
     app.dependency_overrides[require_authenticated_user] = lambda: "test_user_int"
 
-    from app.container import get_project_service
+    from app.container import get_project_service, get_license_service
     class MockProjectRepo:
         def get_active_project(self, user_id):
             return {"id": "proj_int_1", "user_id": user_id, "github_pat_enc": ""}
@@ -108,6 +108,12 @@ def test_integration_endpoints_connection_alive(monkeypatch):
             return self.repo.list_projects(user_id)
 
     app.dependency_overrides[get_project_service] = lambda: MockProjectService()
+
+    class MockLicenseService:
+        async def get_entitlements(self, token):
+            return {"valid": True, "features": {"git": True}, "limits": {}}
+
+    app.dependency_overrides[get_license_service] = lambda: MockLicenseService()
 
     from app.services.git.github_api_service import GitHubApiService
     async def mock_list_repos(self, token):
