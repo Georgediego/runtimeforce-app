@@ -1,51 +1,31 @@
 # RuntimeForce IDE
 
-RuntimeForce is a local-first development environment for coding with AI models, editing local or SSH workspaces, and using Git and a guarded terminal from one interface. The local application runs on your machine; the hosted server provides accounts, subscription state, and the optional Managed AI Proxy.
+RuntimeForce is a local AI development environment for software engineering workflows, local/SSH workspaces, terminal operations, Git, and project memory.
 
-## Requirements
+## Privacy-first architecture
 
-- Python 3.10 or newer
-- Git
-- A supported desktop operating system (Linux, macOS, or Windows)
+- The IDE runs locally on the user's computer.
+- Prompts, source code, project context, workspace files, SSH credentials, local memory, and provider API keys stay on the user's computer.
+- AI inference goes directly from the local IDE to the user's BYOK provider or local model runtime.
+- The hosted RuntimeForce server is used for authentication, subscription status, dynamic plan entitlements, Creem billing, and account administration only.
+- The server does not expose a Managed AI Proxy and does not store AI provider API keys.
 
-## Run locally
+## Dynamic plans
+
+Plan codes and feature flags are database-driven and managed from the server Admin panel. The local app fetches verified entitlements from `GET /api/v1/billing/entitlements`; it does not use locally decoded JWT claims as proof of paid access. Feature keys are dynamic and can be enabled or disabled independently for each plan.
+
+## Development
+
+Install dependencies from `requirements.txt`, configure the local `.env`, and run:
 
 ```bash
-git clone https://github.com/Georgediego/runtimeforce-app.git
-cd runtimeforce-app
-python3 -m venv venv
-source venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-On Windows PowerShell, create and activate the environment with `python -m venv venv` and `venv\Scripts\Activate.ps1`, then run the same `python -m pip` and `python -m uvicorn` commands.
-
-Open <http://127.0.0.1:8000>. The app creates its SQLite database in the operating system's user data directory. It stores workspace metadata, chat history, local preferences, and encrypted provider/SSH credentials there. Back up the database and its local encryption key together; losing the key makes stored credentials unreadable.
-
-## Main capabilities
-
-- Local and SSH workspaces with file, Git, and terminal tools.
-- Direct BYOK calls to configured model providers and local model runtimes.
-- Optional server Managed AI Proxy for supported plans. Paid-plan users can use the server administrator's selected provider models; the server validates the subscription and model selection for each request.
-- Browser chat, project context and rules, model selection, local memory, and usage views.
-
-Local provider selections are persisted in the app database and enforced by its routing path. Managed AI selections are fetched from the server and enforced again by the server before a provider call. The app tries the server whenever an authenticated session is available; the server is authoritative for plan access. Provider model IDs and availability can change independently of this README.
-
-## Project documentation
-
-- [Workspace project context](../Project_Context.md) is the canonical cross-repository architecture and API reference.
-- [App-specific context](Project_Context.md) summarizes the local client.
-- [Roadmap](Roadmap.md) separates current priorities from implemented behavior.
-- [Changelog](CHANGELOG.md) records released and unreleased changes.
-
-## Development checks
-
-Run the relevant tests from this repository:
+After updating the local IDE service, restart it with:
 
 ```bash
-pytest tests/ -q
+sudo systemctl restart runtimeforce-app.service
 ```
 
-Do not commit, push, or deploy automatically. Keep code, UI text, comments, and logs in English; use Russian for project documentation and user communication.
+See [Project Context](Project_Context.md) for architecture and development rules.
