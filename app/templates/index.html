@@ -932,6 +932,50 @@
     </div>
 </div>
 
+<!-- ===== IDE UPDATE NOTIFICATION ===== -->
+<div id="rf-update-modal" class="hidden fixed inset-0 z-[20000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" role="dialog" aria-modal="true" aria-labelledby="rf-update-title" aria-hidden="true">
+    <div class="w-full max-w-xl rounded-2xl border border-[var(--ide-accent)]/40 bg-[var(--ide-surface)] shadow-2xl p-6 space-y-5">
+        <div class="flex items-start gap-4">
+            <div class="w-11 h-11 shrink-0 rounded-xl bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] flex items-center justify-center">
+                <i data-lucide="download" class="w-6 h-6"></i>
+            </div>
+            <div class="min-w-0">
+                <div class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-accent)] mb-1">RuntimeForce IDE Update</div>
+                <h2 id="rf-update-title" class="text-lg font-extrabold text-[var(--ide-text-primary)]">A new version is available</h2>
+                <p class="text-xs text-[var(--ide-text-secondary)] mt-1">A newer stable release is ready. Update when it is convenient — your current work will not be interrupted.</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 rounded-xl bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] p-3">
+            <div class="flex-1 min-w-0">
+                <div class="text-[9px] uppercase tracking-wider text-[var(--ide-text-muted)]">Installed version</div>
+                <div id="rf-update-current-version" class="font-mono text-sm text-[var(--ide-text-secondary)]">v0.0.0</div>
+            </div>
+            <i data-lucide="arrow-right" class="w-4 h-4 text-[var(--ide-text-muted)]"></i>
+            <div class="flex-1 min-w-0">
+                <div class="text-[9px] uppercase tracking-wider text-[var(--ide-text-muted)]">Latest stable</div>
+                <div id="rf-update-latest-version" class="font-mono text-sm font-bold text-[var(--ide-accent)]">v0.0.0</div>
+            </div>
+        </div>
+
+        <div class="space-y-2">
+            <div class="text-xs font-bold text-[var(--ide-text-primary)]">Update instructions</div>
+            <p class="text-[11px] text-[var(--ide-text-muted)]">Copy the commands, run them in your terminal, then restart RuntimeForce IDE. Your local projects and SQLite data are not touched.</p>
+            <pre id="rf-update-commands" class="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-3 text-[11px] leading-relaxed font-mono text-[var(--ide-text-secondary)]"></pre>
+        </div>
+
+        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-[var(--ide-border-subtle)]">
+            <button id="rf-update-later-btn" type="button" class="px-4 py-2.5 rounded-lg border border-[var(--ide-border-subtle)] text-xs font-bold text-[var(--ide-text-secondary)] hover:bg-[var(--ide-elevated)] transition-colors">
+                Позже
+            </button>
+            <button id="rf-update-copy-btn" type="button" class="px-4 py-2.5 rounded-lg bg-[var(--ide-accent)] text-black text-xs font-extrabold hover:brightness-110 transition-all">
+                Скопировать команды обновления
+            </button>
+        </div>
+        <p class="text-[10px] text-[var(--ide-text-muted)] text-center">Напоминание можно отложить на 4 часа. Проверка версии выполняется автоматически.</p>
+    </div>
+</div>
+
 <!-- SCRIPTS -->
 <script type="module" src="/static/js/utils/escape.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/utils/format.js?v={{ app_version }}"></script>
