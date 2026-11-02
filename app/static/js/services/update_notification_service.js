@@ -23,6 +23,11 @@ function snooze(version) {
 }
 
 function hasBlockingModal() {
+    const authOverlay = document.getElementById("rf-auth-overlay");
+    if (authOverlay && window.getComputedStyle(authOverlay).display !== "none"
+        && !authOverlay.classList.contains("hidden")) {
+        return true;
+    }
     return [...document.querySelectorAll('[id$="-modal"]')].some((element) => {
         if (element.id === "rf-update-modal" || element.classList.contains("hidden")) return false;
         return window.getComputedStyle(element).display !== "none";
