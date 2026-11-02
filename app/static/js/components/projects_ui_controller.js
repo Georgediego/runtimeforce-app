@@ -287,11 +287,23 @@ export const projectsUIController = {
     async loadSocialStatus(projectId) {
         const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
         try {
-            const res = await fetch(`/api/v1/social/status/${projectId}`, {
+            const res = await fetch(`${SAAS_URL}/api/v1/social/accounts`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
-                const data = await res.json();
+                const payload = await res.json();
+                const accounts = Object.fromEntries((payload.accounts || []).map((account) => [account.platform, account]));
+                const github = accounts.github || {};
+                const x = accounts.x || {};
+                const reddit = accounts.reddit || {};
+                const data = {
+                    github_connected: Boolean(github.connected),
+                    x_connected: Boolean(x.connected),
+                    x_username: x.username || "",
+                    reddit_connected: Boolean(reddit.connected),
+                    reddit_username: reddit.username || "",
+                    reddit_subreddit: "r/buildinpublic"
+                };
                 
                 const ghStatusEl = document.getElementById("github-connected-status");
                 const ghConnectBtn = document.getElementById("connect-github-oauth-btn");
@@ -324,25 +336,10 @@ export const projectsUIController = {
                 const redditDisconnectBtn = document.getElementById("disconnect-reddit-btn");
                 const redditSubSelect = document.getElementById("ps-reddit-subreddit-select");
 
-                if (data.reddit_connected) {
-                    if (redditStatusEl) redditStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 font-bold font-mono text-[10px]">✓ u/${data.reddit_username || 'connected'}</span>`;
-                    if (redditConnectBtn) redditConnectBtn.classList.add("hidden");
-                    if (redditDisconnectBtn) redditDisconnectBtn.classList.remove("hidden");
-
-                    const subsRes = await fetch(`/api/v1/social/reddit/subreddits?project_id=${projectId}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    if (subsRes.ok && redditSubSelect) {
-                        const subsData = await subsRes.json();
-                        redditSubSelect.innerHTML = (subsData.subreddits || []).map(s => `
-                            <option value="${s.id}" ${s.id === data.reddit_subreddit ? 'selected' : ''}>${s.name}</option>
-                        `).join('');
-                    }
-                } else {
-                    if (redditStatusEl) redditStatusEl.innerHTML = `<span class="text-[10px] text-[var(--ide-text-muted)]">Not connected</span>`;
-                    if (redditConnectBtn) redditConnectBtn.classList.remove("hidden");
-                    if (redditDisconnectBtn) redditDisconnectBtn.classList.add("hidden");
-                }
+                if (redditStatusEl) redditStatusEl.innerHTML = `<span class="text-[10px] text-[var(--ide-text-muted)]">Coming soon — awaiting Reddit app approval</span>`;
+                if (redditConnectBtn) redditConnectBtn.classList.add("hidden");
+                if (redditDisconnectBtn) redditDisconnectBtn.classList.add("hidden");
+                if (redditSubSelect) redditSubSelect.disabled = true;
             }
         } catch (e) {}
     },
@@ -406,45 +403,42 @@ export const projectsUIController = {
     },
 
     async handleOAuthSuccess(provider, projectId, data) {
-        const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-        let username = data.username || "";
-        const email = data.email || "";
-        if (!username && email) {
-            username = email.split("@")[0];
+        const sessionToken = data.token || localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+        if (!sessionToken) {
+            showToast("OAuth completed, but no RuntimeForce session was returned. Sign in again.", "error");
+            return;
         }
-
+        localStorage.setItem("rf_jwt_token", sessionToken);
+        localStorage.setItem("access_token", sessionToken);
         try {
-            await fetch(`/api/v1/social/${provider}/connect-oauth`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    project_id: projectId,
-                    token: data.token || "",
-                    username: username,
-                    email: email
-                })
+            const response = await fetch(`${SAAS_URL}/api/v1/social/accounts`, {
+                headers: { Authorization: `Bearer ${sessionToken}` }
             });
+            if (!response.ok) throw new Error(`Account sync failed (HTTP ${response.status})`);
             showToast(`Connected to ${provider.toUpperCase()} successfully!`, "success");
             await this.loadSocialStatus(projectId);
         } catch (e) {
-            showToast(`Failed to save ${provider} connection: ${e.message}`, "error");
+            showToast(`Failed to sync ${provider} connection: ${e.message}`, "error");
         }
     },
 
     async disconnectOAuth(provider) {
-        const targetId = activeSettingsProjectId || localStorage.getItem("rf_active_project_id") || "default";
         const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+        if (!token) {
+            showToast("Sign in to manage connected accounts.", "error");
+            return;
+        }
         try {
-            await fetch(`/api/v1/social/${provider}/disconnect?project_id=${encodeURIComponent(targetId)}`, {
-                method: "POST",
+            const response = await fetch(`${SAAS_URL}/api/v1/social/${encodeURIComponent(provider)}/disconnect`, {
+                method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` }
             });
+            if (!response.ok) throw new Error(`Disconnect failed (HTTP ${response.status})`);
             showToast(`${provider.toUpperCase()} disconnected`, "info");
-            this.loadSocialStatus(targetId);
-        } catch (e) {}
+            await this.loadSocialStatus(activeSettingsProjectId || "default");
+        } catch (e) {
+            showToast(`Failed to disconnect ${provider}: ${e.message}`, "error");
+        }
     },
 
     switchProjectSettingsTab(targetTab) {
