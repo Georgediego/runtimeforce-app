@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-02
+
+### Added
+- Added Studio Social Drafts: generate X.com copy from recent Git history and local project memory, review/edit it, and publish through the connected RuntimeForce account.
+- Added automatic draft preparation after a successful Git push.
+- Added a GitHub repository picker backed by the linked GitHub OAuth account; the IDE no longer requires a project PAT field.
+
+### Fixed
+- Social account status and disconnect actions now use the RuntimeForce account service as the single source of truth.
+- GitHub and X OAuth initiated from the IDE link to the existing signed-in account instead of creating a separate local connection.
+- Reddit remains disabled in the IDE until application approval.
+
+### Changed
+- Cloud social OAuth tokens remain on the account service; the IDE receives only the RuntimeForce session token and safe account metadata.
+
+
 ## [0.5.2] - 2026-11-02
 
 ### Fixed
