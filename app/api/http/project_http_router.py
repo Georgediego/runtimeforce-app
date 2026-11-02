@@ -58,7 +58,7 @@ async def create_project(
     entitlements = await license_service.get_entitlements(token)
     if not entitlements.get("valid"):
         raise HTTPException(403, detail="Account entitlements could not be verified")
-    if (entitlements.get("features") or {}).get("projects") is False:
+    if (entitlements.get("features") or {}).get("projects") is not True:
         raise HTTPException(403, detail="Project creation is not enabled for this plan")
     limits = entitlements.get("limits") or {}
     max_projects = limits.get("max_projects", 1)
