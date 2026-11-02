@@ -342,6 +342,12 @@ async def generate_social_draft(
             user_prompt=changelog, enabled_models=enabled_models or None,
             required_capability="chat_completion",
         )
+        model_catalog = container.llm_registry.get_available_models(required_capability="chat_completion")
+        free_model_ids = {
+            model.id for model in model_catalog
+            if getattr(model, "tier", "") == "free" or ":free" in model.id.lower()
+        }
+        candidates.sort(key=lambda model_id: 0 if model_id in free_model_ids else 1)
     except Exception as exc:
         raise HTTPException(status_code=409, detail=f"No configured text model is available: {exc}") from exc
 
@@ -376,6 +382,9 @@ async def generate_social_draft(
                 elif chunk.get("status") == "error":
                     last_error = chunk.get("error", last_error)
             content = "".join(output).strip().strip('"')
+            if content and len(content) > 280:
+                last_error = "Generated post exceeded X.com's 280-character limit."
+                continue
             if content:
                 draft_id = f"draft-{uuid.uuid4().hex[:12]}"
                 container.social_feed_repo.save_draft(
