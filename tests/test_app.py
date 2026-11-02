@@ -7,7 +7,7 @@ client = TestClient(app)
 
 def test_app_config():
     assert config.APP_NAME == "RuntimeForce IDE"
-    assert config.VERSION == "2.0.0"
+    assert config.VERSION == "0.5.2"
     assert isinstance(config.PORT, int)
 
 def test_health_check():
