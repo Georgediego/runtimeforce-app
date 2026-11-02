@@ -54,7 +54,7 @@ async def create_project(
     service: ProjectService = Depends(get_project_service),
     license_service: LicenseService = Depends(get_license_service),
 ):
-    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or request.cookies.get("access_token", "").strip()
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
     entitlements = await license_service.get_entitlements(token)
     if not entitlements.get("valid"):
         raise HTTPException(403, detail="Account entitlements could not be verified")
