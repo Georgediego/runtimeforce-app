@@ -269,3 +269,30 @@ def test_deprecated_model_error_is_model_specific():
 
     assert rotation.is_model_available("openai/o3-mini") is False
     assert rotation.is_provider_available("openai") is True
+
+
+@pytest.mark.asyncio
+async def test_cloud_orchestrator_requires_saved_byok_key():
+    from app.services.llm.llm_orchestrator_service import LLMOrchestratorService
+    from app.services.llm.llm_registry_service import LLMRegistryService
+
+    class EmptyProviderKeys:
+        def get_all_provider_keys(self, user_id):
+            return {}
+
+    service = LLMOrchestratorService(
+        provider_keys_repo=EmptyProviderKeys(),
+        llm_registry=LLMRegistryService(),
+    )
+    events = [
+        event async for event in service.stream_completion(
+            messages=[{"role": "user", "content": "Hello"}],
+            model_id="gemini/gemini-2.5-flash",
+            provider="gemini",
+            user_id="test-user",
+        )
+    ]
+
+    assert events
+    assert events[0]["status"] == "error"
+    assert events[0]["error_code"] == "MISSING_API_KEY"
