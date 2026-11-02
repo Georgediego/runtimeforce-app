@@ -628,12 +628,12 @@
                 </div>
 
                 <div>
-                    <label class="block text-[var(--ide-text-muted)] mb-1 font-bold">GitHub Remote Repository URL</label>
-                    <input type="text" id="ps-github-url" placeholder="https://github.com/org/repo.git or git@github.com:org/repo.git" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono">
-                </div>
-                <div>
-                    <label class="block text-[var(--ide-text-muted)] mb-1 font-bold">GitHub Personal Access Token (PAT / Optional)</label>
-                    <input type="password" id="ps-github-pat" placeholder="ghp_..." class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono">
+                    <label class="block text-[var(--ide-text-muted)] mb-1 font-bold">Your GitHub Repositories</label>
+                    <input type="hidden" id="ps-github-url">
+                    <div id="ps-github-repos-list" class="max-h-44 overflow-y-auto rounded-lg border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-2 text-xs">
+                        <div class="text-[var(--ide-text-muted)] py-2">Connect GitHub to load your repositories.</div>
+                    </div>
+                    <p class="text-[10px] text-[var(--ide-text-muted)] mt-1">Select one repository for this project. Access is provided by your linked GitHub account; no PAT is required.</p>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                     <div>
