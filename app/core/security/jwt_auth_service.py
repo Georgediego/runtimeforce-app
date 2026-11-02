@@ -1,88 +1,95 @@
-"""
-Service for extracting and validating user identification and plan claims from JWT tokens.
-"""
-import base64
-import json
+"""Authentication bridge: JWTs are trusted only after verification by RuntimeForce SaaS."""
+import hashlib
 import logging
-from typing import Optional
-from fastapi import Request, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import time
+from typing import Any, Dict, Optional
+
+import httpx
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger("runtimeforce.security.jwt")
 security = HTTPBearer(auto_error=False)
 
+# Deliberately fixed: production authentication and entitlements must use the
+# official RuntimeForce control plane, never a user-configurable endpoint.
+RUNTIMEFORCE_AUTH_URL = "https://runtimeforce.dev/api/v1/auth/me"
+AUTH_CACHE_TTL_SECONDS = 10
+_AUTH_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
 class JWTAuthService:
     @staticmethod
-    def extract_user_from_jwt(token: Optional[str]) -> Optional[str]:
+    async def verify_token(token: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Ask the official SaaS server to verify the token signature and account."""
         if not token:
             return None
+        token = token.removeprefix("Bearer ").strip()
+        if not token:
+            return None
+
+        cache_key = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        now = time.monotonic()
+        cached = _AUTH_CACHE.get(cache_key)
+        if cached and now - cached["checked_at"] < AUTH_CACHE_TTL_SECONDS:
+            return dict(cached["user"])
+
         try:
-            if token.startswith("Bearer "):
-                token = token[7:]
-            parts = token.split(".")
-            if len(parts) != 3:
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
+                response = await client.get(
+                    RUNTIMEFORCE_AUTH_URL,
+                    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                )
+            if response.status_code != 200:
+                _AUTH_CACHE.pop(cache_key, None)
                 return None
-            payload_b64 = parts[1]
-            padding = 4 - len(payload_b64) % 4
-            if padding != 4:
-                payload_b64 += "=" * padding
-            decoded = base64.urlsafe_b64decode(payload_b64)
-            data = json.loads(decoded)
-            user_id = (
-                data.get("email") or data.get("sub") or data.get("username")
-            )
-            if not user_id or str(user_id).lower().strip() == "anonymous":
+            data = response.json()
+            if not isinstance(data, dict) or not data.get("id") or data.get("is_active") is not True:
                 return None
-            return str(user_id).lower().strip()
-        except Exception as e:
-            logger.warning(f"JWT decode user failed: {e}")
+            user = {
+                "id": str(data["id"]),
+                "email": str(data.get("email") or ""),
+                "tier": str(data.get("tier") or "free"),
+            }
+            _AUTH_CACHE[cache_key] = {"checked_at": now, "user": user}
+            if len(_AUTH_CACHE) > 512:
+                oldest = sorted(_AUTH_CACHE, key=lambda key: _AUTH_CACHE[key]["checked_at"])[:128]
+                for key in oldest:
+                    _AUTH_CACHE.pop(key, None)
+            return user
+        except Exception as exc:
+            logger.warning("RuntimeForce account verification failed (%s)", type(exc).__name__)
             return None
 
     @staticmethod
+    def extract_user_from_jwt(token: Optional[str]) -> Optional[str]:
+        """Unverified local JWT decoding is intentionally disabled."""
+        return None
+
+    @staticmethod
     def extract_plan_from_jwt(token: Optional[str]) -> str:
-        if not token:
-            return "free"
-        try:
-            if token.startswith("Bearer "):
-                token = token[7:]
-            parts = token.split(".")
-            if len(parts) != 3:
-                return "free"
-            payload_b64 = parts[1]
-            padding = 4 - len(payload_b64) % 4
-            if padding != 4:
-                payload_b64 += "=" * padding
-            decoded = base64.urlsafe_b64decode(payload_b64)
-            data = json.loads(decoded)
-            plan = data.get("plan") or data.get("tier") or "free"
-            return str(plan).lower().strip()
-        except Exception as e:
-            logger.warning(f"JWT decode plan failed: {e}")
-            return "free"
+        """Plan claims are never trusted from a locally decoded JWT."""
+        return "free"
 
     @classmethod
     async def get_current_user(
         cls,
         request: Request,
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     ) -> str:
-        token = None
-        if credentials and credentials.credentials:
-            token = credentials.credentials
-        elif request.query_params.get("token"):
-            token = request.query_params.get("token")
-        elif "authorization" in request.headers:
-            auth = request.headers["authorization"]
-            token = auth[7:] if auth.startswith("Bearer ") else auth
-        elif request.cookies.get("jwt_token"):
-            token = request.cookies.get("jwt_token")
-        elif request.cookies.get("access_token"):
-            token = request.cookies.get("access_token")
+        token = credentials.credentials if credentials and credentials.credentials else None
+        if not token:
+            authorization = request.headers.get("authorization", "")
+            if authorization.lower().startswith("bearer "):
+                token = authorization[7:].strip()
+        if not token:
+            token = request.cookies.get("access_token") or request.cookies.get("jwt_token")
 
-        user_id = cls.extract_user_from_jwt(token)
-        if not user_id:
+        user = await cls.verify_token(token)
+        if not user:
             raise HTTPException(status_code=401, detail="Authentication required")
-        return user_id
+        return user["id"]
+
 
 def require_authenticated_user(user_id: str = Depends(JWTAuthService.get_current_user)) -> str:
     return user_id
