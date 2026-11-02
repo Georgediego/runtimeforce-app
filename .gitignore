@@ -1,47 +1,61 @@
-# Python compiled files
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
+.venv/
 venv/
+env/
 
-# IDE and editor files
+# IDE/editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Logs
-*.log
-
-# Environment variables
+# Environment variables and secrets
 .env
-.env.local
-*.env.*
+.env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+credentials.json
+secrets.json
 
-# Compression and archive files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# Local databases and runtime data
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+data/
+runtime/
+.runtimeforce/
+
+# Logs and temporary files
+*.log
+*.tmp
 *.bak
+
+# Build and distribution artifacts
+build/
+dist/
+*.egg-info/
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+
+# Generated repository bundles
+*repomix*output*.txt
