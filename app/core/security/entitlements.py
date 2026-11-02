@@ -13,7 +13,7 @@ def require_plan_feature(feature_key: str):
         license_service: LicenseService = Depends(get_license_service),
     ) -> str:
         token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        token = token or request.cookies.get("access_token", "").strip()
+        token = token or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
         entitlements = await license_service.get_entitlements(token)
         if not entitlements.get("valid"):
             raise HTTPException(status_code=403, detail="Account entitlements could not be verified")
