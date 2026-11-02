@@ -261,7 +261,6 @@ export const projectsUIController = {
             setVal("ps-ssh-user", proj.ssh_username);
 
             setVal("ps-github-url", proj.github_remote_url);
-            setVal("ps-github-pat", proj.github_pat_enc);
             setVal("ps-git-mode", proj.git_mode || "manual");
             setVal("ps-branch-main", proj.git_branch_main || "main");
             setVal("ps-branch-dev", proj.git_branch_dev || "dev");
@@ -271,6 +270,7 @@ export const projectsUIController = {
 
             this.switchProjectSettingsTab("general");
             await this.loadSocialStatus(projectId);
+            await this.loadGitHubRepositories(proj.github_remote_url || "");
 
             workspaceUIController.setActiveEditingProject(projectId);
             await workspaceUIController.loadWorkspacesList(projectId);
@@ -342,6 +342,60 @@ export const projectsUIController = {
                 if (redditSubSelect) redditSubSelect.disabled = true;
             }
         } catch (e) {}
+    },
+
+    async loadGitHubRepositories(selectedUrl = "") {
+        const container = document.getElementById("ps-github-repos-list");
+        const remoteInput = document.getElementById("ps-github-url");
+        if (!container || !remoteInput) return;
+        const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+        container.textContent = "Loading repositories…";
+        try {
+            const response = await fetch(`${SAAS_URL}/api/v1/social/github/repositories`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!response.ok) {
+                if (response.status === 409) {
+                    container.textContent = "Connect GitHub above to load your repositories.";
+                    return;
+                }
+                throw new Error(`GitHub API returned HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            const repositories = data.repositories || [];
+            container.replaceChildren();
+            if (!repositories.length) {
+                container.textContent = "No repositories available for this GitHub account.";
+                remoteInput.value = "";
+                return;
+            }
+            repositories.forEach((repository) => {
+                const label = document.createElement("label");
+                label.className = "flex items-center gap-2 rounded px-2 py-2 hover:bg-[var(--ide-elevated)] cursor-pointer";
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.className = "github-repository-checkbox accent-[var(--ide-accent)]";
+                checkbox.value = repository.clone_url || repository.html_url;
+                checkbox.checked = checkbox.value === selectedUrl;
+                const name = document.createElement("span");
+                name.className = "min-w-0 flex-1 truncate text-[var(--ide-text-primary)]";
+                name.textContent = repository.full_name;
+                const visibility = document.createElement("span");
+                visibility.className = "text-[10px] text-[var(--ide-text-muted)]";
+                visibility.textContent = repository.private ? "Private" : "Public";
+                label.append(checkbox, name, visibility);
+                checkbox.addEventListener("change", () => {
+                    container.querySelectorAll(".github-repository-checkbox").forEach((item) => {
+                        if (item !== checkbox) item.checked = false;
+                    });
+                    remoteInput.value = checkbox.checked ? checkbox.value : "";
+                });
+                container.appendChild(label);
+            });
+            remoteInput.value = selectedUrl;
+        } catch (error) {
+            container.textContent = `Could not load GitHub repositories: ${error.message}`;
+        }
     },
 
     async connectOAuth(provider) {
@@ -484,7 +538,6 @@ export const projectsUIController = {
             ssh_port: parseInt(getVal("ps-ssh-port")) || 22,
             ssh_username: getVal("ps-ssh-user"),
             github_remote_url: getVal("ps-github-url"),
-            github_pat_enc: getVal("ps-github-pat"),
             git_mode: getVal("ps-git-mode") || "manual",
             git_branch_main: getVal("ps-branch-main") || "main",
             git_branch_dev: getVal("ps-branch-dev") || "dev",
