@@ -6,9 +6,10 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
-from app.core.security.jwt_auth_service import require_authenticated_user, JWTAuthService
-from app.container import get_project_service
+from app.core.security.jwt_auth_service import require_authenticated_user
+from app.container import get_project_service, get_license_service
 from app.services.project.project_service import ProjectService
+from app.services.billing.license_service import LicenseService
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -50,11 +51,18 @@ async def create_project(
     payload: ProjectPayload,
     request: Request,
     user_id: str = Depends(require_authenticated_user),
-    service: ProjectService = Depends(get_project_service)
+    service: ProjectService = Depends(get_project_service),
+    license_service: LicenseService = Depends(get_license_service),
 ):
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    plan = JWTAuthService.extract_plan_from_jwt(token)
-    res = service.create_project(user_id, payload.dict(), plan=plan)
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    entitlements = await license_service.get_entitlements(token)
+    if not entitlements.get("valid"):
+        raise HTTPException(403, detail="Account entitlements could not be verified")
+    if (entitlements.get("features") or {}).get("projects") is False:
+        raise HTTPException(403, detail="Project creation is not enabled for this plan")
+    limits = entitlements.get("limits") or {}
+    max_projects = limits.get("max_projects", 1)
+    res = service.create_project(user_id, payload.dict(), plan=entitlements.get("plan", "free"), max_projects=max_projects)
     if "error" in res and res.get("status") == "limit_reached":
         raise HTTPException(403, detail=res["error"])
     return res
