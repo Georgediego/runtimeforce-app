@@ -2,7 +2,7 @@
 HTTP API Router for Git status, diff, commit, branch, log, push, pull, and remote operations.
 """
 import logging
-from typing import Optional, List
+from typing import Optional, List, Any
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
