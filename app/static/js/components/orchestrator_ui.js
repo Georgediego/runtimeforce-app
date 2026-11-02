@@ -5,7 +5,6 @@ import { modelsApi, keysApi } from "../core/api_http_client.js";
 import { eventBus } from "../core/event_bus.js";
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "perplexity", "deepseek", "xai"];
-const SAAS_URL = "https://runtimeforce.dev";
 
 const ROLE_CAPABILITIES = {
     architect: {
