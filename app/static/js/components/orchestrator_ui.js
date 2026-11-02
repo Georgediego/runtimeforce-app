@@ -215,29 +215,6 @@ export const orchestratorUIController = {
             .replace(/'/g, "&#39;");
     },
 
-    async _loadManagedModels() {
-        const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-        if (!token) return [];
-        try {
-            const response = await fetch(`${SAAS_URL}/api/v1/chat/models`, {
-                headers: { Authorization: `Bearer ${token.replace(/^Bearer\s+/i, "")}` },
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return (data.models || []).filter((model) => model?.id).map((model) => ({
-                id: `runtimeforce-managed/${model.id}`,
-                name: `${model.name || model.id} (Managed)`,
-                provider: `Managed: ${model.provider || "server"}`,
-                tier: "pro",
-                managed: true,
-                capabilities: ["chat_completion", "tools"],
-            }));
-        } catch (error) {
-            console.debug("Managed model catalog is unavailable:", error);
-            return [];
-        }
-    },
-
     async _filterModelsByTier(models) {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
@@ -245,7 +222,7 @@ export const orchestratorUIController = {
         const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
 
         return models.filter((m) => {
-            if (!m.managed && enabledSet.size > 0 && !enabledSet.has(m.id)) return false;
+            if (enabledSet.size > 0 && !enabledSet.has(m.id)) return false;
             const isFree = m.tier === "free" || FREE_PROVIDERS_SET.has(m.provider);
             if (isFree && !allowFree) return false;
             if (!isFree && !allowPro) return false;
@@ -256,7 +233,7 @@ export const orchestratorUIController = {
     async populateATMDropdowns() {
         // ATM role overrides are not currently wired through the coordinator's per-role execution path.
         // Keep this legacy selector local-only until each role has a real server route.
-        const filtered = (await this._filterModelsByTier(this._cachedModels)).filter((model) => !model.managed);
+        const filtered = await this._filterModelsByTier(this._cachedModels);
         const roles = ["architect", "engineer", "designer", "tester", "critic"];
         roles.forEach((roleKey) => {
             const container = document.getElementById(`atm-${roleKey}-options`);
@@ -285,20 +262,16 @@ export const orchestratorUIController = {
     async loadModels() {
         try {
             const allModels = [];
-            const [localResult, managedModels] = await Promise.all([
-                modelsApi.list().catch((error) => {
-                    console.warn("Local model catalog is unavailable:", error);
-                    return { models: {} };
-                }),
-                this._loadManagedModels(),
-            ]);
+            const localResult = await modelsApi.list().catch((error) => {
+                console.warn("Local model catalog is unavailable:", error);
+                return { models: {} };
+            });
             const modelsByProvider = localResult.models || {};
             Object.entries(modelsByProvider).forEach(([provider, models]) => {
                 (models || []).forEach((model) => {
                     allModels.push({ ...model, provider });
                 });
             });
-            allModels.push(...managedModels);
             this._cachedModels = allModels;
 
             const filteredModels = await this._filterModelsByTier(allModels);
