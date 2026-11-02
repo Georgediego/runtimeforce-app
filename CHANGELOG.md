@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-02
+
+### Removed
+- Removed the Managed AI server-proxy route and all server-managed model candidates from local orchestration.
+- Removed the local AI credit balance service and UI integration.
+
+### Added
+- Added server-verified dynamic entitlement loading with plan-configured offline grace.
+- Project creation limits now come from the current plan's server-managed limits instead of hard-coded plan names.
+
+### Changed
+- Local BYOK keys and model routing remain on the user's computer; provider API calls go directly to the configured provider or local runtime.
+- BYOK key storage no longer depends on a fixed Studio/Expert plan tier.
+
 ## [0.4.5] - 2026-11-02
 
 ### Fixed
