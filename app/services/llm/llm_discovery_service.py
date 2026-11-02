@@ -35,6 +35,12 @@ ALLOWED_SAMBANOVA_MODELS = {
 
 FREE_PROVIDERS = {"groq", "gemini", "sambanova", "cerebras"}
 
+NON_CHAT_MODEL_MARKERS = (
+    "whisper", "transcribe", "transcription", "diarize", "audio", "tts",
+    "realtime", "embedding", "moderation", "dall-e", "gpt-image", "sora",
+)
+
+
 PROVIDER_DISCOVERY = {
     "groq": {
         "url": "https://api.groq.com/openai/v1/models",
@@ -241,6 +247,15 @@ class LLMDiscoveryService:
                 continue
             
             mid_lower = mid.lower()
+
+            # /v1/models also returns audio, transcription, image and other
+            # non-chat endpoints. Do not expose them as chat-completion models.
+            if any(marker in mid_lower for marker in NON_CHAT_MODEL_MARKERS):
+                continue
+
+            # OpenAI has deprecated the o3-mini model family; do not route new chats to it.
+            if provider == "openai" and mid_lower.startswith("o3-mini"):
+                continue
 
             if provider == "groq":
                 if not any(allowed in mid_lower for allowed in ALLOWED_GROQ_MODELS):
