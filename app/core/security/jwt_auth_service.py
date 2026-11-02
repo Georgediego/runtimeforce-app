@@ -46,9 +46,14 @@ class JWTAuthService:
             data = response.json()
             if not isinstance(data, dict) or not data.get("id") or data.get("is_active") is not True:
                 return None
+            email = str(data.get("email") or "").strip().lower()
+            if not email:
+                return None
+            # SaaS UUID verifies the account; local IDE data uses the verified,
+            # normalized email as its stable SQLite ownership key.
             user = {
                 "id": str(data["id"]),
-                "email": str(data.get("email") or ""),
+                "email": email,
                 "tier": str(data.get("tier") or "free"),
             }
             _AUTH_CACHE[cache_key] = {"checked_at": now, "user": user}
@@ -86,9 +91,10 @@ class JWTAuthService:
             token = request.cookies.get("access_token") or request.cookies.get("jwt_token")
 
         user = await cls.verify_token(token)
-        if not user:
+        email = str(user.get("email") or "").strip().lower() if user else ""
+        if not email:
             raise HTTPException(status_code=401, detail="Authentication required")
-        return user["id"]
+        return email
 
 
 def require_authenticated_user(user_id: str = Depends(JWTAuthService.get_current_user)) -> str:
