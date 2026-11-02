@@ -93,7 +93,7 @@ export const providersUIController = {
                     <div>
                         <span class="font-bold">Hardware:</span> ${cachedHardwareInfo.total_ram_gb} GB RAM • ${cachedHardwareInfo.cpu_cores} Cores • ${gpuText}
                     </div>
-                    ${isLow ? '<span class="text-[10px] uppercase font-bold text-amber-400">Low Spec Warning</span>' : '<span class="text-[10px] uppercase font-bold text-emerald-400">Optimal</span>'}
+                    ${isLow ? '<span class="text-[10px] uppercase font-bold text-amber-400">Performance notice</span>' : '<span class="text-[10px] uppercase font-bold text-emerald-400">Optimal</span>'}
                 </div>
             `;
         }
@@ -306,7 +306,7 @@ export const providersUIController = {
 
     async toggleLocalModelSelection(providerName, modelId, checked) {
         if (checked && cachedHardwareInfo && cachedHardwareInfo.is_low_spec) {
-            showToast(`⚠️ CPU-only warning: '${modelId}' may take 10-20s per response. Recommended to use Groq/Gemini Free for 500+ tok/s!`, "warning", 5000);
+            showToast(`ℹ️ Performance note: '${modelId}' may take 10-20s per response. Recommended to use Groq/Gemini Free for 500+ tok/s!`, "warning", 5000);
         }
 
         const pKey = (providerName || "").toLowerCase();
