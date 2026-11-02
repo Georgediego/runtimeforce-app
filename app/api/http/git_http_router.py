@@ -42,7 +42,7 @@ async def _is_github_remote(driver: Any, remote: str) -> bool:
     try:
         result = await driver.execute_command(f"git remote get-url {shlex.quote(remote)}")
         url = (result.get("stdout") or "").strip().lower()
-        return bool(re.match(r"^(https?://github\\.com/|git@github\\.com:|ssh://git@github\\.com/)", url))
+        return bool(re.match(r"^(https?://github\.com/|git@github\.com:|ssh://git@github\.com/)", url))
     except Exception:
         return False
 
