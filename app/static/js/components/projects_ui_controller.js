@@ -369,7 +369,7 @@ export const projectsUIController = {
                 remoteInput.value = "";
                 return;
             }
-            const selectedMatch = selectedUrl.match(/github\.com[:/]([^/]+\/[^/.]+)/i)?.[1]?.toLowerCase() || "";
+            const selectedMatch = selectedUrl.match(/github\.com[:/]([^/]+\/[^/]+)/i)?.[1]?.replace(/\.git$/i, "").toLowerCase() || "";
             let selectedRepositoryUrl = "";
             repositories.forEach((repository) => {
                 const label = document.createElement("label");
