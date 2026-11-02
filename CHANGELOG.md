@@ -22,3 +22,194 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `requirements-dev.txt` for a reproducible test environment and remove a stale test dependency on the retired OAuth repository.
 
 
+## [0.6.1] - 2026-11-03
+
+### Fixed
+- Use the verified, normalized account email as the local SQLite ownership key instead of the SaaS UUID, restoring access to existing local projects, provider settings, sessions, and drafts after account identity synchronization.
+- Reject authenticated SaaS responses without a verified email rather than falling back to a UUID and silently creating a second local data identity.
+- Add regression tests for email normalization and missing-email rejection.
+
+
+### Security
+- Verify IDE access tokens against the official RuntimeForce SaaS authentication endpoint; do not trust locally decoded JWT claims.
+- Pin authentication and entitlement requests to `https://runtimeforce.dev`.
+- Require verified account entitlements for WebSocket chat and local social-draft operations.
+- Remove retired local OAuth routes, token storage, and embedded OAuth credentials.
+
+### Added
+- Add the BUSL-1.1 license with a RuntimeForce-specific limited production-use grant.
+- Add GitHub Actions checks for Python compilation and pytest.
+
+### Changed
+- Keep social OAuth credentials on the SaaS control plane; retain only local social-draft generation and publishing workflows.
+- Document local-first data handling, BYOK network boundaries, and stable-main installation policy.
+
+## [0.6.0] - 2026-11-02
+- Git push and pull use the linked GitHub OAuth account through a short-lived authenticated server bridge; no project PAT is required.
+- Social Drafts can attach up to four images or one MP4 video before publishing to X.com.
+- The IDE starts OAuth account linking using its authenticated RuntimeForce session, so a separate browser login cookie is not required.
+
+
+### Added
+- Added Studio Social Drafts: generate X.com copy from recent Git history and local project memory, review/edit it, and publish through the connected RuntimeForce account.
+- Added automatic draft preparation after a successful Git push.
+- Added a GitHub repository picker backed by the linked GitHub OAuth account; the IDE no longer requires a project PAT field.
+
+### Fixed
+- Social account status and disconnect actions now use the RuntimeForce account service as the single source of truth.
+- GitHub and X OAuth initiated from the IDE link to the existing signed-in account instead of creating a separate local connection.
+- Reddit remains disabled in the IDE until application approval.
+
+### Changed
+- Cloud social OAuth tokens remain on the account service; the IDE receives only the RuntimeForce session token and safe account metadata.
+
+
+## [0.5.2] - 2026-11-02
+
+### Fixed
+- BYOK key management no longer depends on a successful cloud entitlement check; authenticated users can manage their locally stored provider keys.
+- Local editor, terminal, and Ollama/LM Studio discovery remain available without plan-feature verification.
+- Cloud model requests now fail clearly when the required BYOK API key is missing instead of silently relying on an implicit provider key.
+- Low-spec and CPU-only hardware notices are informational and never block local model selection.
+- Terminal prompt displays the current OS username and hostname.
+- Unified translucent styling for IDE modals, toasts, and tooltips.
+
+### Changed
+- IDE version metadata is aligned to 0.5.2.
+
+## [0.5.1] - 2026-11-02
+
+### Fixed
+- Removed obsolete automated tests for the retired credit balance service and Managed AI proxy/routing paths.
+- Documented `python -m pytest -q` as the standard test command so the repository root is reliably added to Python's import path.
+
+## [0.5.0] - 2026-11-02
+
+### Removed
+- Removed the Managed AI server-proxy route and all server-managed model candidates from local orchestration.
+- Removed the local AI credit balance service and UI integration.
+
+### Added
+- Added server-verified dynamic entitlement loading with plan-configured offline grace.
+- Project creation limits now come from the current plan's server-managed limits instead of hard-coded plan names.
+
+### Changed
+- Local BYOK keys and model routing remain on the user's computer; provider API calls go directly to the configured provider or local runtime.
+- BYOK key storage no longer depends on a fixed Studio/Expert plan tier.
+
+## [0.4.5] - 2026-11-02
+
+### Fixed
+- OpenAI model discovery now excludes transcription, audio, realtime, embedding, image-generation, and other non-chat model IDs from chat routing.
+- Deprecated OpenAI `o3-mini` model IDs are no longer offered for new chat requests.
+- Provider autoselection now matches complete model IDs, preventing `gpt-4o` from accidentally selecting `gpt-4o-transcribe-diarize`.
+- AI thinking orbit uses a fixed square box centered on the avatar, keeping its circular path perfectly round.
+
+### Notes
+- OpenAI API requests still require an active API billing balance. A valid API key alone does not provide credits.
+
+## [0.4.4] - 2026-11-02
+
+### Fixed
+- Wait for local SaaS authentication/session synchronization to finish before requesting projects, preventing the startup race that caused `401 Authentication required` during project loading.
+
+### Notes
+- Existing SQLite files and records are not modified by this fix. Legacy identity migration remains a separate, non-destructive step.
+
+## [0.4.3] - 2026-10-31
+
+### Fixed
+- Managed AI upstream authentication failures no longer mark the local `runtimeforce-managed` proxy as permanently unauthorized. The cooldown applies only to the failing route, so the local app does not confuse a server-side provider-key error with its own account authentication.
+- Managed AI failure summaries now include the safe upstream provider name and failure category, making it clear which Admin-configured provider needs attention without exposing credentials.
+- FastAPI version metadata now matches the `0.4.3` app release.
+
+### Notes
+- If all Admin-selected providers return `AuthenticationError`, check and replace the affected API key in the server Admin provider settings. The local app does not receive or store those keys.
+- Automated coverage verifies upstream provider diagnostics and that Managed AI authentication errors do not permanently disable the proxy route.
+- Documented server-side fallback for recoverable pre-output failures, including the rule to skip same-provider models on provider-wide quota or authentication errors.
+
+## [0.4.2] - 2026-10-31
+
+### Fixed
+- Manual and ATM model menus stay open while the page or menu is scrolled, reposition within the viewport, and close after model selection or an outside click.
+- Manual and ATM model choices use the same delegated selection handler, so portaled options update the selected model consistently.
+- Managed AI errors now preserve safe upstream failure types from the server stream, making provider authentication, rate-limit, and empty-response failures distinguishable in the local trace.
+
+### Notes
+- Verified the local Manual and ATM menus with scroll and selection interactions. A live Studio request reached the server-managed OpenAI route and exposed that provider failure types were being dropped by the local client; this release preserves those safe diagnostics.
+
+## [0.4.1] - 2026-10-30
+
+### Fixed
+- Managed AI routing now uses an authenticated session token as the signal to try the server. The server validates the real subscription, so a stale local plan claim no longer blocks a Studio account from reaching its configured server models.
+- Replaced the misleading local Groq/Gemini setup instruction with errors that reflect both local and Managed AI routing.
+
+### Notes
+- This patch release fixes the entitlement handoff between the local app and server. Free accounts remain denied by the server and can still use local provider routes.
+
+## [0.4.0] - 2026-10-30
+
+### Added
+- Server-backed Managed AI model catalog in the MANUAL and ATM selectors. Models shown here come from active provider keys and model IDs selected by the server administrator.
+- Managed AI streaming client for the server's authenticated `/api/v1/chat/stream` endpoint, including tool calls, server model-attempt status, and fallback events.
+
+### Changed
+- Paid Pro, Studio, Expert, and Enterprise sessions prefer the server-managed model catalog in AUTO, CODING, and ATM modes; AUTO makes a coarse code/analytics classification from the latest user prompt, and the local-only mode continues to use local runtimes.
+- Explicit Managed AI model selections stay pinned to the server catalog. Explicit local Manual selections keep their local route first, with Managed AI as fallback.
+- WebSocket authentication now sends the bearer token in the first WebSocket message instead of the URL query string, keeping it out of URL access logs.
+- Chat status shows operational phases and attempted models while keeping provider-supplied hidden reasoning out of the UI.
+- Custom model dropdowns are portaled to the document viewport so the right sidebar's scroll container no longer clips them.
+
+### Removed
+- The obsolete Consilium strategy guard and its retired-mode test.
+
+### Security
+- Managed AI plan authorization and selected-model enforcement are performed by the server on every catalog and streaming request. The local app's JWT claim decoder still does not verify signatures and is not an entitlement authority.
+
+### Notes
+- Requires runtimeforce-server `>= 2.10.0` for the Managed AI catalog and streaming routes.
+- Automated tests cover proxy payloads, plan rejection, selected-model enforcement, Studio routing, and provider fallback behavior. Live provider credentials and deployment behavior require manual verification.
+
+## [0.3.1] - 2026-10-30
+
+### Changed
+- Updated the contacts page to identify Creem as the Merchant of Record for billing questions.
+- Aligned FastAPI version metadata with the changelog-driven app version, so API metadata and the UI report the same release.
+
+### Documentation
+- Rewrote the README, project context, and roadmap to describe the current app/server boundary and verified implementation details.
+- Added focused development guidance and removed an obsolete rules document that contradicted the checked-in implementation.
+
+### Notes
+- This patch release changes app metadata, contacts wording, and documentation. It does not change the local app API contract.
+- The existing server compatibility baseline remains `>= 2.8.0`.
+
+## [0.3.0] - 2026-10-26
+
+### Added
+- Manual model selection dropdowns for ATM and MANUAL.
+- GitHub repositories and branches listing API.
+- Secure git token passing via process environment.
+- Light theme sync with the server.
+- Version from CHANGELOG.
+
+### Changed
+- Ticket generation uses crypto.getRandomValues.
+- Selected models are enforced on the server.
+
+### Fixed
+- Shared SQLite connection no longer closed by the OAuth repository.
+- ATM architect context call.
+
+### Removed
+- Consilium mode.
+- Ghost agent services.
+- Support bot.
+- JS shims.
+- Billing & Credits tab.
+
+### Notes
+- Requires server >= 2.8.0.
+
+## [0.2.0] - 2026-10-14
+- Initial release.
