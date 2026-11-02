@@ -27,11 +27,16 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
         return
 
     token = str(auth_message.get("token") or "")
-    user_id = JWTAuthService.extract_user_from_jwt(token) or "default_user"
-    if user_id == "default_user":
+    user = await JWTAuthService.verify_token(token)
+    if not user:
         await websocket.close(code=1008, reason="Authentication required")
         return
-    plan = JWTAuthService.extract_plan_from_jwt(token) or "free"
+    user_id = user["id"]
+    entitlements = await container.license_service.get_entitlements(token)
+    if not entitlements.get("valid"):
+        await websocket.close(code=1008, reason="Subscription status could not be verified")
+        return
+    plan = str(entitlements.get("plan") or "free")
     logger.info(f"WebSocket authenticated for session: {session_id}")
     
     coordinator = container.agent_loop_coordinator
