@@ -306,7 +306,7 @@ export const providersUIController = {
 
     async toggleLocalModelSelection(providerName, modelId, checked) {
         if (checked && cachedHardwareInfo && cachedHardwareInfo.is_low_spec) {
-            showToast(`ℹ️ Performance note: '${modelId}' may take 10-20s per response. Recommended to use Groq/Gemini Free for 500+ tok/s!`, "warning", 5000);
+            showToast(`ℹ️ Performance note: '${modelId}' may take 10-20s per response. This is informational; local model selection remains enabled.`, "info", 5000);
         }
 
         const pKey = (providerName || "").toLowerCase();
