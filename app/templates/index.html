@@ -968,6 +968,11 @@
         </div>
         <div id="social-draft-status" class="text-[11px] text-[var(--ide-text-muted)]">Preparing draft…</div>
         <textarea id="social-draft-content" rows="7" maxlength="280" class="w-full resize-y rounded-lg border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-3 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)]" placeholder="Your X.com post…"></textarea>
+        <div class="flex items-center gap-3 text-[11px] text-[var(--ide-text-muted)]">
+            <label for="social-draft-media" class="cursor-pointer hover:text-[var(--ide-accent)]">Attach photo/video</label>
+            <input id="social-draft-media" type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4" multiple class="max-w-[230px] text-[10px]">
+            <span id="social-draft-media-info">Up to 4 images or 1 MP4 video</span>
+        </div>
         <div class="flex items-center justify-between">
             <span id="social-draft-counter" class="text-[10px] text-[var(--ide-text-muted)]">0 / 280</span>
             <div class="flex gap-2">
