@@ -18,22 +18,17 @@ RuntimeForce IDE runs on the user's computer. The RuntimeForce SaaS at [runtimef
 - RuntimeForce SaaS does not receive project source code, prompts, workspace files, SSH credentials, or BYOK provider API keys.
 - Social OAuth credentials connected through RuntimeForce accounts are stored by the SaaS in encrypted form, as described in the RuntimeForce Privacy Policy.
 
-## Authentication, entitlements, and local encryption
+## Authentication and entitlements
 
 - The SaaS server is the authority for account identity, subscription status, plan features, and limits.
-- The IDE must not treat locally decoded JWT claims or locally edited plan values as proof of entitlement. The server verifies the bearer token and returns current entitlements through `GET /api/v1/billing/entitlements`.
-- When the server cannot verify a session, protected operations fail closed. A bounded offline grace period may use only previously server-verified entitlement data, according to the plan's configured limit.
-- Local credentials are encrypted with AES-256-GCM. A local master key is generated and stored in the user's `.env`; per-record keys are derived with PBKDF2-HMAC-SHA256. The master key is never sent to RuntimeForce.
-- The current implementation verifies sessions online through the official `/api/v1/auth/me` endpoint and obtains entitlements from `/api/v1/billing/entitlements`. It does not issue a separate server-signed Master Derivation Token; offline use relies only on the bounded in-memory cache of previously verified entitlements.
-- A local user can modify software running on their own computer. The security boundary is therefore server-side verification of protected account, subscription, and SaaS operations—not a claim that local files are impossible to patch.
-
-## Plans
-
-Plan codes, features, and limits are dynamic and managed from the RuntimeForce Admin panel. The IDE reads the authoritative feature map and limits from the entitlements API; it does not rely on hardcoded tier names.
+- The IDE does not treat locally decoded JWT claims or locally edited plan values as proof of entitlement. The server verifies the bearer token and returns current entitlements through `GET /api/v1/billing/entitlements`.
+- When the server cannot verify a session, protected operations fail closed. A bounded offline grace period may use only previously server-verified entitlement data.
+- The current implementation verifies sessions online through the official `/api/v1/auth/me` endpoint and obtains entitlements from `/api/v1/billing/entitlements`. Offline use relies on a bounded in-memory cache of previously verified entitlements.
+- A local user can modify software running on their own computer. Protected account, subscription, and SaaS operations are therefore verified server-side.
 
 ## Installation
 
-Public installers and the website download always install the stable `main` branch.
+Public installers and the website download install the stable `main` branch.
 
 ### Linux / macOS
 
@@ -47,7 +42,7 @@ curl -fsSL https://runtimeforce.dev/install.sh | bash
 irm https://runtimeforce.dev/install.ps1 | iex
 ```
 
-The IDE is started locally and is available at `http://127.0.0.1:8000`.
+The IDE runs locally and is available at `http://127.0.0.1:8000`.
 
 ## Requirements
 
@@ -57,26 +52,6 @@ The IDE is started locally and is available at `http://127.0.0.1:8000`.
 - Internet connection for RuntimeForce account authentication and online entitlement checks
 - An AI provider API key (BYOK) or a configured local model runtime to use AI features
 
-## Development
-
-The current integration branch is `dev`. The public installer must remain pinned to `main`.
-
-```bash
-git clone --branch dev https://github.com/Georgediego/runtimeforce-app.git
-cd runtimeforce-app
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python -m pytest -q
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-On Windows, activate the environment with `venv\\Scripts\\Activate.ps1`.
-
-See [DEVELOPMENT.md](DEVELOPMENT.md) and [Project_Context.md](Project_Context.md).
-
 ## License
 
-RuntimeForce IDE is distributed under the **Business Source License 1.1 (BUSL-1.1)**. It is source-available, not an OSI-approved open-source license. The license permits inspection and non-production use under its terms, with a limited Additional Use Grant for production use through the official RuntimeForce backend. Competing hosted/embedded offerings are not permitted under that grant.
-
-The Additional Use Grant does not route AI traffic through RuntimeForce: BYOK requests go directly to the provider selected by the user, and local models remain local. See the complete [LICENSE](LICENSE) file.
+RuntimeForce IDE is distributed under the **Business Source License 1.1 (BUSL-1.1)**. It is source-available, not an OSI-approved open-source license. See [LICENSE](LICENSE) for the complete terms.
