@@ -158,8 +158,8 @@
                 
                 <div class="p-3 border-t border-[var(--ide-border-subtle)]">
                     <div class="flex items-center justify-between text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-2">
-                        <span>Social Drafts (Studio)</span>
-                        <button id="open-social-settings-btn" class="hover:text-[var(--ide-accent)] cursor-pointer"><i data-lucide="sliders" class="w-3.5 h-3.5"></i></button>
+                        <button id="open-social-drafts-btn" type="button" class="font-bold hover:text-[var(--ide-accent)] cursor-pointer">Social Drafts (Studio)</button>
+                        <button id="open-social-settings-btn" class="hover:text-[var(--ide-accent)] cursor-pointer" title="Social settings"><i data-lucide="sliders" class="w-3.5 h-3.5"></i></button>
                     </div>
                     <div id="social-drafts-list" class="max-h-36 overflow-y-auto"></div>
                 </div>
@@ -954,5 +954,28 @@
 <script type="module" src="/static/js/components/trace_ui_controller.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/components/setup_wizard_ui_controller.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/app_bootstrap.js?v={{ app_version }}"></script>
+
+
+<div id="social-draft-modal" class="hidden fixed inset-0 z-[100] items-center justify-center bg-black/60 backdrop-blur-sm p-4" style="display:none">
+    <div class="w-full max-w-xl rounded-xl border border-[var(--ide-border-subtle)] bg-[var(--ide-elevated)]/85 backdrop-blur-md p-5 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-base font-extrabold text-[var(--ide-text-primary)]">Social Drafts · X.com</h3>
+                <p class="text-[11px] text-[var(--ide-text-muted)]">Generated from recent Git changes and local project memory. Review before publishing.</p>
+            </div>
+            <button id="social-draft-close-btn" class="text-[var(--ide-text-muted)] hover:text-white cursor-pointer" aria-label="Close">✕</button>
+        </div>
+        <div id="social-draft-status" class="text-[11px] text-[var(--ide-text-muted)]">Preparing draft…</div>
+        <textarea id="social-draft-content" rows="7" maxlength="280" class="w-full resize-y rounded-lg border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-3 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)]" placeholder="Your X.com post…"></textarea>
+        <div class="flex items-center justify-between">
+            <span id="social-draft-counter" class="text-[10px] text-[var(--ide-text-muted)]">0 / 280</span>
+            <div class="flex gap-2">
+                <button id="social-draft-cancel-btn" class="px-3 py-2 rounded-lg border border-[var(--ide-border-subtle)] text-xs font-bold text-[var(--ide-text-secondary)]">Cancel</button>
+                <button id="social-draft-publish-btn" class="px-4 py-2 rounded-lg bg-[var(--ide-accent)] text-black text-xs font-bold disabled:opacity-40" disabled>Publish to X.com</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
