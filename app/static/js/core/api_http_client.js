@@ -209,6 +209,11 @@ export const socialApi = {
             method: "POST",
             body: JSON.stringify({ project_id: projectId, changelog_entry: changelogEntry, platform }),
         }),
-    approveDraft: (draftId) => request(`/api/v1/social/drafts/${draftId}/approve`, { method: "POST" }),
+    getDrafts: (projectId) => request(`/api/v1/social/drafts/${encodeURIComponent(projectId)}`),
+    publishDraft: (draftId, projectId, content) =>
+        request(`/api/v1/social/drafts/${encodeURIComponent(draftId)}/publish`, {
+            method: "POST",
+            body: JSON.stringify({ project_id: projectId, content }),
+        }),
     getFeedback: (projectId) => request(`/api/v1/social/feedback/${projectId}`),
 };
