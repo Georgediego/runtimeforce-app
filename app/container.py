@@ -148,7 +148,7 @@ class ApplicationContainer:
             workspace_repo=self.workspace_repo
         )
         
-        self.license_service = LicenseService()
+        self.license_service = LicenseService(subscription_repo=self.subscription_repo)
         self.byok_key_service = ByokKeyService(keys_repo=self.provider_keys_repo)
         self.audit_logger_service = AuditLoggerService(repo=self.audit_repo, event_bus=self.event_bus)
         self.support_ticket_service = SupportTicketService(self.support_ticket_repo)
