@@ -3,12 +3,14 @@ HTTP API Router for Workspaces, File Tree Children, File Operations, and Shell C
 """
 import logging
 import uuid
+import getpass
+import os
+import socket
 from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Optional
 from pydantic import BaseModel
 from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
 
@@ -109,11 +111,26 @@ async def get_workspace_tree_children(
         logger.error(f"Error getting tree children for path {path}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/environment")
+async def get_local_environment(user_id: str = Depends(require_authenticated_user)):
+    """Return the OS identity of the machine running this local IDE process."""
+    try:
+        username = getpass.getuser()
+    except Exception:
+        username = os.environ.get("USER") or os.environ.get("USERNAME") or "user"
+    return {
+        "username": username,
+        "hostname": socket.gethostname() or "localhost",
+        "home": os.path.expanduser("~"),
+        "cwd": os.getcwd(),
+    }
+
+
 @router.get("/file")
 async def read_workspace_file(
     path: str = Query(...),
     project_id: Optional[str] = Query(None),
-    user_id: str = Depends(require_plan_feature("editor"))
+    user_id: str = Depends(require_authenticated_user)
 ):
     try:
         target_project_id = project_id or _get_active_project_id(user_id)
@@ -129,7 +146,7 @@ async def read_workspace_file(
 @router.post("/file")
 async def save_workspace_file(
     payload: dict,
-    user_id: str = Depends(require_plan_feature("editor"))
+    user_id: str = Depends(require_authenticated_user)
 ):
     try:
         path = payload.get("path")
@@ -149,7 +166,7 @@ async def save_workspace_file(
 @router.post("/execute")
 async def execute_command(
     payload: ExecuteCommandPayload,
-    user_id: str = Depends(require_plan_feature("terminal"))
+    user_id: str = Depends(require_authenticated_user)
 ):
     try:
         target_project_id = payload.project_id or _get_active_project_id(user_id)
