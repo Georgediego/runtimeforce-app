@@ -210,10 +210,23 @@ export const socialApi = {
             body: JSON.stringify({ project_id: projectId, changelog_entry: changelogEntry, platform }),
         }),
     getDrafts: (projectId) => request(`/api/v1/social/drafts/${encodeURIComponent(projectId)}`),
-    publishDraft: (draftId, projectId, content) =>
+    uploadMedia: async (file) => {
+        const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token.startsWith("Bearer ") ? token.slice(7) : token}`;
+        const form = new FormData();
+        form.append("file", file);
+        const response = await fetch("/api/v1/social/media", { method: "POST", headers, body: form });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+            throw new Error(error.detail || `HTTP ${response.status}`);
+        }
+        return response.json();
+    },
+    publishDraft: (draftId, projectId, content, mediaIds = []) =>
         request(`/api/v1/social/drafts/${encodeURIComponent(draftId)}/publish`, {
             method: "POST",
-            body: JSON.stringify({ project_id: projectId, content }),
+            body: JSON.stringify({ project_id: projectId, content, media_ids: mediaIds }),
         }),
     getFeedback: (projectId) => request(`/api/v1/social/feedback/${projectId}`),
 };
