@@ -113,7 +113,7 @@ async def get_workspace_tree_children(
 async def read_workspace_file(
     path: str = Query(...),
     project_id: Optional[str] = Query(None),
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_plan_feature("editor"))
 ):
     try:
         target_project_id = project_id or _get_active_project_id(user_id)
@@ -129,7 +129,7 @@ async def read_workspace_file(
 @router.post("/file")
 async def save_workspace_file(
     payload: dict,
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_plan_feature("editor"))
 ):
     try:
         path = payload.get("path")
@@ -149,7 +149,7 @@ async def save_workspace_file(
 @router.post("/execute")
 async def execute_command(
     payload: ExecuteCommandPayload,
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_plan_feature("terminal"))
 ):
     try:
         target_project_id = payload.project_id or _get_active_project_id(user_id)
