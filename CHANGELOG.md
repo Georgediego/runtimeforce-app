@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ## [0.6.0] - 2026-11-02
+- Git push and pull use the linked GitHub OAuth account through a short-lived authenticated server bridge; no project PAT is required.
+- Social Drafts can attach up to four images or one MP4 video before publishing to X.com.
+- The IDE starts OAuth account linking using its authenticated RuntimeForce session, so a separate browser login cookie is not required.
+
 
 ### Added
 - Added Studio Social Drafts: generate X.com copy from recent Git history and local project memory, review/edit it, and publish through the connected RuntimeForce account.
