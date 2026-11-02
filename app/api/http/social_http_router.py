@@ -36,6 +36,7 @@ class SocialDraftPayload(BaseModel):
 class SocialDraftPublishPayload(BaseModel):
     project_id: str
     content: str
+    media_ids: list[str] = []
 
 def get_optional_user(request: Request) -> str:
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
@@ -425,7 +426,7 @@ async def publish_social_draft(
         response = await client.post(
             f"{saas_url}/api/v1/social/post",
             headers={"Authorization": auth, "Content-Type": "application/json"},
-            json={"platform": "x", "content": content},
+            json={"platform": "x", "content": content, "media_ids": payload.media_ids},
         )
     if response.status_code not in (200, 201):
         try:
