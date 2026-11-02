@@ -23,7 +23,8 @@ RuntimeForce IDE runs on the user's computer. The RuntimeForce SaaS at [runtimef
 - The SaaS server is the authority for account identity, subscription status, plan features, and limits.
 - The IDE must not treat locally decoded JWT claims or locally edited plan values as proof of entitlement. The server verifies the bearer token and returns current entitlements through `GET /api/v1/billing/entitlements`.
 - When the server cannot verify a session, protected operations fail closed. A bounded offline grace period may use only previously server-verified entitlement data, according to the plan's configured limit.
-- Local credentials are encrypted with AES-256-GCM. The encryption master key is generated and stored locally; it is not sent to RuntimeForce.
+- Local credentials are encrypted with AES-256-GCM. A local master key is generated and stored in the user's `.env`; per-record keys are derived with PBKDF2-HMAC-SHA256. The master key is never sent to RuntimeForce.
+- The current implementation verifies sessions online through the official `/api/v1/auth/me` endpoint and obtains entitlements from `/api/v1/billing/entitlements`. It does not issue a separate server-signed Master Derivation Token; offline use relies only on the bounded in-memory cache of previously verified entitlements.
 - A local user can modify software running on their own computer. The security boundary is therefore server-side verification of protected account, subscription, and SaaS operations—not a claim that local files are impossible to patch.
 
 ## Plans
