@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-02
+
+### Fixed
+- Removed obsolete automated tests for the retired credit balance service and Managed AI proxy/routing paths.
+- Documented `python -m pytest -q` as the standard test command so the repository root is reliably added to Python's import path.
+
 ## [0.5.0] - 2026-11-02
 
 ### Removed
