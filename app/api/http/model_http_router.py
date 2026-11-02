@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature
 from app.container import get_llm_registry, get_llm_discovery, get_provider_keys_repo
 from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.llm.llm_discovery_service import LLMDiscoveryService, DiscoveryError
@@ -78,7 +77,7 @@ async def get_hardware_diagnostics(user_id: str = Depends(require_authenticated_
 @router.post("/discover-local")
 async def discover_local_models(
     request: LocalDiscoveryRequest,
-    user_id: str = Depends(require_plan_feature("local_models")),
+    user_id: str = Depends(require_authenticated_user),
     discovery: LLMDiscoveryService = Depends(get_llm_discovery),
     keys_repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
 ):
@@ -101,7 +100,7 @@ async def discover_local_models(
 @router.delete("/providers/{provider_name}")
 async def remove_provider(
     provider_name: str,
-    user_id: str = Depends(require_plan_feature("local_models")),
+    user_id: str = Depends(require_authenticated_user),
     keys_repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
     registry: LLMRegistryService = Depends(get_llm_registry),
 ):
