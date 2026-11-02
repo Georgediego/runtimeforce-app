@@ -2,6 +2,7 @@
 Isolated Repository for Caching User Subscription Status locally.
 """
 import logging
+import json
 from typing import Optional, Dict, Any, List
 from app.repository.db_connection import DatabaseConnectionManager
 from app.core.interfaces.storage_repository_interface import IStorageRepository
@@ -13,7 +14,8 @@ CREATE TABLE IF NOT EXISTS subscription_cache (
     user_id TEXT PRIMARY KEY,
     plan TEXT NOT NULL DEFAULT 'free',
     valid_until DATETIME,
-    cached_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    cached_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    entitlements_json TEXT NOT NULL DEFAULT '{}'
 );
 """
 
@@ -25,21 +27,25 @@ class SubscriptionDBRepository(IStorageRepository):
     def init_schema(self):
         conn = self.db.get_connection()
         conn.executescript(SCHEMA)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(subscription_cache)").fetchall()}
+        if "entitlements_json" not in columns:
+            conn.execute("ALTER TABLE subscription_cache ADD COLUMN entitlements_json TEXT NOT NULL DEFAULT '{}'" )
         conn.commit()
 
-    def save_subscription(self, user_id: str, plan: str, valid_until: Optional[str] = None) -> bool:
+    def save_subscription(self, user_id: str, plan: str, valid_until: Optional[str] = None, entitlements: Optional[Dict[str, Any]] = None) -> bool:
         try:
             conn = self.db.get_connection()
             conn.execute(
                 """
-                INSERT INTO subscription_cache (user_id, plan, valid_until, cached_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO subscription_cache (user_id, plan, valid_until, cached_at, entitlements_json)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     plan=excluded.plan,
                     valid_until=excluded.valid_until,
-                    cached_at=CURRENT_TIMESTAMP
+                    cached_at=CURRENT_TIMESTAMP,
+                    entitlements_json=COALESCE(excluded.entitlements_json, subscription_cache.entitlements_json)
                 """,
-                (user_id, plan, valid_until)
+                (user_id, plan, valid_until, json.dumps(entitlements) if entitlements is not None else None)
             )
             conn.commit()
             return True
