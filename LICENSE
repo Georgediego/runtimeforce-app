@@ -16,12 +16,12 @@ account authentication, subscription, entitlement, and license-verification
 operations performed by the Licensed Work use the official RuntimeForce service
 at https://runtimeforce.dev.
 
-As a condition of this limited production-use grant, You may not redirect,
+As a condition of this limited production-use grant, You must not redirect,
 replace, proxy, emulate, or bypass the official RuntimeForce service for those
-account, subscription, entitlement, or license-verification operations. You
-may not offer the Licensed Work, or a modified or derivative version of it, to
-third parties as a hosted or embedded competing IDE, development platform, or
-service.
+account, subscription, entitlement, or license-verification operations. The
+limited production-use permission does not include offering the Licensed Work,
+or a modified or derivative version of it, to third parties as a hosted or
+embedded competing IDE, development platform, or service.
 
 This Additional Use Grant does not restrict direct connections from the local
 IDE to AI model providers selected by the user using the user's own API keys
@@ -29,8 +29,11 @@ IDE to AI model providers selected by the user using the user's own API keys
 code, project files, prompts, chat history, SSH credentials, local memory, or
 BYOK provider API keys to be transmitted to RuntimeForce.
 
-For clarity, non-production inspection, evaluation, modification, and testing
-remain subject to the standard Business Source License 1.1 terms below.
+This Additional Use Grant does not narrow the rights to copy, modify, create
+derivative works, redistribute, or make non-production use that are expressly
+granted by the standard Business Source License 1.1 terms below. Non-production
+inspection, evaluation, modification, and testing remain subject to those
+standard terms.
 
 Change Date: Four years from the date the Licensed Work is first published.
 
