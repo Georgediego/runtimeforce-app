@@ -5,7 +5,6 @@ import pytest
 from app.repository.db_connection import DatabaseConnectionManager
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.services.byok.byok_key_service import ByokKeyService
-from app.services.billing.license_service import LicenseService
 
 @pytest.fixture
 def temp_db():
@@ -21,8 +20,7 @@ def temp_db():
 
 def test_byok_persistence_and_restart(temp_db):
     repo1 = ProviderKeysDBRepository(temp_db)
-    license_svc = LicenseService()
-    service1 = ByokKeyService(repo1, license_svc)
+    service1 = ByokKeyService(repo1)
 
     user_id = "user_test_1"
     raw_key = "sk-proj-testkey123456789"
@@ -30,15 +28,14 @@ def test_byok_persistence_and_restart(temp_db):
 
     # Simulate restart by creating new repository and service instances
     repo2 = ProviderKeysDBRepository(temp_db)
-    service2 = ByokKeyService(repo2, license_svc)
+    service2 = ByokKeyService(repo2)
 
     decrypted = service2.get_decrypted_keys(user_id)
     assert decrypted.get("openai") == raw_key
 
 def test_byok_user_isolation(temp_db):
     repo = ProviderKeysDBRepository(temp_db)
-    license_svc = LicenseService()
-    service = ByokKeyService(repo, license_svc)
+    service = ByokKeyService(repo)
 
     user_a = "user_alice"
     user_b = "user_bob"
@@ -54,8 +51,7 @@ def test_byok_user_isolation(temp_db):
 
 def test_legacy_plaintext_migration(temp_db):
     repo = ProviderKeysDBRepository(temp_db)
-    license_svc = LicenseService()
-    service = ByokKeyService(repo, license_svc)
+    service = ByokKeyService(repo)
 
     user_id = "user_legacy"
     legacy_key = "sk-or-v1-plaintextlegacykey"
