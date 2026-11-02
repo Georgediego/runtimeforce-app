@@ -50,9 +50,10 @@ async function loadDraftList() {
             button.className = "block w-full truncate rounded px-2 py-1.5 text-left text-[10px] text-[var(--ide-text-secondary)] hover:bg-[var(--ide-elevated)] hover:text-[var(--ide-text-primary)]";
             button.textContent = draft.post_content || "Untitled draft";
             button.addEventListener("click", () => {
-                activeDraftId = draft.id;
+                activeDraftId = draft.status === "published" ? null : draft.id;
                 setContent(draft.post_content);
                 setStatus(draft.status === "published" ? "Already published" : "Review and edit before publishing");
+                updateCounter();
                 setModal(true);
             });
             list.appendChild(button);
@@ -79,6 +80,8 @@ export const socialDraftsUIController = {
         }
         activeDraftId = null;
         setContent("");
+        const mediaInput = document.getElementById("social-draft-media");
+        if (mediaInput) mediaInput.value = "";
         setStatus("Reading recent Git commits and local project memory…");
         setModal(true);
         try {
@@ -101,15 +104,27 @@ export const socialDraftsUIController = {
 
     async publish() {
         const content = document.getElementById("social-draft-content")?.value.trim() || "";
+        const files = Array.from(document.getElementById("social-draft-media")?.files || []);
         if (!activeDraftId || !activeProjectId || !content || content.length > 280) return;
+        const videos = files.filter((file) => file.type === "video/mp4");
+        const images = files.filter((file) => file.type.startsWith("image/"));
+        if (videos.length > 1 || (videos.length && images.length) || images.length > 4 || files.length !== videos.length + images.length) {
+            showToast("Attach up to 4 images or one MP4 video.", "warning");
+            return;
+        }
         const button = document.getElementById("social-draft-publish-btn");
         if (button) button.disabled = true;
-        setStatus("Publishing through your connected X.com account…");
         try {
-            const result = await socialApi.publishDraft(activeDraftId, activeProjectId, content);
+            const mediaIds = [];
+            for (let index = 0; index < files.length; index++) {
+                setStatus(`Uploading media ${index + 1} of ${files.length} to X.com…`);
+                const uploaded = await socialApi.uploadMedia(files[index]);
+                mediaIds.push(uploaded.media_id);
+            }
+            setStatus("Publishing through your connected X.com account…");
+            await socialApi.publishDraft(activeDraftId, activeProjectId, content, mediaIds);
             setStatus("Published successfully.");
             showToast("Published to X.com", "success");
-            if (result.url) window.open(result.url, "_blank", "noopener,noreferrer");
             await loadDraftList();
             setModal(false);
         } catch (error) {
@@ -118,7 +133,7 @@ export const socialDraftsUIController = {
         } finally {
             updateCounter();
         }
-    },
+    }
 };
 
 document.addEventListener("DOMContentLoaded", () => socialDraftsUIController.init());
