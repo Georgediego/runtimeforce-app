@@ -216,7 +216,8 @@ export const socialApi = {
         if (token) headers.Authorization = `Bearer ${token.startsWith("Bearer ") ? token.slice(7) : token}`;
         const form = new FormData();
         form.append("file", file);
-        const response = await fetch("/api/v1/social/media", { method: "POST", headers, body: form });
+        const saasBase = (window.RUNTIMEFORCE_SAAS_URL || "https://runtimeforce.dev").replace(/\/$/, "");
+        const response = await fetch(`${saasBase}/api/v1/social/media`, { method: "POST", headers, body: form });
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
             throw new Error(error.detail || `HTTP ${response.status}`);
