@@ -1,7 +1,8 @@
 /**
  * Orchestrator UI Controller with ATM 5-Role Dropdowns (including Designer).
  */
-import { modelsApi, keysApi } from "../core/api_http_client.js";
+import { modelsApi, keysApi, billingApi } from "../core/api_http_client.js";
+import { showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "perplexity", "deepseek", "xai"];
@@ -36,6 +37,7 @@ const ROLE_CAPABILITIES = {
 
 export const orchestratorUIController = {
     _cachedModels: [],
+    _features: {},
 
     async init() {
         const strategySelect = document.getElementById("strategy-select");
@@ -59,36 +61,47 @@ export const orchestratorUIController = {
         }
 
         strategySelect?.addEventListener("change", (e) => this.handleStrategyChange(e.target.value));
-        eventBus.on("auth:success", () => this.loadModels());
+        eventBus.on("auth:success", async () => { await this.loadEntitlements(); this.initModeCards(); await this.loadModels(); });
         this.initCustomDropdowns();
         initCustomSelects();
+        await this.loadEntitlements();
         this.initModeCards();
         await this.loadModels();
         if (strategySelect) this.handleStrategyChange(strategySelect.value);
     },
 
+    async loadEntitlements() {
+        try {
+            const data = await billingApi.entitlements();
+            this._features = data?.valid ? (data.features || {}) : {};
+        } catch (error) {
+            this._features = {};
+            console.warn("Unable to load verified plan features:", error);
+        }
+    },
+
     initModeCards() {
         const container = document.getElementById("orchestrator-mode-cards");
         if (!container) return;
-        const plan = localStorage.getItem("rf_plan") || "free";
         const modes = [
-            { id: "auto", name: "Auto", icon: "zap", color: "border-blue-500/40 text-blue-400 bg-blue-500/5", desc: "Smart local routing", premium: false },
-            { id: "coding", name: "Autonomous Team (ATM)", icon: "users", color: "border-emerald-500/40 text-emerald-400 bg-emerald-500/5", desc: "Architect -> Engineer -> Implementer -> Designer", premium: plan === "free" },
-            { id: "local", name: "Local", icon: "server", color: "border-purple-500/40 text-purple-400 bg-purple-500/5", desc: "Offline-first (Ollama/LM Studio)", premium: false },
-            { id: "manual", name: "Manual", icon: "settings", color: "border-amber-500/40 text-amber-400 bg-amber-500/5", desc: "Lock to specific model", premium: false },
+            { id: "auto", feature: "auto", name: "Auto", icon: "zap", color: "border-blue-500/40 text-blue-400 bg-blue-500/5", desc: "Smart local routing" },
+            { id: "coding", feature: "atm", name: "Autonomous Team (ATM)", icon: "users", color: "border-emerald-500/40 text-emerald-400 bg-emerald-500/5", desc: "Architect -> Engineer -> Implementer -> Designer" },
+            { id: "local", feature: "local_models", name: "Local", icon: "server", color: "border-purple-500/40 text-purple-400 bg-purple-500/5", desc: "Offline-first (Ollama/LM Studio)" },
+            { id: "manual", feature: "manual", name: "Manual", icon: "settings", color: "border-amber-500/40 text-amber-400 bg-amber-500/5", desc: "Lock to specific model" },
         ];
         const currentStrategy = document.getElementById("strategy-select")?.value || "auto";
         container.innerHTML = modes
             .map((m) => {
                 const isActive = m.id === currentStrategy;
+                const enabled = this._features[m.feature] === true;
                 return `
-                <div class="mode-card cursor-pointer p-3 rounded-xl border transition-all duration-200 ${m.color} ${isActive ? "ring-2 ring-[var(--ide-accent)] shadow-lg" : "opacity-80 hover:opacity-100"}" data-mode="${m.id}">
+                <div class="mode-card cursor-pointer p-3 rounded-xl border transition-all duration-200 ${m.color} ${!enabled ? "opacity-40 cursor-not-allowed" : isActive ? "ring-2 ring-[var(--ide-accent)] shadow-lg" : "opacity-80 hover:opacity-100"}" data-mode="${m.id}">
                     <div class="flex items-center justify-between mb-1">
                         <div class="flex items-center gap-2">
                             <i data-lucide="${m.icon}" class="w-4 h-4"></i>
                             <span class="font-bold text-xs">${m.name}</span>
                         </div>
-                        ${m.premium ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 uppercase">Premium</span>' : ""}
+                        ${!enabled ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--ide-elevated)] text-[var(--ide-text-muted)] uppercase">Not included</span>' : ""}
                     </div>
                     <p class="text-[11px] text-[var(--ide-text-secondary)] leading-tight">${m.desc}</p>
                 </div>`;
@@ -98,6 +111,11 @@ export const orchestratorUIController = {
         container.querySelectorAll(".mode-card").forEach((card) => {
             card.addEventListener("click", () => {
                 const modeId = card.dataset.mode;
+                const featureKey = ({ auto: "auto", coding: "atm", local: "local_models", manual: "manual" })[modeId];
+                if (this._features[featureKey] !== true) {
+                    showToast("This feature is not enabled for your current plan.", "warning");
+                    return;
+                }
                 const strategySelect = document.getElementById("strategy-select");
                 if (strategySelect) {
                     strategySelect.value = modeId;
