@@ -354,9 +354,9 @@ async def generate_social_draft(
 
     prompt = (
         "Write one high-quality X.com launch/update post, maximum 280 characters. "
-        "Start with a strong developer pain-point hook. Use concrete changes only; "
-        "do not invent metrics, features, users, or claims. Use short readable lines and "
-        "at most two bullets. No generic 'we updated' announcement. Return only the post text.\n\n"
+        "The first sentence must be a sharp developer pain-point hook; the next line must show how this change helps. "
+        "Use concrete changes only; do not invent metrics, features, users, or claims. Use short readable paragraphs "
+        "and up to two compact bullets where they fit. No generic 'we updated' announcement. Return only the post text.\n\n"
         f"Project: {project.get('name') or 'Current project'}\n"
         f"Project context: {project.get('project_context') or ''}\n"
         f"Relevant local memory: {memory_context}\n"
