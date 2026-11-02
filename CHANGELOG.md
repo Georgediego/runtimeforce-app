@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Verify IDE access tokens against the official RuntimeForce SaaS authentication endpoint; do not trust locally decoded JWT claims.
+- Pin authentication and entitlement requests to `https://runtimeforce.dev`.
+- Require verified account entitlements for WebSocket chat and local social-draft operations.
+- Remove retired local OAuth routes, token storage, and embedded OAuth credentials.
+
+### Added
+- Add the BUSL-1.1 license with a RuntimeForce-specific limited production-use grant.
+- Add GitHub Actions checks for Python compilation and pytest.
+
+### Changed
+- Keep social OAuth credentials on the SaaS control plane; retain only local social-draft generation and publishing workflows.
+- Document local-first data handling, BYOK network boundaries, and stable-main installation policy.
+
 ## [0.6.0] - 2026-11-02
 - Git push and pull use the linked GitHub OAuth account through a short-lived authenticated server bridge; no project PAT is required.
 - Social Drafts can attach up to four images or one MP4 video before publishing to X.com.
