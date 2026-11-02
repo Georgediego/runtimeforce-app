@@ -181,6 +181,7 @@ export const keysApi = {
 
 export const billingApi = {
     status: () => request("/api/v1/billing/status"),
+    entitlements: () => request("/api/v1/billing/entitlements"),
 };
 
 export const usageApi = {
