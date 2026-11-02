@@ -3,7 +3,6 @@ import hashlib
 import json
 from datetime import datetime, timezone
 import logging
-import os
 import time
 from typing import Any, Dict, Optional
 
@@ -12,7 +11,7 @@ from app.core.security.jwt_auth_service import JWTAuthService
 from app.core.interfaces.license_service_interface import ILicenseService
 
 logger = logging.getLogger("runtimeforce.service.billing.license")
-DEFAULT_SERVER_URL = os.getenv("RUNTIMEFORCE_SERVER_URL", "https://runtimeforce.dev").rstrip("/")
+DEFAULT_SERVER_URL = "https://runtimeforce.dev"
 REQUEST_TIMEOUT_SECONDS = 5.0
 ENTITLEMENT_REFRESH_SECONDS = 30
 
