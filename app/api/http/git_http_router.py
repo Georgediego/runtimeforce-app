@@ -3,11 +3,13 @@ HTTP API Router for Git status, diff, commit, branch, log, push, pull, and remot
 """
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 import re
 import shlex
+import os
+import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.core.security.entitlements import require_plan_feature
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
@@ -35,6 +37,24 @@ class PushPullPayload(BaseModel):
     project_id: Optional[str] = None
     remote: Optional[str] = "origin"
     branch: Optional[str] = None
+
+async def _get_saas_github_token(request: Request) -> Optional[str]:
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        return None
+    base_url = os.getenv("SAAS_URL", "https://runtimeforce.dev").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            response = await client.get(
+                f"{base_url}/api/v1/social/github/access-token",
+                headers={"Authorization": authorization},
+            )
+        if response.status_code == 200:
+            return response.json().get("access_token") or None
+    except Exception as exc:
+        logger.warning("SaaS GitHub credential bridge unavailable: %s", type(exc).__name__)
+    return None
+
 
 @router.get("/status")
 async def git_status(
@@ -84,6 +104,7 @@ async def git_commit(
 @router.post("/push")
 async def git_push(
     payload: PushPullPayload,
+    request: Request,
     user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     project_service: ProjectService = Depends(get_project_service)
@@ -117,6 +138,9 @@ async def git_push(
                     except Exception:
                         pass
 
+    if not token:
+        token = await _get_saas_github_token(request)
+
     if token and isinstance(driver, WorkspaceSSHDriver):
         raise HTTPException(status_code=400, detail="Token authentication is not supported for SSH workspaces yet")
 
@@ -143,6 +167,7 @@ async def git_push(
 @router.post("/pull")
 async def git_pull(
     payload: PushPullPayload,
+    request: Request,
     user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     project_service: ProjectService = Depends(get_project_service)
@@ -155,7 +180,9 @@ async def git_pull(
     branch = payload.branch or (active_proj.get("git_branch_main") if active_proj else "main")
     remote = payload.remote or "origin"
 
-    res = await driver.execute_command(f"git pull {remote} {branch}")
+    token = await _get_saas_github_token(request)
+    pull_command = f"git pull {shlex.quote(remote)} {shlex.quote(branch)}"
+    res = await driver.execute_command(pull_command, env=git_auth_env(token)) if token else await driver.execute_command(pull_command)
     return {
         "success": res.get("exit_code") == 0,
         "stdout": res.get("stdout", ""),
