@@ -20,7 +20,8 @@ PROVIDER_DEGRADATION_SECONDS = 180
 
 BILLING_ERROR_MARKERS = [
     "credit_balance", "insufficient_funds", "insufficient_quota",
-    "payment_required", "payment required", "402", "requires more credits", "a payment method is required"
+    "payment_required", "payment required", "402", "requires more credits", "a payment method is required",
+    "no credits remaining", "no credits", "insufficient credit", "billing hard limit"
 ]
 
 STRONG_RATE_LIMIT_MARKERS = [
@@ -36,7 +37,8 @@ PERMANENT_FAILURE_MARKERS = [
 
 MODEL_SPECIFIC_ERROR_MARKERS = [
     "terms acceptance", "model_not_found", "does not exist", "not found",
-    "badrequesterror", "invalid_argument", "unsupported_parameter", "only available through the batch api"
+    "badrequesterror", "invalid_argument", "unsupported_parameter", "only available through the batch api",
+    "notfounderror", "deprecated"
 ]
 
 TIMEOUT_MARKERS = [
@@ -66,6 +68,7 @@ class LLMRotationService(IRotationService):
             for m in to_remove:
                 self._billing_blacklisted_models.remove(m)
             self._provider_permanent_failures.discard(provider)
+            self._provider_cooldowns.pop(provider, None)
         else:
             self._billing_blacklisted_models.clear()
             self._provider_permanent_failures.clear()
@@ -76,17 +79,20 @@ class LLMRotationService(IRotationService):
             return "generic"
         e = error_str.lower()
 
-        if any(marker in e for marker in STRONG_RATE_LIMIT_MARKERS):
-            return "rate_limit"
+        # Account-level billing errors must take precedence over generic
+        # RateLimitError wording, otherwise rotation wastes attempts on the
+        # same provider key across every model.
+        if any(marker in e for marker in BILLING_ERROR_MARKERS):
+            return "billing_error"
 
         if any(marker in e for marker in MODEL_SPECIFIC_ERROR_MARKERS):
             return "model_specific"
 
+        if any(marker in e for marker in STRONG_RATE_LIMIT_MARKERS):
+            return "rate_limit"
+
         if "midstreamfallbackerror" in e or "mid_stream" in e or "midstream" in e or "stream dropped" in e:
             return "midstream"
-
-        if any(marker in e for marker in BILLING_ERROR_MARKERS):
-            return "billing_error"
 
         for marker in PERMANENT_FAILURE_MARKERS:
             if marker in e:
@@ -102,9 +108,23 @@ class LLMRotationService(IRotationService):
         err_type = self.classify_error(error)
         p = (provider or "").lower()
 
-        if err_type in ("model_specific", "billing_error"):
+        if err_type == "billing_error":
+            # A depleted balance belongs to the provider account, not one model.
+            # Cool down this provider so the coordinator can try Managed AI or
+            # another independently configured provider instead of burning calls.
+            duration = GENERIC_COOLDOWN
+            self._provider_cooldowns[p] = time.time() + duration
+            logger.warning(
+                "[Rotation] Provider '%s' has no usable API credits. Cooling down provider for %ds.",
+                p,
+                duration,
+            )
+            self._publish_event_safe("orchestrator.provider_billing_cooldown", provider=p, cooldown=duration)
+            return {"cooldown": duration, "type": err_type}
+
+        if err_type == "model_specific":
             self._session_blacklisted_models.add(model_id)
-            logger.warning(f"[Rotation] Model {model_id} blacklisted for this session ({err_type}). Other models of '{p}' remain active.")
+            logger.warning("[Rotation] Model %s blacklisted for this session (%s).", model_id, err_type)
             self._publish_event_safe("orchestrator.model_blacklisted", model_id=model_id, reason=err_type)
             return {"cooldown": 86400, "type": err_type}
 
