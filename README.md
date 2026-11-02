@@ -19,6 +19,12 @@ Plan codes and feature flags are database-driven and managed from the server Adm
 Install dependencies from `requirements.txt`, configure the local `.env`, and run:
 
 ```bash
+python -m pytest -q
+```
+
+Use `python -m pytest` from the repository root so the local `app` package is importable. To start the IDE:
+
+```bash
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
