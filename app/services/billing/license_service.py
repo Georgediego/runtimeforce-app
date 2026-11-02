@@ -14,6 +14,7 @@ from app.core.interfaces.license_service_interface import ILicenseService
 logger = logging.getLogger("runtimeforce.service.billing.license")
 DEFAULT_SERVER_URL = os.getenv("RUNTIMEFORCE_SERVER_URL", "https://runtimeforce.dev").rstrip("/")
 REQUEST_TIMEOUT_SECONDS = 5.0
+ENTITLEMENT_REFRESH_SECONDS = 30
 
 
 class LicenseService(ILicenseService):
@@ -29,6 +30,9 @@ class LicenseService(ILicenseService):
         token_key = hashlib.sha256(token.encode("utf-8")).hexdigest()
         user_id = JWTAuthService.extract_user_from_jwt(token)
         now = time.time()
+        fresh = self._cache.get(token_key)
+        if fresh and now - float(fresh.get("validated_at", 0)) < ENTITLEMENT_REFRESH_SECONDS:
+            return fresh
         url = f"{DEFAULT_SERVER_URL}/api/v1/billing/entitlements"
 
         try:
