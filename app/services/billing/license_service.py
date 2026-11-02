@@ -36,6 +36,8 @@ class LicenseService(ILicenseService):
                 response = await client.get(url, headers={"Authorization": f"Bearer {token}"})
             if response.status_code == 401:
                 self._cache.pop(token_key, None)
+                if self.subscription_repo and user_id:
+                    self.subscription_repo.delete("", user_id)
                 return {"valid": False, "plan": "free", "features": {}, "limits": {}, "reason": "Authentication expired"}
             response.raise_for_status()
             data = response.json()
