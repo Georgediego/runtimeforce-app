@@ -1,38 +1,28 @@
-# RuntimeForce App Roadmap
+# RuntimeForce IDE Roadmap
 
-Roadmap items are planned work, not promises about existing behavior. Shared architecture and current server contracts live in the [workspace Project Context](../Project_Context.md).
+This roadmap describes possible product improvements. Items are plans, not guarantees or delivery commitments.
 
-## Current product
+## Available today
 
-The local app provides local and SSH workspaces, project context/rules, file and Git tools, terminal execution, AI chat, provider configuration, model allowlists, local memory, and optional server-backed Managed AI. The server owns accounts, plan and billing state, Creem checkout/webhooks, and the Managed AI Proxy.
+- Local-first AI development environment with local and SSH workspaces.
+- BYOK cloud providers and supported local model runtimes.
+- Integrated editor, terminal, Git workflows, and project context.
+- Local project memory and workspace data.
+- Server-backed account authentication, dynamic plan entitlements, and billing.
+- GitHub account linking and repository selection through RuntimeForce account services.
+- Social Drafts for reviewing and publishing content to a connected X account.
 
-The current server seeds Free, Pro, Studio, and Enterprise rows, while app-side entitlement checks and server tier names are not fully aligned. Plan-name changes require a compatibility review before release.
+## Next priorities
 
-## Priority 1 — close correctness and security gaps
+1. Close remaining authentication and local API security gaps.
+2. Improve first-run setup and installation documentation across Linux, macOS, and Windows.
+3. Add automated CI checks for Python tests and frontend assets.
+4. Improve local backup, restore, and credential recovery guidance.
+5. Expand integration coverage while keeping user project data and BYOK credentials local.
 
-- Verify JWT signatures in the local app before trusting user or plan claims.
-- Align license cache expiry with the documented grace period and derive entitlements from verified claims.
-- Make local credential encryption configuration explicit, stable, and recoverable; remove any misleading JWT-derived-key claims.
-- Align app and server plan names, especially `expert` versus `enterprise`, and define safe behavior for admin-created plans.
-- Consume the result of `RoleRouterService` or remove the unused routing call after confirming intended behavior.
-- Continue security tests for auth, license expiry, data isolation, credential encryption, and terminal boundaries.
+## Product principles
 
-## Priority 2 — improve operations
-
-- Document backup and recovery for the local SQLite database and its encryption key.
-- Improve error reporting for provider discovery, SSH reconnect, and Managed AI streaming.
-- Verify the server-managed catalog UI and streaming route against live subscription/provider configuration; keep local BYOK allowlists and server Admin allowlists as separate authorities.
-- Add targeted coverage for workspace isolation, persistence, and model selection regressions.
-
-## Later
-
-- Evaluate richer model capability metadata and routing signals from actual telemetry.
-- Assess packaging and update distribution before a public desktop release.
-- Revisit team features only after the single-user local workflow and hosted billing lifecycle are stable.
-
-## Excluded from current scope
-
-- The removed support bot.
-- New interface layers without multiple implementations.
-- Duplicated plan prices or user model selections in browser storage.
-- Automatic commits, pushes, service restarts, or deployment as part of routine local edits.
+- Keep source code, prompts, workspace files, SSH credentials, BYOK keys, and local memory on the user's computer.
+- Keep account, subscription, entitlement, billing, and connected social OAuth responsibilities on the hosted control plane.
+- Prefer a small, maintainable application over unnecessary services or infrastructure.
+- Publish only capabilities that are implemented and verified.
