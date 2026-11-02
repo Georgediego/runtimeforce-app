@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import re
 import shlex
 from app.core.security.jwt_auth_service import require_authenticated_user
+from app.core.security.entitlements import require_plan_feature
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -37,7 +38,7 @@ class PushPullPayload(BaseModel):
 
 @router.get("/status")
 async def git_status(
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
 ):
     driver = await workspace_manager.get_driver(user_id)
@@ -48,7 +49,7 @@ async def git_status(
 
 @router.post("/init")
 async def git_init(
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
 ):
     driver = await workspace_manager.get_driver(user_id)
@@ -60,7 +61,7 @@ async def git_init(
 async def git_diff(
     path: Optional[str] = None,
     staged: bool = False,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
 ):
     driver = await workspace_manager.get_driver(user_id)
@@ -72,7 +73,7 @@ async def git_diff(
 @router.post("/commit")
 async def git_commit(
     payload: CommitPayload,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
 ):
     driver = await workspace_manager.get_driver(user_id)
@@ -83,7 +84,7 @@ async def git_commit(
 @router.post("/push")
 async def git_push(
     payload: PushPullPayload,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     project_service: ProjectService = Depends(get_project_service)
 ):
@@ -142,7 +143,7 @@ async def git_push(
 @router.post("/pull")
 async def git_pull(
     payload: PushPullPayload,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     project_service: ProjectService = Depends(get_project_service)
 ):
@@ -166,7 +167,7 @@ async def git_pull(
 @router.get("/log")
 async def git_log(
     n: int = 10,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
 ):
     driver = await workspace_manager.get_driver(user_id)
@@ -177,7 +178,7 @@ async def git_log(
 
 @router.get("/branches")
 async def git_branches(
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
 ):
     driver = await workspace_manager.get_driver(user_id)
@@ -218,7 +219,7 @@ async def _get_github_token_and_project(project_id: Optional[str], user_id: str,
 @router.get("/github/repos")
 async def list_github_repos(
     project_id: Optional[str] = None,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     project_service: ProjectService = Depends(get_project_service),
     github_api: GitHubApiService = Depends(get_github_api)
 ):
@@ -246,7 +247,7 @@ async def list_github_branches(
     owner: str,
     repo: str,
     project_id: Optional[str] = None,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     project_service: ProjectService = Depends(get_project_service),
     github_api: GitHubApiService = Depends(get_github_api)
 ):
