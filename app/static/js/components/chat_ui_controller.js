@@ -97,7 +97,7 @@ export const chatUIController = {
             showToast(`Model ${data.model_id} degraded. Switching candidate...`, "warning");
         });
         eventBus.on("orchestrator.billing_error", (data) => {
-            showToast(`Billing quota / credit error on ${data.provider}. Key update required.`, "error");
+            showToast(`Provider quota/billing error on ${data.provider}. Key update required.`, "error");
         });
         eventBus.on("orchestrator.provider_rate_limited", (data) => {
             showToast(`Provider ${data.provider} rate limited. Rotating...`, "warning");
