@@ -11,7 +11,6 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.llm.llm_rotation_service import LLMRotationService
-from app.services.llm.managed_ai_proxy_client import ManagedAIProxyClient
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.core.security.aes_crypto_service import AESCryptoService
 
@@ -37,36 +36,6 @@ class LLMOrchestratorService:
         self.provider_keys_repo = provider_keys_repo
         self.llm_registry = llm_registry
         self.rotation_service = rotation_service
-        self.managed_ai_proxy = ManagedAIProxyClient()
-
-    @staticmethod
-    def _managed_strategy(strategy: str, messages: List[Dict[str, Any]]) -> str:
-        strategy_lower = (strategy or "auto").lower()
-        if strategy_lower in ("coding", "atm"):
-            return "code"
-        if strategy_lower in ("analytics", "research"):
-            return "analytics"
-
-        latest_user_message = next(
-            (str(message.get("content") or "") for message in reversed(messages) if message.get("role") == "user"),
-            "",
-        ).lower()
-        code_intent_terms = (
-            "code", "coding", "implement", "debug", "refactor", "program", "python", "javascript",
-            "typescript", "bug", "function", "class", "test", "repository", "repo", "file", "patch",
-            "код", "программ", "исправ", "ошиб", "баг", "рефактор", "функц", "класс", "тест",
-            "файл", "репозитор", "проект", "правк",
-        )
-        if any(term in latest_user_message for term in code_intent_terms):
-            return "code"
-        analytics_terms = (
-            "analyze", "analysis", "analytics", "research", "compare", "forecast", "dataset",
-            "statistics", "market research", "анализ", "исслед", "сравнен", "прогноз", "статист",
-            "данных", "метрик",
-        )
-        if any(term in latest_user_message for term in analytics_terms):
-            return "analytics"
-        return "auto"
 
     async def _stream_native_ollama(
         self,
@@ -120,24 +89,8 @@ class LLMOrchestratorService:
         tools: Optional[List[Dict[str, Any]]] = None,
         strategy: str = "auto",
         max_tokens: int = 4096,
-        managed_ai_token: Optional[str] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         provider = (provider or "unknown").lower()
-
-        if provider == "runtimeforce-managed":
-            requested_model = model_id.split("/", 1)[1] if "/" in model_id else "auto"
-            managed_strategy = self._managed_strategy(strategy, messages)
-            async for event in self.managed_ai_proxy.stream_completion(
-                token=managed_ai_token or "",
-                model=requested_model,
-                strategy=managed_strategy,
-                messages=messages,
-                tools=tools,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            ):
-                yield event
-            return
 
         # Sanitize Gemini model identifiers
         model_lower = model_id.lower()
