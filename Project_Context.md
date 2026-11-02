@@ -1,28 +1,35 @@
 # RuntimeForce App Context
 
-This file summarizes the local IDE repository. The [workspace-level Project Context](../Project_Context.md) is the canonical source for shared architecture, current server API contracts, security findings, and cross-repository decisions.
+This repository contains the local RuntimeForce IDE. The hosted control plane is maintained in the separate `runtimeforce-server` repository. GitHub `dev` is the source of truth for development.
 
-## Runtime
+## Runtime and privacy
 
-`runtimeforce-app` is a local FastAPI application with a Vanilla JavaScript browser UI and a SQLite database. It manages local and SSH workspaces, project context and rules, file and Git operations, terminal sessions, chats, model configuration, BYOK credentials, and local memory. It can call local model runtimes or configured providers; Managed AI requests are sent to `runtimeforce-server`.
+The IDE is a local FastAPI application with a Vanilla JavaScript browser UI and SQLite storage. It manages local/SSH workspaces, projects, prompts, source code, local memory, Git operations, terminal sessions, model discovery, and local BYOK credentials.
 
-The database path is selected by the app's OS-specific data-directory helper in `app/repository/db_connection.py`. Local model allowlists are persisted in `provider_selected_models`; the keys API and agent coordinator read that stored selection. For eligible paid plans, the app fetches the server Managed AI catalog and streams requests to the server. AUTO/CODING/ATM prefer server-managed candidates; AUTO makes a coarse code/analytics classification from the latest user message, LOCAL remains local, and explicit server model choices start on the selected server model. The server verifies the account tier, decrypts active provider keys, restricts requests to Admin-selected models, and streams model attempts, content, tools, and fallback status. Before output starts, a recoverable server model failure (including not found, rate/context limit, provider quota/authentication, temporary outage, or empty response) may fall through to other Admin-selected server models. Provider-wide quota/authentication failures skip models sharing that provider; failover stops after output begins. LLM requests use LiteLLM on both sides. The agent coordinator invokes `RoleRouterService`, but its returned route is currently unused; do not document the classifier as a decision source until that is fixed.
+All user data stays on the user's computer: project source, prompts, workspace data, SSH credentials, provider API keys, and memory. The app sends authentication and entitlement checks to `runtimeforce-server`; it does not upload project data or prompts to the control plane. AI inference is sent directly from the local app to a user-configured provider or local runtime.
 
-The app's chat WebSocket receives its bearer token in an initial authentication message, not in the URL. A token is enough for the app to attempt Managed AI; the server independently verifies it against the current account and tier. The local app still decodes JWT claims without verifying the signature and must not gate server entitlements based on those claims. Managed AI upstream failures retain a safe provider name, error class, and category in the local trace. An upstream provider authentication error must not mark the local Managed AI proxy permanently unauthorized; actual provider key validity and quota are controlled by server Admin configuration.
+## Authentication and dynamic entitlements
 
-## Security facts to preserve in future edits
+- The server owns account authentication, subscription state, Creem billing, plan records, and entitlement policy.
+- The app must not treat locally decoded JWT claims as proof of a paid plan.
+- Use the authenticated server endpoint `GET /api/v1/billing/entitlements` as the authoritative source of the current plan's feature map and limits.
+- Plan codes are dynamic strings. Never hard-code a closed plan enum or special-case Enterprise/Expert/Studio as the only valid tiers.
+- Admin can create any plan and add/remove any feature key on each plan independently. New feature keys must not require a code release just to appear in plan configuration.
+- Keep local feature enforcement fail-closed when fresh entitlements are unavailable; cache only the last server-verified entitlement response for a bounded offline grace period defined by the plan.
 
-- `JWTAuthService` currently extracts claims by decoding the JWT payload and does not verify its signature. Do not treat those claims as proof of paid entitlement.
-- WebSocket URL query-token exposure was removed. The token is now sent in the first WebSocket message; local JWT signature validation and session revocation remain separate security work.
-- `LicenseService` currently has a seven-day in-memory cache for Studio claims, not the 48-hour grace period described in earlier design proposals.
-- The hosted Managed AI Proxy enforces per-request token ceilings but does not currently deduct monthly credits; the billing UI's `tokens_used` counter is not updated by streamed completions.
-- `AESCryptoService` uses a local `MASTER_KEY` from the app's working-directory `.env`; its `jwt_token` parameter is not used by key derivation.
-- Keep `.env`, databases, provider keys, SSH credentials, and virtual environments private and out of source control.
+## Local AI configuration
+
+- BYOK provider keys are stored locally using the app's encrypted local key store.
+- Model discovery, selected model allowlists, autoselection, runtime validation, and model rotation are local responsibilities.
+- Do not call or depend on a server Managed AI Proxy, server AI Providers page, server provider keys, or server model allowlists.
+- Do not send provider credentials, prompts, model request bodies, source files, or chat content to the server.
 
 ## Work conventions
 
-- Check `git status` before editing and preserve existing user changes.
-- Code, UI labels, comments, and logs are in English; project documentation and user communication are in Russian.
-- Reuse the current DI container, repositories, API routes, and UI event patterns where applicable. Do not introduce unused abstractions or duplicate model-selection storage.
-- Never read or print secret values. Never commit, push, or deploy without an explicit request.
-- Run relevant tests with `pytest tests/ -q` when requested by the task.
+- Check GitHub `dev` before changing code. Preserve the user's local working copy and never assume a local folder is the source of truth.
+- The app repository is `Georgediego/runtimeforce-app`; the server repository is `Georgediego/runtimeforce-server`.
+- Keep local BYOK functionality; only server-managed AI provider administration/proxy functionality is removed.
+- Keep code, UI labels, comments, and logs in English; project documentation and user communication in Russian.
+- Never read or print secret values. Never commit secrets or local databases.
+- Run relevant tests with `pytest tests/ -q`.
+- After deploying/updating the local IDE, restart with `sudo systemctl restart runtimeforce-app.service`.
