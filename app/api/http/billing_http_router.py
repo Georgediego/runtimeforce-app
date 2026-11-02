@@ -1,29 +1,28 @@
-"""
-HTTP API Router for local license validation and credit balance checking.
-"""
-import logging
+"""Local API for server-verified account entitlements."""
 from fastapi import APIRouter, Depends, Request
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.container import get_license_service, get_credit_service
+from app.container import get_license_service
 from app.services.billing.license_service import LicenseService
-from app.services.billing.credit_balance_service import CreditBalanceService
 
-logger = logging.getLogger("runtimeforce.api.http.billing")
 router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
+
 
 @router.get("/status")
 async def billing_status(
     request: Request,
     user_id: str = Depends(require_authenticated_user),
-    license_service: LicenseService = Depends(get_license_service)
+    license_service: LicenseService = Depends(get_license_service),
 ):
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    status_info = license_service.validate_license(token)
-    return {"user_id": user_id, "license": status_info}
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    entitlements = await license_service.get_entitlements(token)
+    return {"user_id": user_id, "license": entitlements}
 
-@router.get("/credits")
-async def get_credits(
+
+@router.get("/entitlements")
+async def get_entitlements(
+    request: Request,
     user_id: str = Depends(require_authenticated_user),
-    credit_service: CreditBalanceService = Depends(get_credit_service)
+    license_service: LicenseService = Depends(get_license_service),
 ):
-    return await credit_service.get_balance(user_id)
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    return await license_service.get_entitlements(token)
