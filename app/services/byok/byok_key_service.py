@@ -5,16 +5,14 @@ import logging
 from typing import Dict, Optional
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.core.security.aes_crypto_service import AESCryptoService
-from app.services.billing.license_service import LicenseService
 
 logger = logging.getLogger("runtimeforce.service.byok")
 
 PLAINTEXT_PREFIXES = ("sk-", "gsk_", "AIza", "pplx-", "xai-", "http://", "https://")
 
 class ByokKeyService:
-    def __init__(self, keys_repo: ProviderKeysDBRepository, license_service: LicenseService):
+    def __init__(self, keys_repo: ProviderKeysDBRepository):
         self.keys_repo = keys_repo
-        self.license_service = license_service
 
     def save_key(self, provider: str, plain_key: str, user_id: str, jwt_token: Optional[str] = None):
         encrypted = AESCryptoService.encrypt(plain_key, jwt_token)
