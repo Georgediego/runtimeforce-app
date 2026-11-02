@@ -1,11 +1,14 @@
 """Fetch server-verified dynamic entitlements with bounded offline caching."""
 import hashlib
+import json
+from datetime import datetime, timezone
 import logging
 import os
 import time
 from typing import Any, Dict, Optional
 
 import httpx
+from app.core.security.jwt_auth_service import JWTAuthService
 from app.core.interfaces.license_service_interface import ILicenseService
 
 logger = logging.getLogger("runtimeforce.service.billing.license")
@@ -14,8 +17,9 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 
 
 class LicenseService(ILicenseService):
-    def __init__(self):
+    def __init__(self, subscription_repo=None):
         self._cache: Dict[str, Dict[str, Any]] = {}
+        self.subscription_repo = subscription_repo
 
     async def get_entitlements(self, jwt_token: Optional[str]) -> Dict[str, Any]:
         if not jwt_token:
@@ -23,6 +27,7 @@ class LicenseService(ILicenseService):
 
         token = jwt_token.removeprefix("Bearer ").strip()
         token_key = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        user_id = JWTAuthService.extract_user_from_jwt(token)
         now = time.time()
         url = f"{DEFAULT_SERVER_URL}/api/v1/billing/entitlements"
 
@@ -43,12 +48,30 @@ class LicenseService(ILicenseService):
                 "validated_at": now,
             }
             self._cache[token_key] = result
+            if self.subscription_repo and user_id:
+                self.subscription_repo.save_subscription(
+                    user_id=user_id,
+                    plan=str(result.get("plan") or "free"),
+                    valid_until=result.get("valid_until"),
+                    entitlements=result,
+                )
             return result
         except Exception as exc:
             cached = self._cache.get(token_key)
+            cached_at = now
+            if not cached and self.subscription_repo and user_id:
+                try:
+                    row = self.subscription_repo.get_by_id("", user_id)
+                    if row and row.get("entitlements_json"):
+                        cached = json.loads(row["entitlements_json"])
+                        stamp = row.get("cached_at")
+                        if stamp:
+                            cached_at = datetime.fromisoformat(str(stamp)).replace(tzinfo=timezone.utc).timestamp()
+                except Exception:
+                    cached = None
             if cached:
                 grace_hours = max(0, int((cached.get("limits") or {}).get("offline_grace_hours", 0) or 0))
-                age = now - float(cached.get("validated_at", 0))
+                age = now - float(cached.get("validated_at", cached_at))
                 if grace_hours and age <= grace_hours * 3600:
                     return {**cached, "is_stale": True}
             logger.warning("Server entitlement check failed (%s)", type(exc).__name__)
