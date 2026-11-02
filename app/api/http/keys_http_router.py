@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.core.security.jwt_auth_service import require_authenticated_user
+from app.core.security.entitlements import require_plan_feature
 from app.container import get_provider_keys_repo, get_byok_key_service, get_llm_router, get_llm_discovery
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.services.byok.byok_key_service import ByokKeyService
@@ -28,7 +28,7 @@ class AutoselectPayload(BaseModel):
 @router.post("/update")
 async def update_keys(
     payload: KeysUpdatePayload,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
 ):
     saved_count = 0
@@ -44,7 +44,7 @@ async def update_keys(
 
 @router.get("/status")
 async def get_keys_status(
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
 ):
     keys = repo.get_all_provider_keys(user_id)
@@ -53,7 +53,7 @@ async def get_keys_status(
 
 @router.get("/selected-models")
 async def get_selected_models(
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
 ):
     return {"selected_models": repo.get_all_selected_models(user_id)}
@@ -61,7 +61,7 @@ async def get_selected_models(
 @router.post("/selected-models")
 async def save_selected_models(
     payload: SelectedModelsPayload,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
 ):
     p_clean = payload.provider_id.lower().strip()
@@ -73,7 +73,7 @@ async def save_selected_models(
 @router.post("/autoselect")
 async def autoselect_provider_models(
     payload: AutoselectPayload,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
     llm_router: LLMRouterService = Depends(get_llm_router)
 ):
@@ -92,7 +92,7 @@ async def autoselect_provider_models(
 
 @router.post("/autoselect-all")
 async def autoselect_all_providers(
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
     llm_router: LLMRouterService = Depends(get_llm_router),
     discovery: LLMDiscoveryService = Depends(get_llm_discovery)
@@ -133,7 +133,7 @@ async def autoselect_all_providers(
 
 @router.post("/reencrypt")
 async def reencrypt_keys(
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     byok_service: ByokKeyService = Depends(get_byok_key_service)
 ):
     return byok_service.reencrypt_all_keys(user_id)
@@ -141,7 +141,7 @@ async def reencrypt_keys(
 @router.delete("/{provider}")
 async def delete_key(
     provider: str,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("local_byok")),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
 ):
     repo.delete_provider_key(provider.lower().strip(), user_id)
