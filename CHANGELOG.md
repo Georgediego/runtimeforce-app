@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Automatically check the stable RuntimeForce IDE release published on GitHub main and notify the user inside the IDE when an update is available.
-- Add platform-specific update commands with one-click copying; reminders can be postponed for four hours and are retried when other dialogs are closed.
+- Add platform-specific update commands with one-click copying; reminders can be postponed for four hours and are retried after active generation, authentication, or other dialogs finish.
 - Keep updates manual so running work is not interrupted and local projects, settings, and SQLite data are never overwritten.
 - Add `requirements-dev.txt` for a reproducible test environment and remove a stale test dependency on the retired OAuth repository.
 
