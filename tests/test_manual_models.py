@@ -5,6 +5,9 @@ from app.container import ApplicationContainer
 from app.repository.db_connection import DatabaseConnectionManager
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.services.workspace.workspace_local_driver import WorkspaceLocalDriver
+from app.services.llm.llm_registry_service import LLMRegistryService, ModelMetadata
+from app.services.llm.llm_discovery_service import LLMDiscoveryService
+from app.services.llm.llm_router_service import LLMRouterService
 
 class MockOrchestrator:
     async def stream_completion(
@@ -202,3 +205,43 @@ async def test_without_manual_fields_default_behavior(temp_container):
         events.append(event)
     
     assert any(e.get("status") == "done" for e in events)
+
+ 
+ 
+def test_openai_discovery_excludes_non_chat_and_deprecated_models():
+    registry = LLMRegistryService()
+    discovery = LLMDiscoveryService(registry)
+    discovery._parse_openai("openai", {"data": [
+        {"id": "gpt-4o"},
+        {"id": "gpt-4o-transcribe-diarize"},
+        {"id": "o3-mini"},
+        {"id": "o3-mini-2025-01-31"},
+    ]})
+
+    model_ids = {model.id for model in registry.get_available_models(provider_filter="openai")}
+    assert "openai/gpt-4o" in model_ids
+    assert "openai/gpt-4o-transcribe-diarize" not in model_ids
+    assert "openai/o3-mini" not in model_ids
+    assert "openai/o3-mini-2025-01-31" not in model_ids
+
+
+def test_openai_autoselection_does_not_match_transcription_model_substrings():
+    registry = LLMRegistryService()
+    for model_id in (
+        "openai/gpt-4o-transcribe-diarize",
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+    ):
+        registry.register_model(ModelMetadata(
+            id=model_id,
+            provider="openai",
+            name=model_id.rsplit("/", 1)[-1],
+            tier="standard",
+            capabilities=["chat_completion", "text", "code"],
+        ))
+
+    router = LLMRouterService(registry)
+    selected = router.autoselect_models_for_provider("openai")
+    assert "openai/gpt-4o" in selected
+    assert "openai/gpt-4o-mini" in selected
+    assert "openai/gpt-4o-transcribe-diarize" not in selected
