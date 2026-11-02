@@ -1402,7 +1402,16 @@ ATM (Autonomous Team Mode) Panel Styles
 
 .ai-thinking-orbit {
     position: absolute !important;
-    inset: -3px !important;
+    inset: auto !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    margin: -14px 0 0 -14px !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: none !important;
     border-radius: 50% !important;
     border: 1.5px solid transparent !important;
     border-top-color: #07f77a !important;
