@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-02
+
+### Fixed
+- BYOK key management no longer depends on a successful cloud entitlement check; authenticated users can manage their locally stored provider keys.
+- Local editor, terminal, and Ollama/LM Studio discovery remain available without plan-feature verification.
+- Cloud model requests now fail clearly when the required BYOK API key is missing instead of silently relying on an implicit provider key.
+- Low-spec and CPU-only hardware notices are informational and never block local model selection.
+- Terminal prompt displays the current OS username and hostname.
+- Unified translucent styling for IDE modals, toasts, and tooltips.
+
+### Changed
+- IDE version metadata is aligned to 0.5.2.
+
 ## [0.5.1] - 2026-11-02
 
 ### Fixed
