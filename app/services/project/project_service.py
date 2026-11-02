@@ -42,7 +42,7 @@ class ProjectService:
 
     def create_project(self, user_id: str, payload: Dict[str, Any], plan: str = "free", max_projects: int = 1) -> Dict[str, Any]:
         existing = self.repo.list_projects(user_id)
-        max_allowed = max(0, int(max_projects))
+        max_allowed = max(0, int(1 if max_projects is None else max_projects))
         
         if len(existing) >= max_allowed:
             return {
