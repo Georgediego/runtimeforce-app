@@ -7,6 +7,8 @@ import { eventBus } from "../core/event_bus.js";
 let currentSessionId = null;
 let saveQueue = [];
 let isSaving = false;
+let terminalIdentity = { username: "user", hostname: "localhost" };
+let terminalIdentityPromise = Promise.resolve();
 
 async function flushSaveQueue() {
     if (isSaving || !currentSessionId || saveQueue.length === 0) return;
@@ -30,12 +32,19 @@ function queueSave(entryType, content) {
 
 export const terminalUIController = {
     init() {
+        terminalIdentityPromise = workspacesApi.environment().then((environment) => {
+            terminalIdentity = {
+                username: environment.username || "user",
+                hostname: environment.hostname || "localhost",
+            };
+        }).catch((error) => console.warn("Could not detect terminal identity:", error));
         const cmdInput = document.getElementById("terminal-cmd-input");
         cmdInput?.addEventListener("keydown", async (e) => {
             if (e.key === "Enter") {
                 const cmd = cmdInput.value.trim();
                 if (!cmd) return;
                 cmdInput.value = "";
+                await terminalIdentityPromise;
                 this.appendPromptLine(cmd, true);
                 try {
                     const activeProjectId = localStorage.getItem("rf_active_project_id") || "";
@@ -80,6 +89,7 @@ export const terminalUIController = {
         currentSessionId = sessionId;
         saveQueue = [];
         isSaving = false;
+        await terminalIdentityPromise;
         await this.restoreHistory();
     },
 
@@ -115,8 +125,10 @@ export const terminalUIController = {
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
+        const safeUser = String(terminalIdentity.username || "user").replace(/[&<>"]/g, "");
+        const safeHost = String(terminalIdentity.hostname || "localhost").replace(/[&<>"]/g, "");
         line.innerHTML =
-            `<span class="text-[#07f77a] font-bold shrink-0">user@localhost:~$</span> ` +
+            `<span class="text-[#07f77a] font-bold shrink-0">${safeUser}@${safeHost}:~$</span> ` +
             `<span class="text-white truncate font-bold">${safeCmd}</span>`;
         output.appendChild(line);
         output.scrollTop = output.scrollHeight;
