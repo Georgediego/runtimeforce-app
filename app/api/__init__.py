@@ -13,7 +13,7 @@ from app.api.http.billing_http_router import router as billing_router
 from app.api.http.usage_http_router import router as usage_router
 from app.api.http.audit_http_router import router as audit_router
 from app.api.http.support_http_router import router as support_router
-from app.api.http.social_http_router import router as social_router
+from app.api.http.social_drafts_http_router import router as social_drafts_router
 from app.api.http.memory_http_router import router as memory_router
 from app.api.websocket.chat_ws_router import router as chat_ws_router
 
@@ -30,7 +30,7 @@ ALL_ROUTERS = [
     usage_router,
     audit_router,
     support_router,
-    social_router,
+    social_drafts_router,
     memory_router,
     chat_ws_router,
 ]
