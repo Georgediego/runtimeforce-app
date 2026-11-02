@@ -149,7 +149,7 @@ class ApplicationContainer:
         )
         
         self.license_service = LicenseService()
-        self.byok_key_service = ByokKeyService(keys_repo=self.provider_keys_repo, license_service=self.license_service)
+        self.byok_key_service = ByokKeyService(keys_repo=self.provider_keys_repo)
         self.audit_logger_service = AuditLoggerService(repo=self.audit_repo, event_bus=self.event_bus)
         self.support_ticket_service = SupportTicketService(self.support_ticket_repo)
         self.changelog_generator_service = ChangelogGeneratorService()
