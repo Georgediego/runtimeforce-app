@@ -70,7 +70,6 @@ from app.tools.tool_dispatcher_service import ToolDispatcherService
 
 # Auxiliary Services
 from app.services.billing.license_service import LicenseService
-from app.services.billing.credit_balance_service import CreditBalanceService
 from app.services.byok.byok_key_service import ByokKeyService
 from app.services.audit.audit_logger_service import AuditLoggerService
 from app.services.support.support_ticket_service import SupportTicketService
@@ -150,7 +149,6 @@ class ApplicationContainer:
         )
         
         self.license_service = LicenseService()
-        self.credit_balance_service = CreditBalanceService()
         self.byok_key_service = ByokKeyService(keys_repo=self.provider_keys_repo, license_service=self.license_service)
         self.audit_logger_service = AuditLoggerService(repo=self.audit_repo, event_bus=self.event_bus)
         self.support_ticket_service = SupportTicketService(self.support_ticket_repo)
@@ -276,7 +274,6 @@ class ApplicationContainer:
             "agent_coordinator": self.agent_loop_coordinator,
             "tool_dispatcher": self.tool_dispatcher_service,
             "license_service": self.license_service,
-            "credit_balance": self.credit_balance_service,
             "byok_key_service": self.byok_key_service,
             "audit_logger": self.audit_logger_service,
             "support_ticket_service": self.support_ticket_service,
@@ -398,12 +395,6 @@ def get_agent_coordinator() -> AgentLoopCoordinator:
 
 def get_license_service() -> LicenseService:
     return container.license_service
-
-def get_credit_balance() -> CreditBalanceService:
-    return container.credit_balance_service
-
-def get_credit_service() -> CreditBalanceService:
-    return container.credit_balance_service
 
 def get_byok_key_service() -> ByokKeyService:
     return container.byok_key_service
