@@ -7,13 +7,6 @@ from app.core.interfaces.versioning_service_interface import IVersioningService
 
 logger = logging.getLogger("runtimeforce.service.project")
 
-TIER_PROJECT_LIMITS = {
-    "free": 1,
-    "pro": 2,
-    "studio": 5,
-    "expert": 5,
-}
-
 class ProjectService:
     def __init__(
         self,
@@ -47,9 +40,9 @@ class ProjectService:
         ws = self.workspace_repo.get_workspace_by_project_id(project_id, user_id) if self.workspace_repo else None
         return {"project": proj, "workspace": ws}
 
-    def create_project(self, user_id: str, payload: Dict[str, Any], plan: str = "free") -> Dict[str, Any]:
+    def create_project(self, user_id: str, payload: Dict[str, Any], plan: str = "free", max_projects: int = 1) -> Dict[str, Any]:
         existing = self.repo.list_projects(user_id)
-        max_allowed = TIER_PROJECT_LIMITS.get(plan.lower(), 1)
+        max_allowed = max(0, int(max_projects))
         
         if len(existing) >= max_allowed:
             return {
