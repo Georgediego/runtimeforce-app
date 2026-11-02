@@ -1,9 +1,8 @@
-const UPDATE_CHECK_INTERVAL_MS = 60_000;
-const UPDATE_SNOOZE_MS = 4 * 60 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 8 * 60 * 60 * 1000;
+const UPDATE_SNOOZE_MS = 8 * 60 * 60 * 1000;
 const UPDATE_SNOOZE_KEY = "rf_update_snooze_v1";
 
 let checkTimer = null;
-let retryTimer = null;
 let checking = false;
 
 function isSnoozed(version) {
@@ -117,13 +116,7 @@ async function checkForUpdates() {
         if (!response.ok) return;
         const result = await response.json();
         if (!result.checked || !result.update_available) return;
-        if (isSnoozed(result.latest_version)) return;
-
-        if (hasBlockingModal()) {
-            if (retryTimer) window.clearTimeout(retryTimer);
-            retryTimer = window.setTimeout(checkForUpdates, 15_000);
-            return;
-        }
+        if (isSnoozed(result.latest_version) || hasBlockingModal()) return;
         showUpdateModal(result.current_version, result.latest_version);
     } catch (error) {
         console.debug("[Updates] Version check unavailable:", error);
@@ -143,10 +136,8 @@ export const updateNotificationService = {
         });
         document.getElementById("rf-update-copy-btn")?.addEventListener("click", copyUpdateCommands);
 
+        // One check at startup, then no more than once every eight hours.
         checkForUpdates();
         checkTimer = window.setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden) checkForUpdates();
-        });
     },
 };
