@@ -161,11 +161,36 @@ async def publish_social_draft(
             json={"platform": "x", "content": content, "media_ids": payload.media_ids},
         )
     if response.status_code not in (200, 201):
+        # Preserve the SaaS/X provider's actual error instead of collapsing it to
+        # the unhelpful "X.com publish failed" message.
         try:
-            detail = response.json().get("detail", "X.com publish failed")
-        except Exception:
-            detail = "X.com publish failed"
-        raise HTTPException(status_code=response.status_code, detail=detail)
+            error_payload = response.json()
+        except ValueError:
+            error_payload = {}
+
+        detail = (
+            error_payload.get("detail")
+            or error_payload.get("message")
+            or error_payload.get("error_description")
+            or error_payload.get("error")
+        )
+        if not detail and isinstance(error_payload.get("errors"), list):
+            detail = "; ".join(
+                str(item.get("message") or item.get("detail") or item)
+                for item in error_payload["errors"][:3]
+            )
+        if not detail and error_payload.get("title"):
+            detail = str(error_payload["title"])
+        if not detail:
+            detail = f"Social API returned HTTP {response.status_code}"
+        if isinstance(detail, (dict, list)):
+            detail = str(detail)
+        logger.warning(
+            "Social publish bridge failed: status=%s payload_keys=%s",
+            response.status_code,
+            sorted(error_payload.keys()) if isinstance(error_payload, dict) else [],
+        )
+        raise HTTPException(status_code=response.status_code, detail=f"X.com publish failed: {detail}")
     result = response.json()
     container.social_feed_repo.update_draft_status(draft_id, user_id, "published")
     return result
