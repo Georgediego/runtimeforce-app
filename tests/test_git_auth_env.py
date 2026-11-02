@@ -35,7 +35,7 @@ def test_git_push_remote_validation_and_token_not_in_command(monkeypatch):
     from app.core.security.jwt_auth_service import require_authenticated_user
     app.dependency_overrides[require_authenticated_user] = lambda: "test_user"
 
-    from app.container import get_project_service, get_workspace_manager
+    from app.container import get_project_service, get_workspace_manager, get_license_service
     class MockProjectService:
         def get_active_project(self, user_id):
             return {"id": "proj1"}
@@ -56,6 +56,12 @@ def test_git_push_remote_validation_and_token_not_in_command(monkeypatch):
 
     app.dependency_overrides[get_project_service] = lambda: MockProjectService()
     app.dependency_overrides[get_workspace_manager] = lambda: MockWorkspaceManager()
+
+    class MockLicenseService:
+        async def get_entitlements(self, token):
+            return {"valid": True, "features": {"git": True}, "limits": {}}
+
+    app.dependency_overrides[get_license_service] = lambda: MockLicenseService()
 
     from app.container import container
     class MockOAuthRepo:
