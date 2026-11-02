@@ -8,7 +8,6 @@ from app.core.interfaces.llm_provider_interface import ILLMProvider
 from app.core.interfaces.tool_executor_interface import IToolExecutor
 from app.core.interfaces.audit_logger_interface import IAuditLogger
 from app.core.interfaces.license_service_interface import ILicenseService
-from app.core.interfaces.credit_balance_service_interface import ICreditBalanceService
 from app.core.interfaces.support_ticket_service_interface import ISupportTicketService
 from app.core.interfaces.byok_key_service_interface import IByokKeyService
 from app.core.interfaces.project_service_interface import IProjectService
@@ -25,7 +24,6 @@ __all__ = [
     "IToolExecutor",
     "IAuditLogger",
     "ILicenseService",
-    "ICreditBalanceService",
     "ISupportTicketService",
     "IByokKeyService",
     "IProjectService",
