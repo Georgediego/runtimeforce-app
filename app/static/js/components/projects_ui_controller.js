@@ -401,58 +401,75 @@ export const projectsUIController = {
     async connectOAuth(provider) {
         const targetId = activeSettingsProjectId || localStorage.getItem("rf_active_project_id") || "default";
         const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+        if (!token) {
+            showToast("Sign in to RuntimeForce before connecting social accounts.", "error");
+            return;
+        }
+        if (!["github", "x"].includes(provider)) {
+            showToast("This social integration is not available yet.", "info");
+            return;
+        }
 
+        const popup = window.open("about:blank", `${provider}_oauth`, "width=600,height=700,scrollbars=yes");
+        if (!popup) {
+            showToast("Allow popups to connect your account.", "warning");
+            return;
+        }
         try {
             const ticket = (typeof crypto !== "undefined" && crypto.randomUUID)
                 ? crypto.randomUUID()
                 : `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
             const origin = encodeURIComponent(window.location.origin);
-            const authUrl = `${SAAS_URL}/auth/${provider}?mode=link&ticket=${encodeURIComponent(ticket)}&origin=${origin}`;
-
-            const popup = window.open(authUrl, `${provider}_oauth`, "width=600,height=700,scrollbars=yes");
+            const authResponse = await fetch(
+                `${SAAS_URL}/api/v1/social/oauth/${provider}/start?ticket=${encodeURIComponent(ticket)}&origin=${origin}`,
+                { headers: { Authorization: `Bearer ${token.startsWith("Bearer ") ? token.slice(7) : token}` } }
+            );
+            if (!authResponse.ok) {
+                const error = await authResponse.json().catch(() => ({ detail: `HTTP ${authResponse.status}` }));
+                throw new Error(error.detail || "Could not start account linking");
+            }
+            const authData = await authResponse.json();
+            if (!authData.auth_url) throw new Error("OAuth authorization URL was not returned");
+            popup.location.href = authData.auth_url;
 
             let resolved = false;
-
             const onDone = async (data) => {
                 if (resolved) return;
                 resolved = true;
                 clearInterval(pollInterval);
+                clearTimeout(timeoutId);
                 window.removeEventListener("message", onMsg);
                 if (popup && !popup.closed) {
-                    try { popup.close(); } catch(e) {}
+                    try { popup.close(); } catch (e) {}
                 }
                 await this.handleOAuthSuccess(provider, targetId, data);
             };
-
             const pollInterval = setInterval(async () => {
                 try {
                     const res = await fetch(`${SAAS_URL}/api/v1/auth/poll-ticket?ticket=${encodeURIComponent(ticket)}`);
                     if (res.ok) {
                         const data = await res.json();
-                        if (data.ready) {
-                            await onDone(data);
-                        }
+                        if (data.ready) await onDone(data);
                     }
                 } catch (pollErr) {}
             }, 1000);
-
-            const onMsg = async (e) => {
-                if (e.data && (e.data.type === "rf_auth_success" || e.data.type === `${provider}_connected`)) {
-                    await onDone(e.data);
+            const onMsg = async (event) => {
+                if (event.data && (event.data.type === "rf_auth_success" || event.data.type === `${provider}_connected`)) {
+                    await onDone(event.data);
                 }
             };
             window.addEventListener("message", onMsg);
-
-            setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 if (!resolved) {
                     clearInterval(pollInterval);
                     window.removeEventListener("message", onMsg);
+                    if (popup && !popup.closed) popup.close();
+                    showToast(`${provider.toUpperCase()} connection timed out. Please try again.`, "warning");
                 }
             }, 180000);
-
-        } catch (e) {
-            showToast(`${provider.toUpperCase()} Auth Error: ${e.message}`, "error");
+        } catch (error) {
+            if (popup && !popup.closed) popup.close();
+            showToast(`Failed to connect ${provider}: ${error.message}`, "error");
         }
     },
 
