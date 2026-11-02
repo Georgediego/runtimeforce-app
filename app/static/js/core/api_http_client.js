@@ -47,6 +47,7 @@ export const sessionsApi = {
 };
 
 export const workspacesApi = {
+    environment: () => request("/api/v1/workspaces/environment"),
     list: (projectId = null) => {
         const pid = resolveProjectId(projectId);
         return request(`/api/v1/workspaces${pid ? `?project_id=${encodeURIComponent(pid)}` : ""}`);
