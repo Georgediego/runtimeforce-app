@@ -125,6 +125,17 @@ class LLMOrchestratorService:
             else:
                 api_key = decrypted_val
 
+        is_local_provider = provider in ("ollama", "lm_studio", "local") or model_id.startswith("local/")
+        if not is_local_provider and not api_key:
+            yield {
+                "status": "error",
+                "error_code": "MISSING_API_KEY",
+                "error": f"No API key configured for '{provider}'. Add your key in Settings -> Providers.",
+                "permanent": True,
+                "retry_after": 0,
+            }
+            return
+
         is_ollama = provider == "ollama" or model_id.startswith("ollama/")
 
         # Native Direct Ollama Streaming: Full untouched context
