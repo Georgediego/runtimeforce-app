@@ -140,7 +140,6 @@ class AgentLoopCoordinator:
         temperature: float = 0.2,
         plan: str = "free",
         user_id: str = "default_user",
-        managed_ai_token: Optional[str] = None,
         enabled_models: Optional[List[str]] = None,
         project_id: str = "default_project",
         atm_architect_model: Optional[str] = None,
@@ -155,11 +154,6 @@ class AgentLoopCoordinator:
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
-        # The server is authoritative for entitlements. A local JWT claim can be stale
-        # or absent, so any authenticated session may try Managed AI; Free is rejected
-        # by the server and can continue through local candidates.
-        managed_ai_enabled = bool(managed_ai_token)
-
         db_allowed_all = []
         if self._provider_keys_repo:
             selected_map = self._provider_keys_repo.get_all_selected_models(user_id)
@@ -176,9 +170,8 @@ class AgentLoopCoordinator:
 
         if model_lock and model_lock.lower() not in ("auto", "none", ""):
             if strict_enabled is not None and model_lock not in strict_enabled:
-                if not managed_ai_enabled:
-                    yield {"status": "warning", "warning": f"Manual model ignored: {model_lock}"}
-                    model_lock = None
+                yield {"status": "warning", "warning": f"Manual model ignored: {model_lock}"}
+                model_lock = None
 
         for atm_val, name in [
             (atm_architect_model, "architect"),
@@ -207,7 +200,7 @@ class AgentLoopCoordinator:
             f"strategy='{strategy_upper}', plan='{plan}', project_id='{project_id}'"
         )
 
-        if strict_enabled is not None and len(strict_enabled) == 0 and not managed_ai_enabled:
+        if strict_enabled is not None and len(strict_enabled) == 0:
             err_msg = "No models enabled in settings. Please select models in Settings -> Providers."
             if self._conversation_repo:
                 self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
@@ -291,39 +284,7 @@ class AgentLoopCoordinator:
                     prov = mid.split("/", 1)[0] if "/" in mid else "unknown"
                     candidate_models.append({"model_id": mid, "provider": prov})
             except Exception as e:
-                if managed_ai_enabled:
-                    logger.info("[AgentCoordinator] No local route; trying server Managed AI (%s)", type(e).__name__)
-                else:
-                    logger.warning(f"[AgentCoordinator] LLMRouter build_route failed: {e}")
-
-        if managed_ai_enabled and strategy_upper != "LOCAL":
-            is_managed_model_lock = bool(
-                model_lock and model_lock.startswith("runtimeforce-managed/")
-            )
-            if is_managed_model_lock:
-                managed_model_id = model_lock
-            else:
-                requested_server_model = model_lock if model_lock not in NO_LOCK_SENTINELS else "auto"
-                managed_model_id = f"runtimeforce-managed/{requested_server_model}"
-            managed_candidate = {"model_id": managed_model_id, "provider": "runtimeforce-managed"}
-            local_candidates_with_keys = [
-                candidate for candidate in candidate_models
-                if candidate.get("provider", "").lower() in provider_keys
-                or candidate.get("provider", "").lower() in ("local", "ollama", "lm_studio")
-            ]
-            if is_managed_model_lock:
-                # An explicit Managed AI selection must stay on the server proxy.
-                candidate_models = [managed_candidate]
-            elif (
-                strategy_upper in ("AUTO", "CODING", "ATM")
-                or model_lock in NO_LOCK_SENTINELS
-                or not local_candidates_with_keys
-            ):
-                # Paid plans prefer the server's admin-selected catalog for cloud routing.
-                candidate_models = [managed_candidate] + local_candidates_with_keys
-            else:
-                # Preserve an explicit local Manual lock before trying the server catalog.
-                candidate_models = local_candidates_with_keys + [managed_candidate]
+                logger.warning(f"[AgentCoordinator] Local LLM route failed: {e}")
 
         if strategy_upper == "LOCAL":
             candidate_models = [m for m in candidate_models if m.get("provider", "").lower() in ("ollama", "lm_studio")]
@@ -348,8 +309,7 @@ class AgentLoopCoordinator:
 
         if not active_candidates:
             err_msg = (
-                "No eligible models are available. Configure a local provider, or sign in to use "
-                "Managed AI with a supported plan."
+                "No eligible local models are available. Configure a local provider and select at least one model in Settings → Providers."
             )
             if self._conversation_repo:
                 self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
@@ -439,9 +399,6 @@ class AgentLoopCoordinator:
                     "tools": effective_tools,
                     "strategy": strategy,
                 }
-                if provider == "runtimeforce-managed":
-                    stream_kwargs["managed_ai_token"] = managed_ai_token
-
                 async for chunk in self._orchestrator.stream_completion(**stream_kwargs):
                     status = chunk.get("status")
                     if status == "streaming":
