@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-11-04
+
+### Fixed
+- Prevent stale MANUAL model selections from overriding AUTO, ATM, and LOCAL routing; keep strict model locking exclusive to MANUAL.
+- Preserve ATM as the user-facing mode (internally routed as `coding`) and return strategy-specific routing errors when no eligible model is available.
+- Add a chat action to open model/provider selection after a generation error.
+- Add regression coverage for AUTO routing with a stale manual model lock and MANUAL selection validation.
+
 ## [0.6.5] - 2026-11-04
 
 ### Fixed
