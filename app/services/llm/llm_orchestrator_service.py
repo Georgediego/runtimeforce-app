@@ -17,7 +17,7 @@ from app.core.security.aes_crypto_service import AESCryptoService
 logger = logging.getLogger("runtimeforce.service.llm.orchestrator")
 
 STREAM_CLOUD_TIMEOUT = 30.0
-STREAM_LOCAL_TIMEOUT = 300.0
+STREAM_LOCAL_TIMEOUT = 900.0
 MAX_EMPTY_ATTEMPTS = 2
 
 def _is_midstream_error(error_str: str) -> bool:

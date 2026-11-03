@@ -341,4 +341,4 @@ def test_websocket_local_identity_uses_normalized_verified_email():
 
 def test_local_model_timeout_allows_slow_cpu_generation():
     from app.services.llm.llm_orchestrator_service import STREAM_LOCAL_TIMEOUT
-    assert STREAM_LOCAL_TIMEOUT == 300.0
+    assert STREAM_LOCAL_TIMEOUT == 900.0
