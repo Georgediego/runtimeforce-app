@@ -129,7 +129,9 @@ class LLMRouterService:
     ) -> List[str]:
         strategy_clean = (strategy or "auto").strip().lower()
 
-        if (strategy_clean == "manual" or model_lock) and model_lock and model_lock.lower() not in ("auto", "none", ""):
+        if strategy_clean == "manual":
+            if not model_lock or model_lock.lower() in ("auto", "none", ""):
+                raise ValueError("MANUAL strategy requires a specific model. Select one in the model selector.")
             if enabled_models is not None and len(enabled_models) > 0 and model_lock not in enabled_models:
                 raise ValueError(f"Selected model '{model_lock}' is not enabled in settings.")
             logger.info(f"[LLMRouter] MANUAL strategy active: locked strictly to '{model_lock}'")
