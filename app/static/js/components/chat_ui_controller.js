@@ -486,6 +486,7 @@ export const chatUIController = {
         if (!isEditing) this.appendMessage("user", rawUserPrompt);
 
         currentPendingMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const requestPendingId = currentPendingMessageId;
         pendingStreamError = "";
         generationFinalized = false;
         userAbortedGeneration = false;
@@ -511,15 +512,19 @@ export const chatUIController = {
             wsClient = null;
         }
         wsClient = new ChatWSClient(currentSessionId, {
-            onEvent: (event) => this.handleStreamEvent(event, currentPendingMessageId),
+            onEvent: (event) => {
+                if (requestPendingId !== currentPendingMessageId) return;
+                this.handleStreamEvent(event, requestPendingId);
+            },
             onError: (err) => {
+                if (requestPendingId !== currentPendingMessageId) return;
                 // Wait for the terminal close/error outcome; transient transport errors are not final.
                 pendingStreamError = err?.message || "WebSocket transport error.";
             },
             onClose: (closeEvent) => {
-                if (generationFinalized || userAbortedGeneration) return;
+                if (requestPendingId !== currentPendingMessageId || generationFinalized || userAbortedGeneration) return;
                 generationFinalized = true;
-                const targetDiv = this.getPendingMessageContentDiv(currentPendingMessageId);
+                const targetDiv = this.getPendingMessageContentDiv(requestPendingId);
                 const closeDetails = closeEvent?.reason
                     ? "WebSocket closed (code " + (closeEvent.code || "unknown") + "): " + closeEvent.reason
                     : "WebSocket closed (code " + (closeEvent?.code || "unknown") + ").";
@@ -554,8 +559,9 @@ export const chatUIController = {
                 atm_critic_model: atmModels.critic,
             });
         } catch (err) {
+            if (requestPendingId !== currentPendingMessageId || generationFinalized) return;
             generationFinalized = true;
-            const targetDiv = this.getPendingMessageContentDiv(currentPendingMessageId);
+            const targetDiv = this.getPendingMessageContentDiv(requestPendingId);
             this.renderErrorBox(targetDiv, err.message || "Failed to establish WebSocket connection.");
             targetDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setGeneratingState(false);
@@ -612,7 +618,7 @@ export const chatUIController = {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": "Bearer " + token.replace(/^Bearer\\s+/i, "")
+                    "Authorization": "Bearer " + token.replace(/^Bearer\s+/i, "")
                 },
                 body: JSON.stringify({
                     error: errText,
