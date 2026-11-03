@@ -179,8 +179,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("rf-auth-google-btn")?.addEventListener("click", () => authFrontendService.oauth("google"));
     document.getElementById("rf-auth-github-btn")?.addEventListener("click", () => authFrontendService.oauth("github"));
-    document.getElementById("rf-auth-x-btn")?.addEventListener("click", () => authFrontendService.oauth("x"));
-    document.getElementById("rf-auth-reddit-btn")?.addEventListener("click", () => authFrontendService.oauth("reddit"));
 
     // Wait for the SaaS session/token before any project API request can run.
     // The auth:success handler loads the active project after authentication.
