@@ -168,7 +168,7 @@ class AgentLoopCoordinator:
                 if em not in db_set_all:
                     yield {"status": "warning", "warning": f"Manual model ignored: {em}"}
 
-        if model_lock and model_lock.lower() not in ("auto", "none", ""):
+        if strategy_upper == "MANUAL" and model_lock and model_lock.lower() not in ("auto", "none", ""):
             if strict_enabled is not None and model_lock not in strict_enabled:
                 yield {"status": "warning", "warning": f"Manual model ignored: {model_lock}"}
                 model_lock = None
@@ -259,7 +259,7 @@ class AgentLoopCoordinator:
             architect_guidance = arch_res.get("recommendation", "")
 
         candidate_models: List[Dict[str, Any]] = []
-        is_manual_override = model_lock not in NO_LOCK_SENTINELS or strategy_upper == "MANUAL"
+        is_manual_override = strategy_upper == "MANUAL"
 
         provider_keys = {}
         if self._provider_keys_repo:
@@ -272,7 +272,7 @@ class AgentLoopCoordinator:
             try:
                 routed_model_ids = self._llm_router.build_route(
                     strategy=strategy_upper,
-                    model_lock=model_lock,
+                    model_lock=model_lock if strategy_upper == "MANUAL" else None,
                     plan=plan,
                     provider_keys=provider_keys,
                     scores={},
