@@ -1195,8 +1195,9 @@ html.light #terminal-input-row {
     border-radius: 50%;
     border: 2px solid transparent;
     border-top-color: #00ff88;
-    border-right-color: rgba(0, 255, 136, 0.15);
-    filter: drop-shadow(0 0 3px rgba(0, 255, 136, 0.8));
+    border-right-color: rgba(0, 255, 136, 0.45);
+    border-bottom-color: rgba(0, 255, 136, 0.2);
+    filter: drop-shadow(0 0 4px rgba(0, 255, 136, 0.9));
 }
 
 /* Patterns */
@@ -1413,9 +1414,11 @@ ATM (Autonomous Team Mode) Panel Styles
     aspect-ratio: 1 / 1 !important;
     flex: none !important;
     border-radius: 50% !important;
-    border: 1.5px solid transparent !important;
-    border-top-color: #07f77a !important;
-    border-right-color: rgba(7, 247, 122, 0.5) !important;
+    border: 1px solid rgba(7, 247, 122, 0.24) !important;
+    border-top-color: rgba(7, 247, 122, 0.24) !important;
+    border-right-color: rgba(7, 247, 122, 0.24) !important;
+    border-bottom-color: rgba(7, 247, 122, 0.24) !important;
+    border-left-color: rgba(7, 247, 122, 0.24) !important;
     box-sizing: border-box !important;
     pointer-events: none !important;
     z-index: 1 !important;
