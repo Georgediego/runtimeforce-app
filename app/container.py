@@ -57,8 +57,6 @@ from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
 # Git & OAuth Services
 from app.services.git.github_api_service import GitHubApiService
 
-# Social Media Services
-
 # Tools Services
 from app.services.terminal.terminal_command_filter import TerminalCommandFilter
 from app.tools.tool_dispatcher_service import ToolDispatcherService
