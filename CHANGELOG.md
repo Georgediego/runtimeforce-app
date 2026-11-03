@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-11-04
+
 ### Removed
 - Remove X.com and Reddit sign-in, account linking, publishing, media upload, token refresh, and connected-account management from both IDE and SaaS.
 - Remove the X-only Social Drafts UI, API, services, and obsolete local OAuth/social-draft storage.
