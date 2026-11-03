@@ -16,7 +16,7 @@ RuntimeForce IDE runs on the user's computer. The RuntimeForce SaaS at [runtimef
 - Authentication and subscription/entitlement checks are sent to the official `https://runtimeforce.dev` service over HTTPS.
 - AI prompts and context are sent directly from the IDE to the AI provider selected by the user, using the user's own API key (BYOK), or to a local model runtime.
 - RuntimeForce SaaS does not receive project source code, prompts, workspace files, SSH credentials, or BYOK provider API keys.
-- Social OAuth credentials connected through RuntimeForce accounts are stored by the SaaS in encrypted form, as described in the RuntimeForce Privacy Policy.
+- Google and GitHub account OAuth connections are managed by the RuntimeForce SaaS control plane.
 
 ## Authentication and entitlements
 
