@@ -21,7 +21,6 @@ from app.repository.audit_local_db_repository import AuditLocalDBRepository
 from app.repository.support_ticket_db_repository import SupportTicketDBRepository
 from app.repository.project_db_repository import ProjectDBRepository
 from app.repository.versioning_db_repository import VersioningDBRepository
-from app.repository.social_feed_db_repository import SocialFeedDBRepository
 from app.repository.graph_db_repository import GraphDBRepository
 from app.repository.decision_db_repository import DecisionDBRepository
 from app.repository.embeddings_db_repository import EmbeddingsDBRepository
@@ -71,8 +70,6 @@ from app.services.audit.audit_logger_service import AuditLoggerService
 from app.services.support.support_ticket_service import SupportTicketService
 from app.services.versioning.version_calculator_service import VersionCalculatorService
 from app.services.versioning.changelog_generator_service import ChangelogGeneratorService
-from app.services.social.social_post_generator_service import SocialPostGeneratorService
-from app.services.social.social_feedback_listener_service import SocialFeedbackListenerService
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +118,6 @@ class ApplicationContainer:
         self.support_ticket_repo = SupportTicketDBRepository(self.db_manager)
         self.project_repo = ProjectDBRepository(self.db_manager)
         self.versioning_repo = VersioningDBRepository(self.db_manager)
-        self.social_feed_repo = SocialFeedDBRepository(self.db_manager)
         self.graph_repo = GraphDBRepository(self.db_manager)
         self.decision_repo = DecisionDBRepository(self.db_manager)
         
@@ -148,8 +144,6 @@ class ApplicationContainer:
         self.audit_logger_service = AuditLoggerService(repo=self.audit_repo, event_bus=self.event_bus)
         self.support_ticket_service = SupportTicketService(self.support_ticket_repo)
         self.changelog_generator_service = ChangelogGeneratorService()
-        self.social_post_generator_service = SocialPostGeneratorService(social_repo=self.social_feed_repo, event_bus=self.event_bus)
-        self.social_feedback_listener_service = SocialFeedbackListenerService(self.social_feed_repo)
         
         self.graph_traversal_service = GraphTraversalService(graph_repo=self.graph_repo)
         self.context_cache_service = ContextCacheService()
@@ -238,7 +232,6 @@ class ApplicationContainer:
             "support_ticket_repo": self.support_ticket_repo,
             "project_repo": self.project_repo,
             "versioning_repo": self.versioning_repo,
-            "social_feed_repo": self.social_feed_repo,
             "graph_repo": self.graph_repo,
             "decision_repo": self.decision_repo,
             "embeddings_repo": self.embeddings_repo,
@@ -265,8 +258,6 @@ class ApplicationContainer:
             "support_ticket_service": self.support_ticket_service,
             "version_calculator": self.version_calculator_service,
             "changelog_generator": self.changelog_generator_service,
-            "social_post_generator": self.social_post_generator_service,
-            "social_feedback_listener": self.social_feedback_listener_service,
         })
 
 container = ApplicationContainer()
@@ -312,9 +303,6 @@ def get_project_repo() -> ProjectDBRepository:
 
 def get_versioning_repo() -> VersioningDBRepository:
     return container.versioning_repo
-
-def get_social_feed_repo() -> SocialFeedDBRepository:
-    return container.social_feed_repo
 
 def get_graph_repo() -> GraphDBRepository:
     return container.graph_repo
@@ -402,15 +390,6 @@ def get_version_calculator() -> VersionCalculatorService:
 
 def get_changelog_generator() -> ChangelogGeneratorService:
     return container.changelog_generator_service
-
-def get_social_post_generator() -> SocialPostGeneratorService:
-    return container.social_post_generator_service
-
-def get_social_service() -> SocialPostGeneratorService:
-    return container.social_post_generator_service
-
-def get_social_feedback_listener() -> SocialFeedbackListenerService:
-    return container.social_feedback_listener_service
 
 def get_github_api() -> GitHubApiService:
     return container.github_api_service
