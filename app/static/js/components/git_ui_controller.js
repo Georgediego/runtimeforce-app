@@ -5,7 +5,6 @@
 import { gitApi } from "../core/api_http_client.js";
 import { showToast } from "./toast_ui_controller.js";
 import { projectsUIController } from "./projects_ui_controller.js";
-import { socialDraftsUIController } from "./social_drafts_ui_controller.js";
 
 export const gitUIController = {
     init() {
@@ -213,7 +212,6 @@ export const gitUIController = {
             const res = await gitApi.push();
             if (res.success) {
                 showToast("Git push completed!", "success");
-                await socialDraftsUIController.generateFromLatestChanges();
             } else showToast(`Push failed: ${res.stderr || "Unknown error"}`, "error");
         } catch (e) {
             showToast(`Git push failed: ${e.message}`, "error");
