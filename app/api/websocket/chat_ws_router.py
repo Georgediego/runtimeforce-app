@@ -31,7 +31,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
     if not user:
         await websocket.close(code=1008, reason="Authentication required")
         return
-    user_id = user["id"]
+    user_id = JWTAuthService.get_local_user_id(user)
     entitlements = await container.license_service.get_entitlements(token)
     if not entitlements.get("valid"):
         await websocket.close(code=1008, reason="Subscription status could not be verified")
