@@ -12,7 +12,6 @@ from app.core.interfaces.support_ticket_service_interface import ISupportTicketS
 from app.core.interfaces.byok_key_service_interface import IByokKeyService
 from app.core.interfaces.project_service_interface import IProjectService
 from app.core.interfaces.versioning_service_interface import IVersioningService
-from app.core.interfaces.social_module_interface import ISocialModuleService
 from app.core.interfaces.rotation_service_interface import IRotationService
 from app.core.interfaces.embedding_engine_interface import IEmbeddingEngine
 from app.core.interfaces.workspace_driver_factory_interface import IWorkspaceDriverFactory
@@ -28,7 +27,6 @@ __all__ = [
     "IByokKeyService",
     "IProjectService",
     "IVersioningService",
-    "ISocialModuleService",
     "IRotationService",
     "IEmbeddingEngine",
     "IWorkspaceDriverFactory",
