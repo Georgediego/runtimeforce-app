@@ -23,6 +23,9 @@ let executionTimer = null;
 let elapsedSeconds = 0;
 let currentPendingMessageId = null;
 let treeReloadTimer = null;
+let pendingStreamError = "";
+let generationFinalized = false;
+let userAbortedGeneration = false;
 const approvedCommandsCache = new Set();
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "deepseek", "xai"];
@@ -265,6 +268,8 @@ export const chatUIController = {
     },
 
     abortGeneration() {
+        userAbortedGeneration = true;
+        generationFinalized = true;
         if (wsClient) {
             wsClient.abort();
             wsClient.close();
@@ -481,6 +486,9 @@ export const chatUIController = {
         if (!isEditing) this.appendMessage("user", rawUserPrompt);
 
         currentPendingMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        pendingStreamError = "";
+        generationFinalized = false;
+        userAbortedGeneration = false;
         const assistantContentDiv = this.appendMessage("assistant", "", currentPendingMessageId);
 
         this.startExecutionTimer(currentPendingMessageId);
@@ -489,8 +497,8 @@ export const chatUIController = {
         currentPhaseLabel = "Routing task...";
         currentAgentRole = "Agent";
         assistantContentDiv.parentElement?.classList.add("assistant-bubble-generating");
-        this.renderAssistantBubble(assistantContentDiv, fullResponseText, fullReasoningText);
         this.setGeneratingState(true);
+        this.renderAssistantBubble(assistantContentDiv, fullResponseText, fullReasoningText);
         this.setOrchestratorProgress(15);
 
         if (isFirstMessageOfSession) {
@@ -505,19 +513,26 @@ export const chatUIController = {
         wsClient = new ChatWSClient(currentSessionId, {
             onEvent: (event) => this.handleStreamEvent(event, currentPendingMessageId),
             onError: (err) => {
-                const targetDiv = this.getPendingMessageContentDiv(currentPendingMessageId);
-                this.renderErrorBox(targetDiv, err.message || "Connection error occurred during streaming.");
-                targetDiv?.parentElement?.classList.remove("assistant-bubble-generating");
-                this.setGeneratingState(false);
+                // Wait for the terminal close/error outcome; transient transport errors are not final.
+                pendingStreamError = err?.message || "WebSocket transport error.";
             },
-            onClose: () => {
+            onClose: (closeEvent) => {
+                if (generationFinalized || userAbortedGeneration) return;
+                generationFinalized = true;
                 const targetDiv = this.getPendingMessageContentDiv(currentPendingMessageId);
+                const closeDetails = closeEvent?.reason
+                    ? "WebSocket closed (code " + (closeEvent.code || "unknown") + "): " + closeEvent.reason
+                    : "WebSocket closed (code " + (closeEvent?.code || "unknown") + ").";
+                const errorText = pendingStreamError
+                    ? "The connection ended before a final answer was received.\n" + pendingStreamError + "\n" + closeDetails
+                    : "Connection closed before the final answer was received.\n" + closeDetails;
                 targetDiv?.parentElement?.classList.remove("assistant-bubble-generating");
                 this.setGeneratingState(false);
-                if (targetDiv && !fullResponseText && !fullReasoningText) {
-                    this.renderErrorBox(targetDiv, "Connection closed before receiving a response.");
-                } else if (targetDiv) {
-                    this.renderAssistantBubble(targetDiv, fullResponseText, fullReasoningText);
+                if (targetDiv) {
+                    const details = fullResponseText
+                        ? errorText + "\n\nPartial response:\n" + fullResponseText
+                        : errorText;
+                    this.renderErrorBox(targetDiv, details);
                 }
             },
         });
@@ -539,6 +554,7 @@ export const chatUIController = {
                 atm_critic_model: atmModels.critic,
             });
         } catch (err) {
+            generationFinalized = true;
             const targetDiv = this.getPendingMessageContentDiv(currentPendingMessageId);
             this.renderErrorBox(targetDiv, err.message || "Failed to establish WebSocket connection.");
             targetDiv?.parentElement?.classList.remove("assistant-bubble-generating");
@@ -559,25 +575,14 @@ export const chatUIController = {
 
     renderErrorBox(container, errText) {
         if (!container) return;
-        const mailSubject = encodeURIComponent(`[RuntimeForce Bug] Stream Error - Session ${currentSessionId}`);
-        const mailBody = encodeURIComponent(`Session ID: ${currentSessionId}\nError Details: ${errText}\nPrompt: ${lastUserPrompt}`);
-        container.innerHTML = `
-            <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 font-mono text-xs flex flex-col gap-2 my-2">
-                <div class="font-bold flex items-center gap-2 text-red-300">
-                    <i data-lucide="alert-octagon" class="w-4 h-4 text-red-400"></i>
-                    Generation Failed or Interrupted
-                </div>
-                <div class="text-[11px] leading-relaxed text-red-300/90 whitespace-pre-wrap">${this.escapeHtml(errText)}</div>
-                <div class="pt-2 border-t border-red-500/20 flex flex-wrap justify-end gap-2">
-                    <button type="button" class="change-model-provider-btn px-3 py-1.5 rounded bg-[var(--ide-accent)] text-white font-bold text-[11px] hover:brightness-110 transition-colors inline-flex items-center gap-1.5 shadow-md">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Change model / provider
-                    </button>
-                    <a href="mailto:bugs@runtimeforce.dev?subject=${mailSubject}&body=${mailBody}" 
-                       class="px-3 py-1.5 rounded bg-red-500 text-white font-bold text-[11px] hover:bg-red-600 transition-colors inline-flex items-center gap-1.5 no-underline shadow-md">
-                        <i data-lucide="mail" class="w-3.5 h-3.5"></i> Send to developers
-                    </a>
-                </div>
-            </div>`;
+        container.innerHTML = '<div class="assistant-error-box p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 font-mono text-xs flex flex-col gap-2 my-2">' +
+            '<div class="font-bold flex items-center gap-2 text-red-300"><i data-lucide="alert-octagon" class="w-4 h-4 text-red-400"></i>Generation Failed or Interrupted</div>' +
+            '<div class="text-[11px] leading-relaxed text-red-300/90 whitespace-pre-wrap">' + this.escapeHtml(errText) + '</div>' +
+            '<div class="pt-2 border-t border-red-500/20 flex flex-wrap justify-end items-center gap-2">' +
+                '<button type="button" class="change-model-provider-btn px-3 py-1.5 rounded bg-[var(--ide-accent)] text-white font-bold text-[11px] hover:brightness-110 transition-colors inline-flex items-center gap-1.5 shadow-md"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Change model / provider</button>' +
+                '<button type="button" class="send-error-report-btn px-3 py-1.5 rounded bg-red-500 text-white font-bold text-[11px] hover:bg-red-600 transition-colors inline-flex items-center gap-1.5 shadow-md"><i data-lucide="send" class="w-3.5 h-3.5"></i> Send to developer</button>' +
+                '<span class="error-report-status text-[10px] text-[var(--ide-text-secondary)]" aria-live="polite"></span>' +
+            '</div></div>';
         if (window.lucide) window.lucide.createIcons({ root: container });
         container.querySelector(".change-model-provider-btn")?.addEventListener("click", () => {
             const strategySelect = document.getElementById("strategy-select");
@@ -588,6 +593,47 @@ export const chatUIController = {
             document.getElementById("settings-manual-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
             document.getElementById("model-lock-trigger")?.click();
         });
+        container.querySelector(".send-error-report-btn")?.addEventListener("click", (event) => {
+            this.sendErrorReport(event.currentTarget, errText);
+        });
+    },
+
+    async sendErrorReport(button, errText) {
+        const box = button.closest(".assistant-error-box");
+        const status = box?.querySelector(".error-report-status");
+        const originalLabel = button.textContent.trim();
+        button.disabled = true;
+        button.textContent = "Sending...";
+        if (status) status.textContent = "";
+        try {
+            const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+            if (!token) throw new Error("Authentication token is missing. Please sign in again.");
+            const response = await fetch("https://runtimeforce.dev/api/v1/mail/report", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + token.replace(/^Bearer\\s+/i, "")
+                },
+                body: JSON.stringify({
+                    error: errText,
+                    session_id: currentSessionId || "",
+                    prompt: lastUserPrompt || "",
+                    partial_response: fullResponseText || "",
+                    model: currentAgentModel || "",
+                    strategy: document.getElementById("strategy-select")?.value || "",
+                    app_version: document.getElementById("active-project-ver-display")?.textContent?.trim() || "",
+                    user_agent: navigator.userAgent || ""
+                })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.detail || ("HTTP " + response.status));
+            button.textContent = "Report sent";
+            if (status) status.textContent = "Отчёт отправлен на errors@runtimeforce.dev";
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = originalLabel || "Send to developer";
+            if (status) status.textContent = "Не удалось отправить: " + error.message;
+        }
     },
 
     async handleStreamEvent(event, pendingId) {
@@ -601,6 +647,7 @@ export const chatUIController = {
             this.appendTrace("PHASE", event.label);
             if (assistantDiv) this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
         } else if (event.status === "model_try") {
+            pendingStreamError = "";
             const modelName = (event.model || "auto").split("/").pop();
             const providerName = event.provider || "auto";
             currentAgentModel = `${modelName} (${providerName})`;
@@ -618,6 +665,7 @@ export const chatUIController = {
             }
             this.setOrchestratorProgress(50);
         } else if (event.status === "streaming" && event.content) {
+            pendingStreamError = "";
             currentPhaseLabel = "Generating response...";
             fullResponseText += event.content;
             if (assistantDiv) {
@@ -696,29 +744,32 @@ export const chatUIController = {
 
             this.setOrchestratorProgress(85);
         } else if (event.status === "aborted") {
+            generationFinalized = true;
+            userAbortedGeneration = true;
             currentPhaseLabel = "Stopped";
             this.appendTrace("ABORT", "Generation aborted by user");
-            if (assistantDiv) this.renderErrorBox(assistantDiv, "Generation aborted by user.");
+            if (assistantDiv) {
+                if (fullResponseText) this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
+                else assistantDiv.textContent = "Generation stopped by user.";
+            }
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setGeneratingState(false);
         } else if (event.status === "error" || event.status === "failed") {
             currentPhaseLabel = "Request failed";
-            const errText = event.error || "Execution error";
-            this.appendTrace("ERROR", errText);
-            if (assistantDiv) {
-                this.renderErrorBox(assistantDiv, errText);
-            }
+            pendingStreamError = event.error || "Execution error";
+            this.appendTrace("ERROR", pendingStreamError);
+            // A candidate may fail while orchestration is still trying another model.
+            // Display the error only if the stream ends without a final answer.
+        } else if (event.status === "done") {
+            generationFinalized = true;
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setGeneratingState(false);
-        } else if (event.status === "done") {
-            if (currentPhaseLabel === "Request failed") {
-                this.setGeneratingState(false);
+            if (pendingStreamError || (!fullResponseText && !fullReasoningText)) {
+                this.renderErrorBox(assistantDiv, pendingStreamError || "Generation completed without returning an answer.");
                 return;
             }
             currentPhaseLabel = "Completed";
-            assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setOrchestratorProgress(100);
-            this.setGeneratingState(false);
             if (assistantDiv) this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
             this.loadSessionsList();
         }
