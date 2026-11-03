@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-11-04
+
+### Fixed
+- Use the verified, normalized account email as the WebSocket local-data identity so chat routing can access saved provider API keys and selected models.
+- Increase local Ollama and LM Studio generation timeout from 45 to 300 seconds for slower CPU-only hardware.
+
+
 ## [0.6.6] - 2026-11-04
 
 ### Fixed
