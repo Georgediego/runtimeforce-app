@@ -1,4 +1,5 @@
 import pytest
+from app.core.security.jwt_auth_service import JWTAuthService
 import asyncio
 from typing import Any, AsyncGenerator, Dict, List
 from app.container import ApplicationContainer
@@ -331,3 +332,13 @@ async def test_cloud_orchestrator_requires_saved_byok_key():
     assert events
     assert events[0]["status"] == "error"
     assert events[0]["error_code"] == "MISSING_API_KEY"
+
+
+def test_websocket_local_identity_uses_normalized_verified_email():
+    user = {"id": "saas-uuid", "email": "  George@Example.com  "}
+    assert JWTAuthService.get_local_user_id(user) == "george@example.com"
+
+
+def test_local_model_timeout_allows_slow_cpu_generation():
+    from app.services.llm.llm_orchestrator_service import STREAM_LOCAL_TIMEOUT
+    assert STREAM_LOCAL_TIMEOUT == 300.0
