@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-11-04
+
+### Fixed
+- Remove the stale social interface import and public export left behind after deleting the X.com/Reddit Social Drafts module; restore IDE startup.
+
 ## [0.6.4] - 2026-11-04
 
 ### Removed
