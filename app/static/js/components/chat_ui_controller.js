@@ -525,7 +525,7 @@ export const chatUIController = {
         try {
             await wsClient.connect();
             const strategy = document.getElementById("strategy-select")?.value || "auto";
-            const modelLock = document.getElementById("model-lock-select")?.value || null;
+            const modelLock = strategy === "manual" ? (document.getElementById("model-lock-select")?.value || null) : null;
             const explicitEnabled = await this.getEnabledModelsList();
             const atmModels = this.getATMModels();
             wsClient.send(agentPayloadPrompt, {
@@ -568,7 +568,10 @@ export const chatUIController = {
                     Generation Failed or Interrupted
                 </div>
                 <div class="text-[11px] leading-relaxed text-red-300/90 whitespace-pre-wrap">${this.escapeHtml(errText)}</div>
-                <div class="pt-2 border-t border-red-500/20 flex justify-end">
+                <div class="pt-2 border-t border-red-500/20 flex flex-wrap justify-end gap-2">
+                    <button type="button" class="change-model-provider-btn px-3 py-1.5 rounded bg-[var(--ide-accent)] text-white font-bold text-[11px] hover:brightness-110 transition-colors inline-flex items-center gap-1.5 shadow-md">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Change model / provider
+                    </button>
                     <a href="mailto:bugs@runtimeforce.dev?subject=${mailSubject}&body=${mailBody}" 
                        class="px-3 py-1.5 rounded bg-red-500 text-white font-bold text-[11px] hover:bg-red-600 transition-colors inline-flex items-center gap-1.5 no-underline shadow-md">
                         <i data-lucide="mail" class="w-3.5 h-3.5"></i> Send to developers
@@ -576,6 +579,15 @@ export const chatUIController = {
                 </div>
             </div>`;
         if (window.lucide) window.lucide.createIcons({ root: container });
+        container.querySelector(".change-model-provider-btn")?.addEventListener("click", () => {
+            const strategySelect = document.getElementById("strategy-select");
+            if (strategySelect) {
+                strategySelect.value = "manual";
+                strategySelect.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            document.getElementById("settings-manual-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            document.getElementById("model-lock-trigger")?.click();
+        });
     },
 
     async handleStreamEvent(event, pendingId) {
