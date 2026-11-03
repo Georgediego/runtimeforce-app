@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-11-04
+
+### Fixed
+- Show generation errors only after the stream ends without a final answer; add authenticated one-click diagnostic reports to errors@runtimeforce.dev.
+- Start the thinking indicator immediately and render its rotating glow as a closed ring with a crescent highlight.
+
 ## [0.6.8] - 2026-11-04
 
 ### Fixed
