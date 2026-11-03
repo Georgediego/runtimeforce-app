@@ -20,6 +20,11 @@ _AUTH_CACHE: Dict[str, Dict[str, Any]] = {}
 
 class JWTAuthService:
     @staticmethod
+    def get_local_user_id(user: Dict[str, Any]) -> str:
+        """Use the verified email as the stable local SQLite ownership key."""
+        return str(user.get("email") or "").strip().lower()
+
+    @staticmethod
     async def verify_token(token: Optional[str]) -> Optional[Dict[str, Any]]:
         """Ask the official SaaS server to verify the token signature and account."""
         if not token:
