@@ -32,7 +32,7 @@ export class ChatWSClient {
                 this.onError(err);
                 reject(err);
             };
-            this.ws.onclose = () => this.onClose();
+            this.ws.onclose = (event) => this.onClose(event);
         });
     }
 
