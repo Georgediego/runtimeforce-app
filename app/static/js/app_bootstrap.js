@@ -14,7 +14,6 @@ import { gitUIController } from "./components/git_ui_controller.js";
 import { orchestratorUIController } from "./components/orchestrator_ui.js";
 import { terminalUIController } from "./components/terminal.js";
 import { projectsUIController } from "./components/projects_ui_controller.js";
-import { socialUIController } from "./components/social_ui_controller.js";
 import { traceUIController } from "./components/trace_ui_controller.js";
 import { setupWizardUIController } from "./components/setup_wizard_ui_controller.js";
 import { updateNotificationService } from "./services/update_notification_service.js";
@@ -57,7 +56,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         { name: "terminalUIController", instance: terminalUIController },
         { name: "gitUIController", instance: gitUIController },
         { name: "projectsUIController", instance: projectsUIController },
-        { name: "socialUIController", instance: socialUIController },
         { name: "traceUIController", instance: traceUIController },
         { name: "setupWizardUIController", instance: setupWizardUIController },
     ];
