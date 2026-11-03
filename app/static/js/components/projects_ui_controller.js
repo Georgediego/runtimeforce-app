@@ -1,5 +1,5 @@
 /**
- * Projects UI Controller with Central Server OAuth Bridge & Subreddit Selection.
+ * Projects UI Controller with Central GitHub OAuth Bridge.
  */
 import { projectsApi } from "../core/api_http_client.js";
 import { showToast, showPrompt, showConfirm } from "./toast_ui_controller.js";
@@ -43,11 +43,6 @@ export const projectsUIController = {
         document.getElementById("connect-github-oauth-btn")?.addEventListener("click", () => this.connectOAuth("github"));
         document.getElementById("disconnect-github-btn")?.addEventListener("click", () => this.disconnectOAuth("github"));
 
-        document.getElementById("connect-x-oauth-btn")?.addEventListener("click", () => this.connectOAuth("x"));
-        document.getElementById("disconnect-x-btn")?.addEventListener("click", () => this.disconnectOAuth("x"));
-
-        document.getElementById("connect-reddit-oauth-btn")?.addEventListener("click", () => this.connectOAuth("reddit"));
-        document.getElementById("disconnect-reddit-btn")?.addEventListener("click", () => this.disconnectOAuth("reddit"));
     },
 
     async initActiveProject() {
@@ -269,7 +264,7 @@ export const projectsUIController = {
             setVal("ps-current-version", proj.current_version || "v1.0.0");
 
             this.switchProjectSettingsTab("general");
-            await this.loadSocialStatus(projectId);
+            await this.loadGitHubStatus();
             await this.loadGitHubRepositories(proj.github_remote_url || "");
 
             workspaceUIController.setActiveEditingProject(projectId);
@@ -284,64 +279,28 @@ export const projectsUIController = {
         }
     },
 
-    async loadSocialStatus(projectId) {
+    async loadGitHubStatus() {
         const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+        const statusEl = document.getElementById("github-connected-status");
+        const connectBtn = document.getElementById("connect-github-oauth-btn");
+        const disconnectBtn = document.getElementById("disconnect-github-btn");
         try {
-            const res = await fetch(`${SAAS_URL}/api/v1/social/accounts`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const payload = await res.json();
-                const accounts = Object.fromEntries((payload.accounts || []).map((account) => [account.platform, account]));
-                const github = accounts.github || {};
-                const x = accounts.x || {};
-                const reddit = accounts.reddit || {};
-                const data = {
-                    github_connected: Boolean(github.connected),
-                    x_connected: Boolean(x.connected),
-                    x_username: x.username || "",
-                    reddit_connected: Boolean(reddit.connected),
-                    reddit_username: reddit.username || "",
-                    reddit_subreddit: "r/buildinpublic"
-                };
-                
-                const ghStatusEl = document.getElementById("github-connected-status");
-                const ghConnectBtn = document.getElementById("connect-github-oauth-btn");
-                const ghDisconnectBtn = document.getElementById("disconnect-github-btn");
-                if (data.github_connected) {
-                    if (ghStatusEl) ghStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold font-mono text-[10px]">✓ Connected</span>`;
-                    if (ghConnectBtn) ghConnectBtn.classList.add("hidden");
-                    if (ghDisconnectBtn) ghDisconnectBtn.classList.remove("hidden");
-                } else {
-                    if (ghStatusEl) ghStatusEl.innerHTML = `<span class="text-[10px] text-[var(--ide-text-muted)]">Not connected</span>`;
-                    if (ghConnectBtn) ghConnectBtn.classList.remove("hidden");
-                    if (ghDisconnectBtn) ghDisconnectBtn.classList.add("hidden");
-                }
-
-                const xStatusEl = document.getElementById("x-connected-status");
-                const xConnectBtn = document.getElementById("connect-x-oauth-btn");
-                const xDisconnectBtn = document.getElementById("disconnect-x-btn");
-                if (data.x_connected) {
-                    if (xStatusEl) xStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold font-mono text-[10px]">✓ @${data.x_username || 'connected'}</span>`;
-                    if (xConnectBtn) xConnectBtn.classList.add("hidden");
-                    if (xDisconnectBtn) xDisconnectBtn.classList.remove("hidden");
-                } else {
-                    if (xStatusEl) xStatusEl.innerHTML = `<span class="text-[10px] text-[var(--ide-text-muted)]">Not connected</span>`;
-                    if (xConnectBtn) xConnectBtn.classList.remove("hidden");
-                    if (xDisconnectBtn) xDisconnectBtn.classList.add("hidden");
-                }
-
-                const redditStatusEl = document.getElementById("reddit-connected-status");
-                const redditConnectBtn = document.getElementById("connect-reddit-oauth-btn");
-                const redditDisconnectBtn = document.getElementById("disconnect-reddit-btn");
-                const redditSubSelect = document.getElementById("ps-reddit-subreddit-select");
-
-                if (redditStatusEl) redditStatusEl.innerHTML = `<span class="text-[10px] text-[var(--ide-text-muted)]">Coming soon — awaiting Reddit app approval</span>`;
-                if (redditConnectBtn) redditConnectBtn.classList.add("hidden");
-                if (redditDisconnectBtn) redditDisconnectBtn.classList.add("hidden");
-                if (redditSubSelect) redditSubSelect.disabled = true;
+            const response = await fetch(`${SAAS_URL}/api/v1/social/accounts`, { headers: { Authorization: `Bearer ${token}` } });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const payload = await response.json();
+            const github = (payload.accounts || []).find((account) => account.platform === "github") || {};
+            if (github.connected) {
+                if (statusEl) statusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold font-mono text-[10px]">✓ Connected${github.username ? ` · ${github.username}` : ""}</span>`;
+                if (connectBtn) connectBtn.classList.add("hidden");
+                if (disconnectBtn) disconnectBtn.classList.remove("hidden");
+            } else {
+                if (statusEl) statusEl.innerHTML = '<span class="text-[10px] text-[var(--ide-text-muted)]">Not connected</span>';
+                if (connectBtn) connectBtn.classList.remove("hidden");
+                if (disconnectBtn) disconnectBtn.classList.add("hidden");
             }
-        } catch (e) {}
+        } catch (error) {
+            if (statusEl) statusEl.textContent = "Unable to check GitHub connection";
+        }
     },
 
     async loadGitHubRepositories(selectedUrl = "") {
@@ -405,10 +364,10 @@ export const projectsUIController = {
         const targetId = activeSettingsProjectId || localStorage.getItem("rf_active_project_id") || "default";
         const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
         if (!token) {
-            showToast("Sign in to RuntimeForce before connecting social accounts.", "error");
+            showToast("Sign in to RuntimeForce before connecting GitHub.", "error");
             return;
         }
-        if (!["github", "x"].includes(provider)) {
+        if (provider !== "github") {
             showToast("This social integration is not available yet.", "info");
             return;
         }
@@ -490,7 +449,7 @@ export const projectsUIController = {
             });
             if (!response.ok) throw new Error(`Account sync failed (HTTP ${response.status})`);
             showToast(`Connected to ${provider.toUpperCase()} successfully!`, "success");
-            await this.loadSocialStatus(projectId);
+            await this.loadGitHubStatus();
         } catch (e) {
             showToast(`Failed to sync ${provider} connection: ${e.message}`, "error");
         }
@@ -509,7 +468,7 @@ export const projectsUIController = {
             });
             if (!response.ok) throw new Error(`Disconnect failed (HTTP ${response.status})`);
             showToast(`${provider.toUpperCase()} disconnected`, "info");
-            await this.loadSocialStatus(activeSettingsProjectId || "default");
+            await this.loadGitHubStatus();
         } catch (e) {
             showToast(`Failed to disconnect ${provider}: ${e.message}`, "error");
         }
@@ -524,9 +483,6 @@ export const projectsUIController = {
         });
         if (targetTab === "workspace" && activeSettingsProjectId) {
             workspaceUIController.loadWorkspacesList(activeSettingsProjectId);
-        }
-        if (targetTab === "social" && activeSettingsProjectId) {
-            this.loadSocialStatus(activeSettingsProjectId);
         }
     },
 
@@ -564,7 +520,6 @@ export const projectsUIController = {
             version_scheme: getVal("ps-version-scheme") || "semver",
             prerelease_tag: getVal("ps-prerelease-tag"),
             current_version: getVal("ps-current-version") || "v1.0.0",
-            reddit_subreddit: getVal("ps-reddit-subreddit-select") || "r/buildinpublic",
         };
         try {
             await projectsApi.update(activeSettingsProjectId, payload);
