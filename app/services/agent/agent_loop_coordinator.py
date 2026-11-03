@@ -259,6 +259,7 @@ class AgentLoopCoordinator:
             architect_guidance = arch_res.get("recommendation", "")
 
         candidate_models: List[Dict[str, Any]] = []
+        route_error = None
         is_manual_override = strategy_upper == "MANUAL"
 
         provider_keys = {}
@@ -284,7 +285,8 @@ class AgentLoopCoordinator:
                     prov = mid.split("/", 1)[0] if "/" in mid else "unknown"
                     candidate_models.append({"model_id": mid, "provider": prov})
             except Exception as e:
-                logger.warning(f"[AgentCoordinator] Local LLM route failed: {e}")
+                route_error = str(e)
+                logger.warning(f"[AgentCoordinator] LLM route failed: {e}")
 
         if strategy_upper == "LOCAL":
             candidate_models = [m for m in candidate_models if m.get("provider", "").lower() in ("ollama", "lm_studio")]
@@ -308,9 +310,12 @@ class AgentLoopCoordinator:
             active_candidates = candidate_models
 
         if not active_candidates:
-            err_msg = (
-                "No eligible local models are available. Configure a local provider and select at least one model in Settings → Providers."
-            )
+            if route_error and strategy_upper != "LOCAL":
+                err_msg = route_error
+            elif strategy_upper == "LOCAL":
+                err_msg = "No eligible local models are available. Configure a local provider and select at least one model in Settings → Providers."
+            else:
+                err_msg = "No eligible models are available for the selected strategy. Check Settings → Providers and your provider API keys."
             if self._conversation_repo:
                 self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
             yield {"status": "error", "error_code": "NO_MODELS_AVAILABLE", "error": err_msg, "retry_after": 0}
