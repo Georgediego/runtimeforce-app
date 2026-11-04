@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="0.6.8",
+    version="0.6.10",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -113,25 +113,33 @@ async def get_version_api():
 
 @app.get("/api/v1/updates/check")
 async def check_ide_updates(response: Response):
-    """Compare this local IDE version with the public stable main release."""
+    """Compare the installed CHANGELOG version with the public GitHub main CHANGELOG."""
     response.headers["Cache-Control"] = "no-store, max-age=0"
     current_version = get_app_version()
+    changelog_url = (
+        "https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/CHANGELOG.md"
+    )
     try:
-        async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
             remote = await client.get(
-                "https://runtimeforce.dev/api/v1/ide-version",
+                changelog_url,
                 headers={"Cache-Control": "no-cache"},
             )
             remote.raise_for_status()
-        payload = remote.json()
-        latest_version = str(payload.get("version") or "").strip()
-        if not latest_version:
-            raise ValueError("The update service returned an empty version")
+        match = re.search(
+            r"^##\\s+\\[?v?(\\d+\\.\\d+\\.\\d+)\\]?",
+            remote.text,
+            re.MULTILINE,
+        )
+        if not match:
+            raise ValueError("GitHub main CHANGELOG does not contain a valid release version")
+        latest_version = f"v{match.group(1)}"
         return {
             "current_version": current_version,
             "latest_version": latest_version,
             "update_available": is_newer_version(latest_version, current_version),
             "checked": True,
+            "source": "github-main-changelog",
         }
     except Exception as exc:
         logger.info("IDE update check unavailable: %s", exc)
