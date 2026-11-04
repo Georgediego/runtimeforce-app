@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-11-05
+
+### Fixed
+- Treat MANUAL mode with the model selector set to `auto` as automatic routing, while keeping an explicitly selected MANUAL model strictly locked with no fallback.
+- Add regression tests for MANUAL auto-routing and strict concrete-model selection.
+
+### Changed
+- Update checks now read the latest stable version directly from `Georgediego/runtimeforce-app` `main/CHANGELOG.md`.
+- Run automatic version checks at most twice per day, defer update reminders for four hours, and wait for an idle UI before displaying a pending update.
+- Add Settings → Providers & BYOK → Update with installed/latest versions, status, and a manual check action.
+- Keep updates user-initiated: the IDE only displays safe Git commands and never replaces running code or modifies the local database automatically.
+
+
 ## [0.6.9] - 2026-11-04
 
 ### Fixed
