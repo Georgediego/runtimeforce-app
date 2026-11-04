@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-05
+
+### Added
+- Release the local-first RuntimeForce IDE with local and SSH workspaces, AI-assisted coding, project memory, terminal, Git/GitHub workflows, and configurable cloud or local model providers.
+- Add server-verified account authentication and dynamic plan entitlements while keeping projects, prompts, local database, and BYOK credentials on the user's computer.
+- Add manual stable-release update checks, twice-daily notifications, and four-hour snoozing without interrupting active work or modifying local project data.
+
+### Fixed
+- Allow MANUAL mode with `auto` to use automatic model routing while keeping explicitly selected MANUAL models pinned without fallback.
+- Restore local data access through normalized verified account email identity and preserve existing local SQLite data.
+- Improve chat streaming, model routing, GitHub repository workflows, and local-model timeout handling.
+
+### Removed
+- Remove the retired X.com and Reddit social integrations and their Social Drafts interface.
+
 ## [0.6.10] - 2026-11-05
 
 ### Fixed
@@ -16,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Update checks now read the latest stable version directly from `Georgediego/runtimeforce-app` `main/CHANGELOG.md`.
 - Run automatic version checks at most twice per day, defer update reminders for four hours, and wait for an idle UI before displaying a pending update.
-- Add Settings → Providers & BYOK → Update with installed/latest versions, status, and a manual check action.
+- Add Settings → Software Updates with installed/latest versions, status, and a manual check action.
 - Keep updates user-initiated: the IDE only displays safe Git commands and never replaces running code or modifies the local database automatically.
 
 
