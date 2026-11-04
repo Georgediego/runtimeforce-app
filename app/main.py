@@ -127,7 +127,7 @@ async def check_ide_updates(response: Response):
             )
             remote.raise_for_status()
         match = re.search(
-            r"^##\\s+\\[?v?(\\d+\\.\\d+\\.\\d+)\\]?",
+            r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?",
             remote.text,
             re.MULTILINE,
         )
