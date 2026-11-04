@@ -5,6 +5,7 @@ import { authFrontendService } from "../services/auth_frontend_service.js";
 import { providersUIController } from "./providers_ui_controller.js";
 import { showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
+import { updateNotificationService } from "../services/update_notification_service.js";
 
 export const settingsUIController = {
     init() {
@@ -21,26 +22,9 @@ export const settingsUIController = {
         document.getElementById("rf-update-settings-check-btn")?.addEventListener("click", async () => {
             const status = document.getElementById("rf-update-settings-status");
             if (status) status.textContent = "Проверяем GitHub main...";
-            const response = await fetch("/api/v1/updates/check", { cache: "no-store" });
-            if (!response.ok) {
-                if (status) status.textContent = "Не удалось проверить обновления";
-                showToast("Не удалось проверить обновления", "error");
-                return;
-            }
-            const result = await response.json();
-            const current = document.getElementById("rf-update-settings-current");
-            const latest = document.getElementById("rf-update-settings-latest");
-            if (current) current.textContent = result.current_version || "—";
-            if (latest) latest.textContent = result.latest_version || "—";
-            if (status) status.textContent = !result.checked
-                ? "GitHub временно недоступен"
-                : result.update_available ? "Доступно обновление" : "Установлена последняя версия";
-            if (result.update_available) {
-                document.getElementById("rf-update-current-version").textContent = result.current_version;
-                document.getElementById("rf-update-latest-version").textContent = result.latest_version;
-                document.getElementById("rf-update-commands").textContent =
-                    'cd "$HOME/Runtimeforce/runtimeforce-app"\\ngit fetch origin main\\ngit pull --ff-only origin main\\n./venv/bin/python -m pip install -r requirements.txt';
-                document.getElementById("rf-update-modal")?.classList.remove("hidden");
+            await updateNotificationService.checkNow();
+            if (status && status.textContent === "Проверяем GitHub main...") {
+                status.textContent = "GitHub временно недоступен";
             }
         });
         document.getElementById("clear-chat-btn")?.addEventListener("click", () => {
