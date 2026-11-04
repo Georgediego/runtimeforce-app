@@ -273,16 +273,49 @@ def test_auto_route_ignores_stale_manual_model_lock():
     assert set(route) == {"openai/gpt-4o-mini", "openai/gpt-4o"}
 
 
-def test_manual_route_requires_an_explicit_model():
-    router = LLMRouterService(LLMRegistryService())
-    with pytest.raises(ValueError, match="MANUAL strategy requires a specific model"):
-        router.build_route(
-            strategy="MANUAL",
-            model_lock=None,
-            plan="studio",
-            provider_keys={},
-            scores={},
-        )
+def test_manual_auto_uses_automatic_model_routing():
+    registry = LLMRegistryService()
+    for model_id in ("openai/gpt-4o-mini", "openai/gpt-4o"):
+        registry.register_model(ModelMetadata(
+            id=model_id,
+            provider="openai",
+            name=model_id.rsplit("/", 1)[-1],
+            tier="standard",
+            context_window=128000,
+            capabilities=["chat_completion", "text", "code"],
+        ))
+
+    router = LLMRouterService(registry)
+    route = router.build_route(
+        strategy="MANUAL",
+        model_lock="auto",
+        plan="studio",
+        provider_keys={"openai": "test-key"},
+        scores={},
+    )
+
+    assert set(route) == {"openai/gpt-4o-mini", "openai/gpt-4o"}
+
+
+def test_manual_concrete_model_remains_strictly_locked():
+    registry = LLMRegistryService()
+    registry.register_model(ModelMetadata(
+        id="openai/gpt-4o-mini",
+        provider="openai",
+        name="gpt-4o-mini",
+        tier="standard",
+        capabilities=["chat_completion", "text", "code"],
+    ))
+    router = LLMRouterService(registry)
+    route = router.build_route(
+        strategy="MANUAL",
+        model_lock="openai/gpt-4o-mini",
+        plan="studio",
+        provider_keys={},
+        scores={},
+        enabled_models=["openai/gpt-4o-mini"],
+    )
+    assert route == ["openai/gpt-4o-mini"]
 
 
 def test_openai_no_credits_cools_down_provider_not_just_one_model():
