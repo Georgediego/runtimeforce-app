@@ -123,6 +123,12 @@ async function checkForUpdates({ force = false } = {}) {
             cache: "no-store",
             headers: { "Accept": "application/json" },
         });
+        if (response.status === 403) {
+            const status = document.getElementById("rf-update-settings-status");
+            if (status) status.textContent = "Software Updates недоступна на вашем тарифе";
+            pendingUpdate = null;
+            return;
+        }
         if (!response.ok) return;
         const result = await response.json();
         if (!result.checked) return;
