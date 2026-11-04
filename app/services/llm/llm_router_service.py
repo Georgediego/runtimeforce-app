@@ -130,12 +130,16 @@ class LLMRouterService:
         strategy_clean = (strategy or "auto").strip().lower()
 
         if strategy_clean == "manual":
-            if not model_lock or model_lock.lower() in ("auto", "none", ""):
-                raise ValueError("MANUAL strategy requires a specific model. Select one in the model selector.")
-            if enabled_models is not None and len(enabled_models) > 0 and model_lock not in enabled_models:
-                raise ValueError(f"Selected model '{model_lock}' is not enabled in settings.")
-            logger.info(f"[LLMRouter] MANUAL strategy active: locked strictly to '{model_lock}'")
-            return [model_lock]
+            # MANUAL + auto means use the normal automatic candidate ranking.
+            # A concrete MANUAL selection remains strictly locked with no fallback.
+            if not model_lock or model_lock.strip().lower() in ("auto", "none", ""):
+                logger.info("[LLMRouter] MANUAL selector is auto; using automatic model routing.")
+                strategy_clean = "auto"
+            else:
+                if enabled_models is not None and len(enabled_models) > 0 and model_lock not in enabled_models:
+                    raise ValueError(f"Selected model '{model_lock}' is not enabled in settings.")
+                logger.info(f"[LLMRouter] MANUAL strategy active: locked strictly to '{model_lock}'")
+                return [model_lock]
 
         all_models = self.registry.get_available_models(required_capability=required_capability)
         candidates = []
