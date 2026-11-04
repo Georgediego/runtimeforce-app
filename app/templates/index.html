@@ -447,6 +447,27 @@
                 </div>
                 <div id="providers-list-pro" class="space-y-2 mt-2"></div>
 
+                <section class="mt-8 pt-5 border-t border-[var(--ide-border-subtle)] space-y-3">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4 text-[var(--ide-accent)]"></i>
+                        <span class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)]">Update</span>
+                    </div>
+                    <div class="rounded-xl border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-4 space-y-3">
+                        <div class="flex items-center justify-between gap-3 text-xs">
+                            <span class="text-[var(--ide-text-muted)]">Installed version</span>
+                            <strong id="rf-update-settings-current" class="font-mono text-[var(--ide-text-primary)]">—</strong>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 text-xs">
+                            <span class="text-[var(--ide-text-muted)]">Latest stable (GitHub main)</span>
+                            <strong id="rf-update-settings-latest" class="font-mono text-[var(--ide-text-primary)]">—</strong>
+                        </div>
+                        <div id="rf-update-settings-status" class="text-[11px] text-[var(--ide-text-secondary)]">Проверка выполняется автоматически два раза в день.</div>
+                        <button id="rf-update-settings-check-btn" type="button" class="px-3 py-2 text-xs font-bold rounded-lg bg-[var(--ide-accent)] text-black hover:brightness-110">
+                            Проверить обновления
+                        </button>
+                    </div>
+                </section>
+
                 <div class="flex items-center gap-3 mt-6 pt-4 border-t border-[var(--ide-border-subtle)]">
                     <button id="save-keys-btn" class="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-[var(--ide-accent)] text-black rounded-lg hover:brightness-110 transition-all cursor-pointer font-bold">
                         <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Keys
