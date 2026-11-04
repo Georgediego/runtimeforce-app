@@ -18,8 +18,30 @@ export const settingsUIController = {
                 this.switchTab(btn.dataset.tab);
             });
         });
-        document.getElementById("check-updates-btn")?.addEventListener("click", async () => {
-            showToast("RuntimeForce is up to date (v2.0.0)", "success");
+        document.getElementById("rf-update-settings-check-btn")?.addEventListener("click", async () => {
+            const status = document.getElementById("rf-update-settings-status");
+            if (status) status.textContent = "Проверяем GitHub main...";
+            const response = await fetch("/api/v1/updates/check", { cache: "no-store" });
+            if (!response.ok) {
+                if (status) status.textContent = "Не удалось проверить обновления";
+                showToast("Не удалось проверить обновления", "error");
+                return;
+            }
+            const result = await response.json();
+            const current = document.getElementById("rf-update-settings-current");
+            const latest = document.getElementById("rf-update-settings-latest");
+            if (current) current.textContent = result.current_version || "—";
+            if (latest) latest.textContent = result.latest_version || "—";
+            if (status) status.textContent = !result.checked
+                ? "GitHub временно недоступен"
+                : result.update_available ? "Доступно обновление" : "Установлена последняя версия";
+            if (result.update_available) {
+                document.getElementById("rf-update-current-version").textContent = result.current_version;
+                document.getElementById("rf-update-latest-version").textContent = result.latest_version;
+                document.getElementById("rf-update-commands").textContent =
+                    'cd "$HOME/Runtimeforce/runtimeforce-app"\\ngit fetch origin main\\ngit pull --ff-only origin main\\n./venv/bin/python -m pip install -r requirements.txt';
+                document.getElementById("rf-update-modal")?.classList.remove("hidden");
+            }
         });
         document.getElementById("clear-chat-btn")?.addEventListener("click", () => {
             const history = document.getElementById("chat-history");
