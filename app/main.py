@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.api import register_all
 from app.core.version_utils import is_newer_version
+from app.core.security.entitlements import require_plan_feature
 
 # Suppress noisy third-party loggers completely
 logging.getLogger("litellm").setLevel(logging.ERROR)
@@ -112,7 +113,10 @@ async def get_version_api():
 
 
 @app.get("/api/v1/updates/check")
-async def check_ide_updates(response: Response):
+async def check_ide_updates(
+    response: Response,
+    _user_id: str = Depends(require_plan_feature("software_updates")),
+):
     """Compare the installed CHANGELOG version with the public GitHub main CHANGELOG."""
     response.headers["Cache-Control"] = "no-store, max-age=0"
     current_version = get_app_version()
