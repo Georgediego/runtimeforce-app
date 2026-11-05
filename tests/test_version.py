@@ -59,7 +59,7 @@ def test_fetch_latest_ide_version_uses_github_main_first(monkeypatch):
 
 def test_parse_stable_ide_version():
     assert main_mod.parse_stable_ide_version(
-        "# Changelog\\n\\n## [Unreleased]\\n\\n## [1.0.0] - 2026-11-05\\n"
+        "# Changelog\n\n## [Unreleased]\n\n## [1.0.0] - 2026-11-05\n"
     ) == "v1.0.0"
 
 
