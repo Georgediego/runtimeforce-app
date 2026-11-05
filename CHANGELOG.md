@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-11-06
+
+### Fixed
+- Isolate chat state by active project. Switching projects now clears the previous project's messages, traces, tools, terminal session, and selected chat before loading the new project's sessions.
+- Prevent stale asynchronous session-list and chat-history responses from a previously active project from overwriting the currently selected project's interface.
+- Clear the chat view when a project has no sessions or when no project is selected, instead of leaving messages from the previous project visible.
+- Refresh the active chat immediately after deleting the selected project and switch the interface to the next available project.
+- Keep project deletion scoped to project-owned database records, including project settings, workspace database bindings, chat sessions and related history, while preserving shared workspace resources and other projects' data.
+- Keep shared physical workspace folders, local files, and Git repositories untouched when a project is deleted.
+- Restrict project graph-memory relationships to the owning project so one project's memory does not leak into another project's context.
+
+### Security
+- Preserve project isolation when multiple projects share the same physical workspace: deleting one project's database binding does not remove the shared folder or the remaining projects' workspace access.
+- Keep global provider settings, API keys, SSH credentials, account authentication, and external GitHub repositories outside project-deletion cleanup.
+
+
 ## [1.0.6] - 2026-11-05
 
 ### Added
