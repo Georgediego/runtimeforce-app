@@ -256,12 +256,40 @@ class ProjectDBRepository:
                         (user_id, *node_ids)
                     )
 
-                # Delete project-owned workspace records and credentials stored on those rows.
-                # This is database-only: never remove local directories, files, or Git repositories.
-                conn.execute(
-                    "DELETE FROM workspaces WHERE project_id=? AND user_id=?",
+                # Remove only workspace records owned exclusively by this project.
+                # A workspace may be shared through another project's workspace_id reference.
+                # Keep shared rows and reassign their project-scoped listing to a surviving project.
+                # Never touch the filesystem, local Git repositories, or global SSH keys.
+                workspace_rows = conn.execute(
+                    "SELECT id FROM workspaces WHERE project_id=? AND user_id=?",
                     (project_id, user_id)
-                )
+                ).fetchall()
+                for workspace_row in workspace_rows:
+                    workspace_id = workspace_row["id"]
+                    shared_projects = conn.execute(
+                        """
+                        SELECT id FROM projects
+                        WHERE user_id=? AND id!=? AND workspace_id=?
+                        ORDER BY is_active DESC, updated_at DESC, created_at DESC
+                        """,
+                        (user_id, project_id, workspace_id)
+                    ).fetchall()
+                    if shared_projects:
+                        conn.execute(
+                            """
+                            UPDATE workspaces SET project_id=?
+                            WHERE id=? AND user_id=? AND project_id=?
+                            """,
+                            (shared_projects[0]["id"], workspace_id, user_id, project_id)
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            DELETE FROM workspaces
+                            WHERE id=? AND user_id=? AND project_id=?
+                            """,
+                            (workspace_id, user_id, project_id)
+                        )
 
                 was_active = bool(project["is_active"])
                 conn.execute(
