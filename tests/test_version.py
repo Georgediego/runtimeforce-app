@@ -27,3 +27,64 @@ def test_get_app_version_missing_file(monkeypatch):
     with patch.object(Path, "exists", return_value=False):
         ver = get_app_version()
         assert ver == "0.0.0"
+
+
+def test_fetch_latest_ide_version_falls_back_to_runtimeforce_server(monkeypatch):
+    import asyncio
+    import httpx
+
+    class FakeResponse:
+        text = ""
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"version": "v1.0.1"}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url, **kwargs):
+            if url == main_mod.IDE_CHANGELOG_URL:
+                raise httpx.ConnectError("GitHub is unreachable")
+            return FakeResponse()
+
+    monkeypatch.setattr(main_mod.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+
+    version, source = asyncio.run(main_mod.fetch_latest_ide_version())
+
+    assert version == "v1.0.1"
+    assert source == "runtimeforce-server"
+
+
+def test_fetch_latest_ide_version_uses_github_main_first(monkeypatch):
+    import asyncio
+
+    class FakeResponse:
+        text = "## [1.0.1] - 2026-11-05\\n"
+
+        def raise_for_status(self):
+            return None
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url, **kwargs):
+            assert url == main_mod.IDE_CHANGELOG_URL
+            return FakeResponse()
+
+    monkeypatch.setattr(main_mod.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+
+    version, source = asyncio.run(main_mod.fetch_latest_ide_version())
+
+    assert version == "v1.0.1"
+    assert source == "github-main-changelog"
