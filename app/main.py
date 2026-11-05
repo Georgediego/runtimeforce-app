@@ -8,11 +8,13 @@ import logging
 from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
+import subprocess
+import sys
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,7 +57,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.0.5",
+    version="1.0.6",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -173,6 +175,105 @@ async def check_ide_updates(
             "update_available": False,
             "checked": False,
         }
+
+
+_update_state = {"status": "idle", "message": ""}
+
+
+def _apply_ide_update():
+    """Safely fast-forward the clean IDE checkout to stable main and restart Uvicorn."""
+    global _update_state
+    root = BASE_DIR.parent.resolve()
+
+    def run_git(*args, timeout=60):
+        return subprocess.run(
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+
+    try:
+        _update_state = {"status": "updating", "message": "Checking the local installation..."}
+        top_level = run_git("rev-parse", "--show-toplevel")
+        if top_level.returncode != 0 or Path(top_level.stdout.strip()).resolve() != root:
+            raise RuntimeError("The IDE installation is not a Git repository.")
+
+        branch = run_git("branch", "--show-current")
+        if branch.returncode != 0 or branch.stdout.strip() != "main":
+            raise RuntimeError("Automatic updates require the stable main branch.")
+
+        remote = run_git("remote", "get-url", "origin")
+        allowed_remotes = {
+            "https://github.com/Georgediego/runtimeforce-app.git",
+            "https://github.com/Georgediego/runtimeforce-app",
+            "git@github.com:Georgediego/runtimeforce-app.git",
+        }
+        if remote.returncode != 0 or remote.stdout.strip().rstrip("/") not in allowed_remotes:
+            raise RuntimeError("The configured Git origin is not the official RuntimeForce IDE repository.")
+
+        changes = run_git("status", "--porcelain")
+        if changes.returncode != 0 or changes.stdout.strip():
+            raise RuntimeError("Local changes detected. Commit or stash them before updating.")
+
+        _update_state = {"status": "updating", "message": "Downloading the latest stable release..."}
+        fetched = run_git("fetch", "origin", "main", "--quiet", timeout=180)
+        if fetched.returncode != 0:
+            raise RuntimeError(fetched.stderr.strip() or "Unable to fetch the latest release.")
+
+        ancestry = run_git("merge-base", "--is-ancestor", "HEAD", "origin/main")
+        if ancestry.returncode != 0:
+            raise RuntimeError("The local branch cannot be updated with a safe fast-forward.")
+
+        merged = run_git("merge", "--ff-only", "origin/main")
+        if merged.returncode != 0:
+            raise RuntimeError(merged.stderr.strip() or "Unable to apply the stable release.")
+
+        _update_state = {"status": "installing", "message": "Installing application dependencies..."}
+        installed = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+        if installed.returncode != 0:
+            raise RuntimeError((installed.stderr or installed.stdout).strip()[-1200:] or "Dependency installation failed.")
+
+        if "uvicorn" not in Path(sys.argv[0]).as_posix().lower():
+            raise RuntimeError("The code was updated, but automatic restart is unavailable for this launch method.")
+
+        _update_state = {"status": "restarting", "message": "Restarting RuntimeForce IDE..."}
+        os.execv(sys.executable, [sys.executable, *sys.argv])
+    except Exception as exc:
+        logger.exception("IDE automatic update failed")
+        _update_state = {"status": "error", "message": str(exc)[:1200]}
+
+
+@app.post("/api/v1/updates/apply")
+async def apply_ide_update(request: Request, background_tasks: BackgroundTasks):
+    host = request.headers.get("host", "").split(":")[0].lower()
+    origin = request.headers.get("origin", "")
+    if host not in {"localhost", "127.0.0.1"} or origin not in {
+        f"http://{host}:8000",
+        f"https://{host}:8000",
+    }:
+        raise HTTPException(status_code=403, detail="Update requests are allowed only from the local IDE.")
+
+    if _update_state["status"] in {"updating", "installing", "restarting"}:
+        return {"accepted": True, "status": _update_state["status"]}
+
+    background_tasks.add_task(_apply_ide_update)
+    return {"accepted": True, "status": "updating"}
+
+
+@app.get("/api/v1/updates/status")
+async def get_ide_update_status():
+    return dict(_update_state)
+
 
 register_all(app)
 
