@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-11-05
+
+### Fixed
+- Allow public IDE version checks without requiring a live SaaS authentication request.
+
+## [1.0.4] - 2026-11-05
+
+### Fixed
+- Use English for the GitHub update-check failure status in Settings.
+
+## [1.0.3] - 2026-11-05
+
+### Fixed
+- Fall back to the GitHub Contents API when the raw GitHub changelog endpoint is unreachable.
+- Keep the stable IDE version check independent from the SaaS server version.
+
+## [1.0.2] - 2026-11-05
+
+### Fixed
+- Remove the duplicate Software Updates heading in Settings.
+- Use English consistently for update-check labels, status messages, and actions.
+
+## [1.0.1] - 2026-11-05
+
+### Fixed
+- Keep the installed IDE version visible when the remote stable-version lookup is unavailable.
+- Show an explicit unavailable state instead of leaving both version fields blank or presenting an unverified latest version.
+
 ## [1.0.0] - 2026-11-05
 
 ### Added

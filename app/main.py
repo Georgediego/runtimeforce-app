@@ -3,6 +3,7 @@ RuntimeForce IDE — FastAPI main application entry point with LiteLLM & Hugging
 """
 import os
 import re
+import base64
 import logging
 from pathlib import Path
 from typing import Optional
@@ -11,7 +12,7 @@ from contextlib import asynccontextmanager
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from fastapi import FastAPI, Request, Response, Depends
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +22,6 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.api import register_all
 from app.core.version_utils import is_newer_version
-from app.core.security.entitlements import require_plan_feature
 
 # Suppress noisy third-party loggers completely
 logging.getLogger("litellm").setLevel(logging.ERROR)
@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.0.0",
+    version="1.0.5",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -107,6 +107,42 @@ def get_app_version() -> str:
 
 templates.env.globals["app_version"] = get_app_version()
 
+# Read the stable IDE version from the public GitHub main changelog.
+IDE_CHANGELOG_URL = "https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/CHANGELOG.md"
+IDE_CHANGELOG_API_URL = "https://api.github.com/repos/Georgediego/runtimeforce-app/contents/CHANGELOG.md?ref=main"
+
+def parse_stable_ide_version(changelog: str) -> str:
+    match = re.search(
+        r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?",
+        changelog,
+        re.MULTILINE,
+    )
+    if not match or match.group(1) == "0.0.0":
+        raise RuntimeError("GitHub main changelog does not contain a valid stable IDE version")
+    return f"v{match.group(1)}"
+
+async def fetch_latest_ide_version():
+    """Read GitHub main, trying raw content first and the GitHub API as fallback."""
+    headers = {"Cache-Control": "no-cache", "Accept": "application/vnd.github+json"}
+    errors = []
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        for url, source in (
+            (IDE_CHANGELOG_URL, "github-main-changelog"),
+            (IDE_CHANGELOG_API_URL, "github-api"),
+        ):
+            try:
+                remote = await client.get(url, headers=headers)
+                remote.raise_for_status()
+                if source == "github-api":
+                    payload = remote.json()
+                    content = base64.b64decode(payload["content"]).decode("utf-8")
+                else:
+                    content = remote.text
+                return parse_stable_ide_version(content), source
+            except Exception as exc:
+                errors.append(f"{source}: {type(exc).__name__}: {exc}")
+    raise RuntimeError("Unable to read GitHub main CHANGELOG; " + " | ".join(errors))
+
 @app.get("/api/v1/version")
 async def get_version_api():
     return {"version": get_app_version()}
@@ -115,41 +151,25 @@ async def get_version_api():
 @app.get("/api/v1/updates/check")
 async def check_ide_updates(
     response: Response,
-    _user_id: str = Depends(require_plan_feature("software_updates")),
 ):
     """Compare the installed CHANGELOG version with the public GitHub main CHANGELOG."""
     response.headers["Cache-Control"] = "no-store, max-age=0"
     current_version = get_app_version()
-    changelog_url = (
-        "https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/CHANGELOG.md"
-    )
     try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
-            remote = await client.get(
-                changelog_url,
-                headers={"Cache-Control": "no-cache"},
-            )
-            remote.raise_for_status()
-        match = re.search(
-            r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?",
-            remote.text,
-            re.MULTILINE,
-        )
-        if not match:
-            raise ValueError("GitHub main CHANGELOG does not contain a valid release version")
-        latest_version = f"v{match.group(1)}"
+        latest_version, source = await fetch_latest_ide_version()
         return {
             "current_version": current_version,
             "latest_version": latest_version,
             "update_available": is_newer_version(latest_version, current_version),
+            "installed_newer": is_newer_version(current_version, latest_version),
             "checked": True,
-            "source": "github-main-changelog",
+            "source": source,
         }
     except Exception as exc:
         logger.info("IDE update check unavailable: %s", exc)
         return {
             "current_version": current_version,
-            "latest_version": current_version,
+            "latest_version": None,
             "update_available": False,
             "checked": False,
         }
