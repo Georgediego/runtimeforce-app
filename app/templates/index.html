@@ -468,10 +468,6 @@
                     <h3 class="text-sm font-bold text-[var(--ide-text-primary)]">Software Updates</h3>
                 </div>
                 <section class="mt-8 pt-5 border-t border-[var(--ide-border-subtle)] space-y-3">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="refresh-cw" class="w-4 h-4 text-[var(--ide-accent)]"></i>
-                        <span class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)]">Software Updates</span>
-                    </div>
                     <div class="rounded-xl border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-4 space-y-3">
                         <div class="flex items-center justify-between gap-3 text-xs">
                             <span class="text-[var(--ide-text-muted)]">Installed version</span>
@@ -481,9 +477,9 @@
                             <span class="text-[var(--ide-text-muted)]">Latest stable (GitHub main)</span>
                             <strong id="rf-update-settings-latest" class="font-mono text-[var(--ide-text-primary)]">—</strong>
                         </div>
-                        <div id="rf-update-settings-status" class="text-[11px] text-[var(--ide-text-secondary)]">Проверка выполняется автоматически два раза в день.</div>
+                        <div id="rf-update-settings-status" class="text-[11px] text-[var(--ide-text-secondary)]">Checks run automatically twice a day.</div>
                         <button id="rf-update-settings-check-btn" type="button" class="px-3 py-2 text-xs font-bold rounded-lg bg-[var(--ide-accent)] text-black hover:brightness-110">
-                            Проверить обновления
+                            Check for Updates
                         </button>
                     </div>
                 </section>
@@ -924,13 +920,13 @@
 
         <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-[var(--ide-border-subtle)]">
             <button id="rf-update-later-btn" type="button" class="px-4 py-2.5 rounded-lg border border-[var(--ide-border-subtle)] text-xs font-bold text-[var(--ide-text-secondary)] hover:bg-[var(--ide-elevated)] transition-colors">
-                Отложить на 4 часа
+                Remind Me in 4 Hours
             </button>
             <button id="rf-update-copy-btn" type="button" class="px-4 py-2.5 rounded-lg bg-[var(--ide-accent)] text-black text-xs font-extrabold hover:brightness-110 transition-all">
-                Скопировать команды обновления
+                Copy Update Commands
             </button>
         </div>
-        <p class="text-[10px] text-[var(--ide-text-muted)] text-center">Напоминание можно отложить на 4 часа. Проверка версии выполняется автоматически.</p>
+        <p class="text-[10px] text-[var(--ide-text-muted)] text-center">You can snooze this reminder for 4 hours. Version checks run automatically.</p>
     </div>
 </div>
 
