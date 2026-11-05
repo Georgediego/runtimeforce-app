@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-05
+
+### Fixed
+- Remove the duplicate Software Updates heading in Settings.
+- Use English consistently for update-check labels, status messages, and actions.
+
 ## [1.0.1] - 2026-11-05
 
 ### Fixed
