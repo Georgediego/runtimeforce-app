@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Keep the installed IDE version visible when the remote stable-version lookup is unavailable.
-- Fall back to the official RuntimeForce SaaS version endpoint when the local machine cannot reach GitHub directly.
 - Show an explicit unavailable state instead of leaving both version fields blank or presenting an unverified latest version.
 
 ## [1.0.0] - 2026-11-05
