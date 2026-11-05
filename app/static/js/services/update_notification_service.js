@@ -131,14 +131,21 @@ async function checkForUpdates({ force = false } = {}) {
         }
         if (!response.ok) return;
         const result = await response.json();
-        if (!result.checked) return;
-        localStorage.setItem(UPDATE_LAST_CHECK_KEY, String(Date.now()));
-
         const status = document.getElementById("rf-update-settings-status");
         const current = document.getElementById("rf-update-settings-current");
         const latest = document.getElementById("rf-update-settings-latest");
-        if (current) current.textContent = result.current_version;
-        if (latest) latest.textContent = result.latest_version;
+
+        // Always show the locally installed version, even if all remote sources fail.
+        if (current) current.textContent = result.current_version || "—";
+        if (!result.checked) {
+            if (latest) latest.textContent = "—";
+            if (status) status.textContent = "GitHub временно недоступен";
+            pendingUpdate = null;
+            return;
+        }
+
+        localStorage.setItem(UPDATE_LAST_CHECK_KEY, String(Date.now()));
+        if (latest) latest.textContent = result.latest_version || "—";
         if (status) status.textContent = result.update_available
             ? "Доступно обновление"
             : "Установлена последняя версия";
