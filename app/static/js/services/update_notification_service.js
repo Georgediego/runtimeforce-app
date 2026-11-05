@@ -6,6 +6,7 @@ const UPDATE_SNOOZE_KEY = "rf_update_snooze_v2";
 let checkTimer = null;
 let checking = false;
 let pendingUpdate = null;
+let applyingUpdate = false;
 
 function readStoredJson(key) {
     try { return JSON.parse(localStorage.getItem(key) || "null"); }
@@ -60,6 +61,35 @@ function updateCommands() {
     ].join("\n");
 }
 
+function setApplyStatus(message, isError = false) {
+    const status = document.getElementById("rf-update-apply-status");
+    if (status) {
+        status.textContent = message;
+        status.classList.toggle("text-red-400", isError);
+        status.classList.toggle("text-[var(--ide-text-muted)]", !isError);
+    }
+    const settingsStatus = document.getElementById("rf-update-settings-status");
+    if (settingsStatus && message) settingsStatus.textContent = message;
+}
+
+function ensureApplyButton() {
+    const copyButton = document.getElementById("rf-update-copy-btn");
+    if (!copyButton || document.getElementById("rf-update-apply-btn")) return;
+    const button = document.createElement("button");
+    button.id = "rf-update-apply-btn";
+    button.type = "button";
+    button.className = "px-4 py-2.5 rounded-lg bg-[var(--ide-accent)] text-black text-xs font-extrabold hover:brightness-110 transition-all";
+    button.textContent = "Update Now";
+    button.addEventListener("click", applyUpdate);
+    copyButton.parentElement.insertBefore(button, copyButton);
+
+    const status = document.createElement("p");
+    status.id = "rf-update-apply-status";
+    status.className = "text-[10px] text-[var(--ide-text-muted)] text-center";
+    status.setAttribute("aria-live", "polite");
+    copyButton.closest("#rf-update-modal")?.querySelector(".border-t")?.after(status);
+}
+
 function showUpdateModal(currentVersion, latestVersion) {
     const modal = document.getElementById("rf-update-modal");
     if (!modal) return;
@@ -69,6 +99,7 @@ function showUpdateModal(currentVersion, latestVersion) {
     modal.dataset.latestVersion = latestVersion;
     modal.classList.remove("hidden");
     modal.setAttribute("aria-hidden", "false");
+    ensureApplyButton();
     pendingUpdate = null;
 }
 
@@ -102,6 +133,65 @@ async function copyUpdateCommands() {
     }
 }
 
+async function applyUpdate() {
+    if (applyingUpdate) return;
+    const latestVersion = document.getElementById("rf-update-modal")?.dataset.latestVersion;
+    const button = document.getElementById("rf-update-apply-btn");
+    if (!latestVersion || !button) return;
+
+    applyingUpdate = true;
+    button.disabled = true;
+    button.textContent = "Updating...";
+    setApplyStatus("Preparing the update. Keep RuntimeForce open.");
+
+    try {
+        const response = await fetch("/api/v1/updates/apply", {
+            method: "POST",
+            cache: "no-store",
+            headers: { "Accept": "application/json" },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.accepted) {
+            throw new Error(result.detail || "Unable to start the update.");
+        }
+
+        setApplyStatus("Downloading the release and installing dependencies...");
+        const deadline = Date.now() + 10 * 60 * 1000;
+        while (Date.now() < deadline) {
+            await new Promise((resolve) => window.setTimeout(resolve, 2000));
+            try {
+                const stateResponse = await fetch("/api/v1/updates/status", { cache: "no-store" });
+                if (stateResponse.ok) {
+                    const state = await stateResponse.json();
+                    if (state.status === "error") throw new Error(state.message || "The update failed.");
+                    if (state.status === "installing") setApplyStatus("Installing application dependencies...");
+                    if (state.status === "restarting") setApplyStatus("Restarting RuntimeForce IDE...");
+                    if (state.status === "idle") {
+                        const versionResponse = await fetch("/api/v1/version", { cache: "no-store" });
+                        if (versionResponse.ok) {
+                            const installed = await versionResponse.json();
+                            if (installed.version === latestVersion) {
+                                setApplyStatus("Update complete. Reloading RuntimeForce IDE...");
+                                window.location.reload();
+                                return;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                if (error instanceof Error && !/fetch|network/i.test(error.message)) throw error;
+                setApplyStatus("Restarting RuntimeForce IDE...");
+            }
+        }
+        throw new Error("The update is taking longer than expected. Check the IDE service before trying again.");
+    } catch (error) {
+        setApplyStatus(error.message || "The update failed.", true);
+        button.disabled = false;
+        button.textContent = "Retry Update";
+        applyingUpdate = false;
+    }
+}
+
 function presentPendingUpdate() {
     if (!pendingUpdate || document.hidden || hasBlockingActivity()) return;
     if (isSnoozed(pendingUpdate.latest_version)) return;
@@ -123,19 +213,15 @@ async function checkForUpdates({ force = false } = {}) {
             cache: "no-store",
             headers: { "Accept": "application/json" },
         });
-        if (response.status === 403) {
-            const status = document.getElementById("rf-update-settings-status");
-            const latest = document.getElementById("rf-update-settings-latest");
-            if (latest) latest.textContent = "—";
-            if (status) status.textContent = "Software Updates is not available on your plan";
-            pendingUpdate = null;
-            return;
-        }
-        if (!response.ok) return;
-        const result = await response.json();
         const status = document.getElementById("rf-update-settings-status");
         const current = document.getElementById("rf-update-settings-current");
         const latest = document.getElementById("rf-update-settings-latest");
+
+        if (!response.ok) {
+            if (status) status.textContent = "Unable to check for updates. Please try again.";
+            return;
+        }
+        const result = await response.json();
 
         // Always show the locally installed version, even if all remote sources fail.
         if (current) current.textContent = result.current_version || "—";
@@ -149,7 +235,7 @@ async function checkForUpdates({ force = false } = {}) {
         localStorage.setItem(UPDATE_LAST_CHECK_KEY, String(Date.now()));
         if (latest) latest.textContent = result.latest_version || "—";
         if (status) status.textContent = result.update_available
-            ? "An update is available"
+            ? "A new update is available"
             : result.installed_newer
                 ? "Installed version is newer than the latest stable release"
                 : "You're up to date";
@@ -164,6 +250,8 @@ async function checkForUpdates({ force = false } = {}) {
         };
         presentPendingUpdate();
     } catch (error) {
+        const status = document.getElementById("rf-update-settings-status");
+        if (status) status.textContent = "Unable to check for updates. Please try again.";
         console.debug("[Updates] Version check unavailable:", error);
     } finally {
         checking = false;
@@ -173,6 +261,7 @@ async function checkForUpdates({ force = false } = {}) {
 export const updateNotificationService = {
     init() {
         if (checkTimer) return;
+        ensureApplyButton();
         document.getElementById("rf-update-later-btn")?.addEventListener("click", () => {
             const version = document.getElementById("rf-update-modal")?.dataset.latestVersion;
             if (version) snooze(version);
