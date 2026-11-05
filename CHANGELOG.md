@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-11-06
+
+### Fixed
+- Replace Git-based automatic updates with public HTTPS release downloads, so updates work on any local branch without a GitHub account, SSH key, or configured Git remote.
+- Validate downloaded release archives and preserve local environment files, virtual environments, databases, projects, and runtime data during installation.
+- Restore replaced application files if dependency installation fails, then restart the IDE after a successful update.
+- Align FastAPI version metadata with the current IDE release.
+
+
 ## [1.0.8] - 2026-11-06
 
 ### Fixed
