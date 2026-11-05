@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-05
+
+### Fixed
+- Fall back to the GitHub Contents API when the raw GitHub changelog endpoint is unreachable.
+- Keep the stable IDE version check independent from the SaaS server version.
+
 ## [1.0.2] - 2026-11-05
 
 ### Fixed
