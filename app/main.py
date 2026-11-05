@@ -107,41 +107,25 @@ def get_app_version() -> str:
 
 templates.env.globals["app_version"] = get_app_version()
 
-# Prefer GitHub main; use the SaaS endpoint as a server-side network fallback.
+# Read the stable IDE version from the public GitHub main changelog.
 IDE_CHANGELOG_URL = "https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/CHANGELOG.md"
-IDE_VERSION_FALLBACK_URL = "https://runtimeforce.dev/api/v1/ide-version"
 
 async def fetch_latest_ide_version():
-    """Return the stable IDE version and its source, or raise if both sources fail."""
-    sources = (
-        ("github-main-changelog", IDE_CHANGELOG_URL),
-        ("runtimeforce-server", IDE_VERSION_FALLBACK_URL),
-    )
-    last_error = None
+    """Return the stable IDE version published in GitHub main."""
     async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-        for source, url in sources:
-            try:
-                remote = await client.get(url, headers={"Cache-Control": "no-cache"})
-                remote.raise_for_status()
-                if source == "github-main-changelog":
-                    match = re.search(
-                        r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?",
-                        remote.text,
-                        re.MULTILINE,
-                    )
-                else:
-                    payload = remote.json()
-                    match = re.fullmatch(
-                        r"v?(\d+\.\d+\.\d+)",
-                        str(payload.get("version", "")).strip(),
-                    )
-                if not match or match.group(1) == "0.0.0":
-                    raise ValueError(f"{source} did not return a valid stable IDE version")
-                return f"v{match.group(1)}", source
-            except Exception as exc:
-                last_error = exc
-                logger.debug("IDE version source %s unavailable: %s", source, exc)
-    raise RuntimeError("All stable IDE version sources are unavailable") from last_error
+        remote = await client.get(
+            IDE_CHANGELOG_URL,
+            headers={"Cache-Control": "no-cache"},
+        )
+        remote.raise_for_status()
+    match = re.search(
+        r"^##\\s+\\[?v?(\\d+\\.\\d+\\.\\d+)\\]?",
+        remote.text,
+        re.MULTILINE,
+    )
+    if not match or match.group(1) == "0.0.0":
+        raise RuntimeError("GitHub main changelog does not contain a valid stable IDE version")
+    return f"v{match.group(1)}", "github-main-changelog"
 
 @app.get("/api/v1/version")
 async def get_version_api():
