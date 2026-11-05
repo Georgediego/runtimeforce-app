@@ -258,6 +258,7 @@ def _apply_ide_update():
 
 @app.post("/api/v1/updates/apply")
 async def apply_ide_update(request: Request, background_tasks: BackgroundTasks):
+    global _update_state
     host = request.headers.get("host", "").split(":")[0].lower()
     origin = request.headers.get("origin", "")
     if host not in {"localhost", "127.0.0.1"} or origin not in {
