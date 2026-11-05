@@ -119,7 +119,7 @@ async def fetch_latest_ide_version():
         )
         remote.raise_for_status()
     match = re.search(
-        r"^##\\s+\\[?v?(\\d+\\.\\d+\\.\\d+)\\]?",
+        r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?",
         remote.text,
         re.MULTILINE,
     )
