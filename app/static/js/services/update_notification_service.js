@@ -47,7 +47,7 @@ function updateCommands() {
             "git pull --ff-only origin main",
             ".\\venv\\Scripts\\python.exe -m pip install -r requirements.txt",
             "",
-            "# Затем перезапустите RuntimeForce IDE.",
+            "# Then restart RuntimeForce IDE.",
         ].join("\n");
     }
     return [
@@ -56,7 +56,7 @@ function updateCommands() {
         "git pull --ff-only origin main",
         "./venv/bin/python -m pip install -r requirements.txt",
         "",
-        "# Затем перезапустите RuntimeForce IDE.",
+        "# Then restart RuntimeForce IDE.",
     ].join("\n");
 }
 
@@ -97,7 +97,7 @@ async function copyUpdateCommands() {
     }
     if (button) {
         const previous = button.textContent;
-        button.textContent = "Команды скопированы";
+        button.textContent = "Commands copied";
         window.setTimeout(() => { button.textContent = previous; }, 2500);
     }
 }
@@ -127,7 +127,7 @@ async function checkForUpdates({ force = false } = {}) {
             const status = document.getElementById("rf-update-settings-status");
             const latest = document.getElementById("rf-update-settings-latest");
             if (latest) latest.textContent = "—";
-            if (status) status.textContent = "Software Updates недоступна на вашем тарифе";
+            if (status) status.textContent = "Software Updates is not available on your plan";
             pendingUpdate = null;
             return;
         }
@@ -141,7 +141,7 @@ async function checkForUpdates({ force = false } = {}) {
         if (current) current.textContent = result.current_version || "—";
         if (!result.checked) {
             if (latest) latest.textContent = "—";
-            if (status) status.textContent = "GitHub временно недоступен";
+            if (status) status.textContent = "GitHub is temporarily unavailable";
             pendingUpdate = null;
             return;
         }
@@ -149,10 +149,10 @@ async function checkForUpdates({ force = false } = {}) {
         localStorage.setItem(UPDATE_LAST_CHECK_KEY, String(Date.now()));
         if (latest) latest.textContent = result.latest_version || "—";
         if (status) status.textContent = result.update_available
-            ? "Доступно обновление"
+            ? "An update is available"
             : result.installed_newer
-                ? "Установлена версия новее стабильной"
-                : "Установлена последняя версия";
+                ? "Installed version is newer than the latest stable release"
+                : "You're up to date";
 
         if (!result.update_available) {
             pendingUpdate = null;
