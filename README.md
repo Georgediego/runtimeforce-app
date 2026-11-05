@@ -42,7 +42,7 @@ curl -fsSL https://runtimeforce.dev/install.sh | bash
 irm https://runtimeforce.dev/install.ps1 | iex
 ```
 
-The IDE runs locally and is available at `http://127.0.0.1:8000`.
+On Linux, the installer creates and enables the per-user `runtimeforce-app.service` systemd service. It starts automatically after login. The installer selects the first available port from `8000`–`8010` and prints the local URL. On macOS and Windows, the installer selects an available port and runs the IDE in the current terminal.
 
 ## Requirements
 
