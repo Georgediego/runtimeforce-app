@@ -19,11 +19,14 @@ export const settingsUIController = {
                 this.switchTab(btn.dataset.tab);
             });
         });
+        document.getElementById("rf-update-settings-apply-btn")?.addEventListener("click", () => {
+            updateNotificationService.applyNow();
+        });
         document.getElementById("rf-update-settings-check-btn")?.addEventListener("click", async () => {
             const status = document.getElementById("rf-update-settings-status");
-            if (status) status.textContent = "Проверяем GitHub main...";
+            if (status) status.textContent = "Checking GitHub for updates...";
             await updateNotificationService.checkNow();
-            if (status && status.textContent === "Проверяем GitHub main...") {
+            if (status && status.textContent === "Checking GitHub for updates...") {
                 status.textContent = "GitHub is temporarily unavailable";
             }
         });
@@ -70,7 +73,10 @@ export const settingsUIController = {
             b.classList.toggle("active", isActive);
         });
 
-        if (targetTab === "general") this.updateProfileInfo();
+        if (targetTab === "general") {
+            this.updateProfileInfo();
+            updateNotificationService.checkNow();
+        }
         if (targetTab === "providers") providersUIController.loadProvidersList();
         if (targetTab === "local-models") providersUIController.renderLocalModelsSection();
     },

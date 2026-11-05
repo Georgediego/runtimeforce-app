@@ -477,7 +477,10 @@
                             <span class="text-[var(--ide-text-muted)]">Latest stable (GitHub main)</span>
                             <strong id="rf-update-settings-latest" class="font-mono text-[var(--ide-text-primary)]">—</strong>
                         </div>
-                        <div id="rf-update-settings-status" class="text-[11px] text-[var(--ide-text-secondary)]">Checks run automatically twice a day.</div>
+                        <div id="rf-update-settings-status" class="text-[11px] text-[var(--ide-text-secondary)]">Checking for updates...</div>
+                        <button id="rf-update-settings-apply-btn" type="button" class="hidden px-3 py-2 text-xs font-extrabold rounded-lg bg-[var(--ide-accent)] text-black hover:brightness-110">
+                            Update Now
+                        </button>
                         <button id="rf-update-settings-check-btn" type="button" class="px-3 py-2 text-xs font-bold rounded-lg bg-[var(--ide-accent)] text-black hover:brightness-110">
                             Check for Updates
                         </button>
@@ -914,7 +917,7 @@
 
         <div class="space-y-2">
             <div class="text-xs font-bold text-[var(--ide-text-primary)]">Update instructions</div>
-            <p class="text-[11px] text-[var(--ide-text-muted)]">Copy the commands, run them in your terminal, then restart RuntimeForce IDE. Your local projects and SQLite data are not touched.</p>
+            <p class="text-[11px] text-[var(--ide-text-muted)]">Click Update Now to install the release automatically. Your local projects and SQLite data will not be modified. Manual commands are available as a fallback.</p>
             <pre id="rf-update-commands" class="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-3 text-[11px] leading-relaxed font-mono text-[var(--ide-text-secondary)]"></pre>
         </div>
 

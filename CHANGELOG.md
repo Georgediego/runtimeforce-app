@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-11-05
+
+### Added
+- Add a one-click stable IDE updater that checks the local Git checkout, applies only a fast-forward update from GitHub main, installs dependencies, and restarts the running Uvicorn process.
+
+### Fixed
+- Translate the remaining manual update-check progress message to English.
+- Explain the automatic update action in the release notification while retaining manual commands as a fallback.
+
 ## [1.0.5] - 2026-11-05
 
 ### Fixed
