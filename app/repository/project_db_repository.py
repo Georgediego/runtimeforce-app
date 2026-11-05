@@ -3,6 +3,7 @@ Database Repository for Studio Plan Projects with Workspace & Git Binding.
 """
 import sqlite3
 import logging
+import uuid
 from typing import List, Dict, Any, Optional
 from app.repository.db_connection import DatabaseConnectionManager
 
@@ -256,12 +257,11 @@ class ProjectDBRepository:
                         (user_id, *node_ids)
                     )
 
-                # Remove only workspace records owned exclusively by this project.
-                # A workspace may be shared through another project's workspace_id reference.
-                # Keep shared rows and reassign their project-scoped listing to a surviving project.
-                # Never touch the filesystem, local Git repositories, or global SSH keys.
+                # Detach shared workspace references before deleting this project's workspace rows.
+                # Each remaining project receives its own DB record, while the physical folder,
+                # local Git repository, and global SSH key remain untouched.
                 workspace_rows = conn.execute(
-                    "SELECT id FROM workspaces WHERE project_id=? AND user_id=?",
+                    "SELECT * FROM workspaces WHERE project_id=? AND user_id=?",
                     (project_id, user_id)
                 ).fetchall()
                 for workspace_row in workspace_rows:
@@ -274,22 +274,50 @@ class ProjectDBRepository:
                         """,
                         (user_id, project_id, workspace_id)
                     ).fetchall()
-                    if shared_projects:
-                        conn.execute(
+
+                    for shared_project in shared_projects:
+                        other_project_id = shared_project["id"]
+                        other_workspace = conn.execute(
                             """
-                            UPDATE workspaces SET project_id=?
-                            WHERE id=? AND user_id=? AND project_id=?
+                            SELECT id FROM workspaces
+                            WHERE user_id=? AND project_id=?
+                            ORDER BY is_active DESC, created_at DESC
+                            LIMIT 1
                             """,
-                            (shared_projects[0]["id"], workspace_id, user_id, project_id)
-                        )
-                    else:
-                        conn.execute(
-                            """
-                            DELETE FROM workspaces
-                            WHERE id=? AND user_id=? AND project_id=?
-                            """,
-                            (workspace_id, user_id, project_id)
-                        )
+                            (user_id, other_project_id)
+                        ).fetchone()
+
+                        if other_workspace:
+                            # Keep that project's existing workspace selection.
+                            conn.execute(
+                                "UPDATE projects SET workspace_id=? WHERE id=? AND user_id=?",
+                                (other_workspace["id"], other_project_id, user_id)
+                            )
+                        else:
+                            # Materialize an independent DB binding for the remaining project.
+                            cloned_workspace_id = str(uuid.uuid4())
+                            conn.execute(
+                                """
+                                INSERT INTO workspaces
+                                    (id, name, type, host, port, username, path, auth_type,
+                                     password_enc, key_id, is_active, user_id, project_id)
+                                SELECT ?, name, type, host, port, username, path, auth_type,
+                                       password_enc, key_id, is_active, user_id, ?
+                                FROM workspaces
+                                WHERE id=? AND user_id=? AND project_id=?
+                                """,
+                                (cloned_workspace_id, other_project_id, workspace_id, user_id, project_id)
+                            )
+                            conn.execute(
+                                "UPDATE projects SET workspace_id=? WHERE id=? AND user_id=?",
+                                (cloned_workspace_id, other_project_id, user_id)
+                            )
+
+                    # The original row belongs to the project being deleted.
+                    conn.execute(
+                        "DELETE FROM workspaces WHERE id=? AND user_id=? AND project_id=?",
+                        (workspace_id, user_id, project_id)
+                    )
 
                 was_active = bool(project["is_active"])
                 conn.execute(
