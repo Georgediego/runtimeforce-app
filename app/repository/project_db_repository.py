@@ -256,10 +256,10 @@ class ProjectDBRepository:
                         (user_id, *node_ids)
                     )
 
-                # Preserve workspace records, SSH credentials, and local/remote directories.
-                # Only detach retained workspaces from the project being deleted.
+                # Delete project-owned workspace records and credentials stored on those rows.
+                # This is database-only: never remove local directories, files, or Git repositories.
                 conn.execute(
-                    "UPDATE workspaces SET project_id='' WHERE project_id=? AND user_id=?",
+                    "DELETE FROM workspaces WHERE project_id=? AND user_id=?",
                     (project_id, user_id)
                 )
 
