@@ -125,6 +125,8 @@ async function checkForUpdates({ force = false } = {}) {
         });
         if (response.status === 403) {
             const status = document.getElementById("rf-update-settings-status");
+            const latest = document.getElementById("rf-update-settings-latest");
+            if (latest) latest.textContent = "—";
             if (status) status.textContent = "Software Updates недоступна на вашем тарифе";
             pendingUpdate = null;
             return;
