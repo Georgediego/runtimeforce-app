@@ -21,9 +21,9 @@ export const settingsUIController = {
         });
         document.getElementById("rf-update-settings-check-btn")?.addEventListener("click", async () => {
             const status = document.getElementById("rf-update-settings-status");
-            if (status) status.textContent = "Проверяем GitHub main...";
+            if (status) status.textContent = "Checking GitHub for updates...";
             await updateNotificationService.checkNow();
-            if (status && status.textContent === "Проверяем GitHub main...") {
+            if (status && status.textContent === "Checking GitHub for updates...") {
                 status.textContent = "GitHub is temporarily unavailable";
             }
         });
