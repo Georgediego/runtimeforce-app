@@ -135,10 +135,14 @@ async function copyUpdateCommands() {
 
 async function applyUpdate() {
     if (applyingUpdate) return;
-    const latestVersion = document.getElementById("rf-update-modal")?.dataset.latestVersion
+    const modal = document.getElementById("rf-update-modal");
+    const modalIsVisible = modal && !modal.classList.contains("hidden");
+    const latestVersion = (modalIsVisible ? modal.dataset.latestVersion : null)
         || pendingUpdate?.latest_version;
-    const button = document.getElementById("rf-update-apply-btn")
-        || document.getElementById("rf-update-settings-apply-btn");
+    const button = modalIsVisible
+        ? document.getElementById("rf-update-apply-btn")
+        : document.getElementById("rf-update-settings-apply-btn")
+            || document.getElementById("rf-update-apply-btn");
     if (!latestVersion || !button) return;
 
     applyingUpdate = true;
