@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-11-06
+
+### Added
+- Install RuntimeForce as a per-user systemd service on Linux, with automatic startup after login and no root privileges.
+- Detect occupied local ports and select an available port from 8000–8010; persist the selected port across restarts.
+
+### Fixed
+- Replace Git-based in-app updates with validated public HTTPS ZIP downloads that do not require a GitHub account, SSH key, or configured Git remote.
+- Preserve local environment files, virtual environments, databases, projects, and runtime data during updates.
+- Preserve executable permissions from release archives and validate archive paths before installation.
+- Allow update requests from the configured local IDE port and align FastAPI version metadata with the release.
+
 ## [1.0.8] - 2026-11-06
 
 ### Fixed
