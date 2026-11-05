@@ -186,12 +186,16 @@ export const projectsUIController = {
                     const confirmed = await showConfirm("Delete Project", "Are you sure?", "Delete", "Cancel");
                     if (confirmed) {
                         try {
+                            const wasActiveProject = localStorage.getItem("rf_active_project_id") === btn.dataset.id;
                             await projectsApi.delete(btn.dataset.id);
-                            if (localStorage.getItem("rf_active_project_id") === btn.dataset.id) {
-                                localStorage.removeItem("rf_active_project_id");
-                            }
+                            if (wasActiveProject) localStorage.removeItem("rf_active_project_id");
                             showToast("Project deleted", "info");
                             await this.loadProjectsList();
+                            if (wasActiveProject) {
+                                const nextProjectId = localStorage.getItem("rf_active_project_id");
+                                eventBus.emit("project.activated", nextProjectId || null);
+                                eventBus.emit("workspace:changed");
+                            }
                         } catch (e) {
                             showToast(`Delete failed: ${e.message}`, "error");
                         }
