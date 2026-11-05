@@ -112,6 +112,7 @@ export const projectsUIController = {
             const data = await projectsApi.list();
             const projects = Array.isArray(data) ? data : data.projects || [];
             if (!projects.length) {
+                localStorage.removeItem("rf_active_project_id");
                 container.innerHTML = '<div class="text-center text-xs text-[var(--ide-text-muted)] py-6">No projects configured</div>';
                 this.updateActiveHeader(null);
                 return;
@@ -186,8 +187,11 @@ export const projectsUIController = {
                     if (confirmed) {
                         try {
                             await projectsApi.delete(btn.dataset.id);
+                            if (localStorage.getItem("rf_active_project_id") === btn.dataset.id) {
+                                localStorage.removeItem("rf_active_project_id");
+                            }
                             showToast("Project deleted", "info");
-                            this.loadProjectsList();
+                            await this.loadProjectsList();
                         } catch (e) {
                             showToast(`Delete failed: ${e.message}`, "error");
                         }
