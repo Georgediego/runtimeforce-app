@@ -146,6 +146,7 @@ async def check_ide_updates(
             "current_version": current_version,
             "latest_version": latest_version,
             "update_available": is_newer_version(latest_version, current_version),
+            "installed_newer": is_newer_version(current_version, latest_version),
             "checked": True,
             "source": source,
         }
