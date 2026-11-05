@@ -3,6 +3,7 @@ RuntimeForce IDE — FastAPI main application entry point with LiteLLM & Hugging
 """
 import os
 import re
+import base64
 import logging
 from pathlib import Path
 from typing import Optional
@@ -55,7 +56,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.0.2",
+    version="1.0.3",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -109,23 +110,39 @@ templates.env.globals["app_version"] = get_app_version()
 
 # Read the stable IDE version from the public GitHub main changelog.
 IDE_CHANGELOG_URL = "https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/CHANGELOG.md"
+IDE_CHANGELOG_API_URL = "https://api.github.com/repos/Georgediego/runtimeforce-app/contents/CHANGELOG.md?ref=main"
 
-async def fetch_latest_ide_version():
-    """Return the stable IDE version published in GitHub main."""
-    async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-        remote = await client.get(
-            IDE_CHANGELOG_URL,
-            headers={"Cache-Control": "no-cache"},
-        )
-        remote.raise_for_status()
+def parse_stable_ide_version(changelog: str) -> str:
     match = re.search(
         r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?",
-        remote.text,
+        changelog,
         re.MULTILINE,
     )
     if not match or match.group(1) == "0.0.0":
         raise RuntimeError("GitHub main changelog does not contain a valid stable IDE version")
-    return f"v{match.group(1)}", "github-main-changelog"
+    return f"v{match.group(1)}"
+
+async def fetch_latest_ide_version():
+    """Read GitHub main, trying raw content first and the GitHub API as fallback."""
+    headers = {"Cache-Control": "no-cache", "Accept": "application/vnd.github+json"}
+    errors = []
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        for url, source in (
+            (IDE_CHANGELOG_URL, "github-main-changelog"),
+            (IDE_CHANGELOG_API_URL, "github-api"),
+        ):
+            try:
+                remote = await client.get(url, headers=headers)
+                remote.raise_for_status()
+                if source == "github-api":
+                    payload = remote.json()
+                    content = base64.b64decode(payload["content"]).decode("utf-8")
+                else:
+                    content = remote.text
+                return parse_stable_ide_version(content), source
+            except Exception as exc:
+                errors.append(f"{source}: {type(exc).__name__}: {exc}")
+    raise RuntimeError("Unable to read GitHub main CHANGELOG; " + " | ".join(errors))
 
 @app.get("/api/v1/version")
 async def get_version_api():
