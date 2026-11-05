@@ -92,6 +92,24 @@ class GraphDBRepository(IGraphMemory):
     ) -> bool:
         try:
             conn = self.db.get_connection()
+            scope = conn.execute(
+                """
+                SELECT source.project_id AS source_project, source.user_id AS source_user,
+                       target.project_id AS target_project, target.user_id AS target_user
+                FROM graph_nodes AS source
+                JOIN graph_nodes AS target ON target.id=?
+                WHERE source.id=?
+                """,
+                (target_id, source_id)
+            ).fetchone()
+            # Knowledge graph edges must never cross project or user boundaries.
+            if (
+                not scope
+                or scope["source_project"] != scope["target_project"]
+                or scope["source_user"] != scope["target_user"]
+            ):
+                logger.warning("Rejected cross-project or cross-user graph edge %s", edge_id)
+                return False
             conn.execute(
                 """
                 INSERT INTO graph_edges (id, source_id, target_id, relation_type, weight)
@@ -135,8 +153,16 @@ class GraphDBRepository(IGraphMemory):
         if node_ids:
             placeholders = ",".join("?" for _ in node_ids)
             cur.execute(
-                f"SELECT * FROM graph_edges WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})",
-                (*node_ids, *node_ids)
+                f"""
+                SELECT edge.*
+                FROM graph_edges AS edge
+                JOIN graph_nodes AS source ON source.id=edge.source_id
+                JOIN graph_nodes AS target ON target.id=edge.target_id
+                WHERE source.project_id=? AND source.user_id=?
+                  AND target.project_id=? AND target.user_id=?
+                  AND (edge.source_id IN ({placeholders}) OR edge.target_id IN ({placeholders}))
+                """,
+                (project_id, user_id, project_id, user_id, *node_ids, *node_ids)
             )
             edges = [dict(r) for r in cur.fetchall()]
 
