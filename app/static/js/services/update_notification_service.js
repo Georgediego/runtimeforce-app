@@ -148,7 +148,9 @@ async function checkForUpdates({ force = false } = {}) {
         if (latest) latest.textContent = result.latest_version || "—";
         if (status) status.textContent = result.update_available
             ? "Доступно обновление"
-            : "Установлена последняя версия";
+            : result.installed_newer
+                ? "Установлена версия новее стабильной"
+                : "Установлена последняя версия";
 
         if (!result.update_available) {
             pendingUpdate = null;
