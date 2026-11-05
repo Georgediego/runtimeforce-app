@@ -24,7 +24,7 @@ export const settingsUIController = {
             if (status) status.textContent = "Проверяем GitHub main...";
             await updateNotificationService.checkNow();
             if (status && status.textContent === "Проверяем GitHub main...") {
-                status.textContent = "GitHub временно недоступен";
+                status.textContent = "GitHub is temporarily unavailable";
             }
         });
         document.getElementById("clear-chat-btn")?.addEventListener("click", () => {
