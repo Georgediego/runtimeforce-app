@@ -186,11 +186,106 @@ class ProjectDBRepository:
         return True
 
     def delete_project(self, project_id: str, user_id: str) -> bool:
-        conn = self.db.get_connection()
-        conn.execute("DELETE FROM project_changelogs WHERE project_id=?", (project_id,))
-        conn.execute("DELETE FROM projects WHERE id=? AND user_id=?", (project_id, user_id))
-        conn.commit()
-        return True
+        """Delete all database data owned by a project without touching user files or global settings."""
+        try:
+            with self.db.transaction() as conn:
+                project = conn.execute(
+                    "SELECT is_active FROM projects WHERE id=? AND user_id=?",
+                    (project_id, user_id)
+                ).fetchone()
+                if not project:
+                    return False
+
+                # Capture this project's sessions before deleting them and all session-scoped data.
+                session_rows = conn.execute(
+                    "SELECT id FROM sessions WHERE project_id=? AND user_id=?",
+                    (project_id, user_id)
+                ).fetchall()
+                session_ids = [row["id"] for row in session_rows]
+
+                if session_ids:
+                    placeholders = ",".join("?" for _ in session_ids)
+                    params = tuple(session_ids)
+                    for table in ("session_traces", "session_tools", "session_terminal", "messages"):
+                        conn.execute(
+                            f"DELETE FROM {table} WHERE session_id IN ({placeholders})",
+                            params
+                        )
+                    conn.execute(
+                        f"DELETE FROM model_telemetry WHERE user_id=? AND session_id IN ({placeholders})",
+                        (user_id, *session_ids)
+                    )
+                    conn.execute(
+                        f"DELETE FROM sessions WHERE user_id=? AND id IN ({placeholders})",
+                        (user_id, *session_ids)
+                    )
+
+                # Delete project-scoped decision and version history.
+                conn.execute(
+                    "DELETE FROM decision_memory WHERE project_id=? AND user_id=?",
+                    (project_id, user_id)
+                )
+                conn.execute(
+                    "DELETE FROM project_version_logs WHERE project_id=? AND user_id=?",
+                    (project_id, user_id)
+                )
+                conn.execute(
+                    "DELETE FROM project_changelogs WHERE project_id=?",
+                    (project_id,)
+                )
+
+                # Remove project memory, embeddings, and graph relationships.
+                node_rows = conn.execute(
+                    "SELECT id FROM graph_nodes WHERE project_id=? AND user_id=?",
+                    (project_id, user_id)
+                ).fetchall()
+                node_ids = [row["id"] for row in node_rows]
+                if node_ids:
+                    placeholders = ",".join("?" for _ in node_ids)
+                    params = tuple(node_ids)
+                    conn.execute(
+                        f"DELETE FROM graph_edges WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})",
+                        (*node_ids, *node_ids)
+                    )
+                    conn.execute(
+                        f"DELETE FROM node_embeddings WHERE node_id IN ({placeholders})",
+                        params
+                    )
+                    conn.execute(
+                        f"DELETE FROM graph_nodes WHERE user_id=? AND id IN ({placeholders})",
+                        (user_id, *node_ids)
+                    )
+
+                # Preserve workspace records, SSH credentials, and local/remote directories.
+                # Only detach retained workspaces from the project being deleted.
+                conn.execute(
+                    "UPDATE workspaces SET project_id='' WHERE project_id=? AND user_id=?",
+                    (project_id, user_id)
+                )
+
+                was_active = bool(project["is_active"])
+                conn.execute(
+                    "DELETE FROM projects WHERE id=? AND user_id=?",
+                    (project_id, user_id)
+                )
+
+                # If the active project was deleted, activate the user's most recently updated remaining project.
+                if was_active:
+                    conn.execute("UPDATE projects SET is_active=0 WHERE user_id=?", (user_id,))
+                    next_project = conn.execute(
+                        "SELECT id FROM projects WHERE user_id=? ORDER BY updated_at DESC, created_at DESC LIMIT 1",
+                        (user_id,)
+                    ).fetchone()
+                    if next_project:
+                        conn.execute(
+                            "UPDATE projects SET is_active=1 WHERE id=? AND user_id=?",
+                            (next_project["id"], user_id)
+                        )
+
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete project {project_id} for user {user_id}: {e}")
+            raise
 
     def record_changelog(self, project_id: str, version: str, entry: str, commit_hash: Optional[str] = None, target_branch: Optional[str] = None) -> bool:
         conn = self.db.get_connection()
