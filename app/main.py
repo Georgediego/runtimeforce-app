@@ -197,6 +197,9 @@ def _apply_ide_update():
 
     try:
         _update_state = {"status": "updating", "message": "Checking the local installation..."}
+        if "uvicorn" not in Path(sys.argv[0]).as_posix().lower():
+            raise RuntimeError("Automatic updates require the IDE to run through Uvicorn.")
+
         top_level = run_git("rev-parse", "--show-toplevel")
         if top_level.returncode != 0 or Path(top_level.stdout.strip()).resolve() != root:
             raise RuntimeError("The IDE installation is not a Git repository.")
@@ -243,9 +246,6 @@ def _apply_ide_update():
         if installed.returncode != 0:
             raise RuntimeError((installed.stderr or installed.stdout).strip()[-1200:] or "Dependency installation failed.")
 
-        if "uvicorn" not in Path(sys.argv[0]).as_posix().lower():
-            raise RuntimeError("The code was updated, but automatic restart is unavailable for this launch method.")
-
         _update_state = {"status": "restarting", "message": "Restarting RuntimeForce IDE..."}
         os.execv(sys.executable, [sys.executable, *sys.argv])
     except Exception as exc:
@@ -266,6 +266,7 @@ async def apply_ide_update(request: Request, background_tasks: BackgroundTasks):
     if _update_state["status"] in {"updating", "installing", "restarting"}:
         return {"accepted": True, "status": _update_state["status"]}
 
+    _update_state = {"status": "updating", "message": "Starting the update..."}
     background_tasks.add_task(_apply_ide_update)
     return {"accepted": True, "status": "updating"}
 
