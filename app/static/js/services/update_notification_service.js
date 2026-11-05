@@ -135,8 +135,10 @@ async function copyUpdateCommands() {
 
 async function applyUpdate() {
     if (applyingUpdate) return;
-    const latestVersion = document.getElementById("rf-update-modal")?.dataset.latestVersion;
-    const button = document.getElementById("rf-update-apply-btn");
+    const latestVersion = document.getElementById("rf-update-modal")?.dataset.latestVersion
+        || pendingUpdate?.latest_version;
+    const button = document.getElementById("rf-update-apply-btn")
+        || document.getElementById("rf-update-settings-apply-btn");
     if (!latestVersion || !button) return;
 
     applyingUpdate = true;
@@ -240,10 +242,13 @@ async function checkForUpdates({ force = false } = {}) {
                 ? "Installed version is newer than the latest stable release"
                 : "You're up to date";
 
+        const settingsApplyButton = document.getElementById("rf-update-settings-apply-btn");
         if (!result.update_available) {
+            if (settingsApplyButton) settingsApplyButton.classList.add("hidden");
             pendingUpdate = null;
             return;
         }
+        if (settingsApplyButton) settingsApplyButton.classList.remove("hidden");
         pendingUpdate = {
             current_version: result.current_version,
             latest_version: result.latest_version,
@@ -275,5 +280,8 @@ export const updateNotificationService = {
     },
     checkNow() {
         return checkForUpdates({ force: true });
+    },
+    applyNow() {
+        return applyUpdate();
     },
 };
