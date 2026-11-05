@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-11-05
+
+### Fixed
+- Allow public IDE version checks without requiring a live SaaS authentication request.
+
 ## [1.0.4] - 2026-11-05
 
 ### Fixed
