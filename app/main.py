@@ -125,14 +125,14 @@ async def fetch_latest_ide_version():
                 remote.raise_for_status()
                 if source == "github-main-changelog":
                     match = re.search(
-                        r"^##\\s+\\[?v?(\\d+\\.\\d+\\.\\d+)\\]?",
+                        r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?",
                         remote.text,
                         re.MULTILINE,
                     )
                 else:
                     payload = remote.json()
                     match = re.fullmatch(
-                        r"v?(\\d+\\.\\d+\\.\\d+)",
+                        r"v?(\d+\.\d+\.\d+)",
                         str(payload.get("version", "")).strip(),
                     )
                 if not match or match.group(1) == "0.0.0":
