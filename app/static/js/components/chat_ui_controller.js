@@ -10,6 +10,8 @@ import { fileTreeUIController } from "./file_tree_ui_controller.js";
 
 let wsClient = null;
 let currentSessionId = null;
+let sessionsLoadGeneration = 0;
+let sessionHistoryLoadGeneration = 0;
 let fullResponseText = "";
 let fullReasoningText = "";
 let currentPhaseLabel = "Processing request...";
@@ -89,12 +91,11 @@ export const chatUIController = {
         scrollBtn?.addEventListener("click", () => this.scrollToBottom(true));
 
         eventBus.on("project.activated", (projectId) => {
-            if (projectId) {
-                localStorage.setItem("rf_active_project_id", projectId);
-                this.loadSessionsList();
-            }
+            if (projectId) localStorage.setItem("rf_active_project_id", projectId);
+            else localStorage.removeItem("rf_active_project_id");
+            this.resetProjectChatView();
+            this.loadSessionsList();
         });
-        eventBus.on("workspace:changed", () => this.loadSessionsList());
 
         eventBus.on("orchestrator.model_degraded", (data) => {
             showToast(`Model ${data.model_id} degraded. Switching candidate...`, "warning");
@@ -137,6 +138,25 @@ export const chatUIController = {
 
     getActiveProjectId() {
         return localStorage.getItem("rf_active_project_id") || "";
+    },
+
+    resetProjectChatView() {
+        sessionsLoadGeneration++;
+        sessionHistoryLoadGeneration++;
+        if (isGenerating) this.abortGeneration();
+        currentSessionId = null;
+        isFirstMessageOfSession = true;
+        fullResponseText = "";
+        fullReasoningText = "";
+        attachedFiles = [];
+        currentPendingMessageId = null;
+        lastUserPrompt = "";
+        this.renderAttachedContextBar();
+        document.getElementById("chat-history")?.replaceChildren();
+        document.getElementById("debug-trace-log")?.replaceChildren();
+        document.getElementById("active-tools-list")?.replaceChildren();
+        terminalUIController.clear();
+        eventBus.emit("session:selected", null);
     },
 
     startExecutionTimer(placeholderMsgId) {
@@ -288,12 +308,20 @@ export const chatUIController = {
     async loadSessionsList() {
         const container = document.getElementById("sessions-list");
         if (!container) return;
+        const loadGeneration = ++sessionsLoadGeneration;
+        const activeProjectId = this.getActiveProjectId();
+        if (!activeProjectId) {
+            container.innerHTML = '<div class="text-center text-xs text-[var(--ide-text-muted)] py-4">No project selected</div>';
+            this.resetProjectChatView();
+            return;
+        }
         try {
-            const activeProjectId = this.getActiveProjectId();
             const data = await sessionsApi.list(activeProjectId);
+            if (loadGeneration !== sessionsLoadGeneration || activeProjectId !== this.getActiveProjectId()) return;
             let sessions = data.sessions || [];
             if (!sessions.length) {
                 container.innerHTML = '<div class="text-center text-xs text-[var(--ide-text-muted)] py-4">No sessions for this project</div>';
+                this.resetProjectChatView();
                 return;
             }
 
@@ -368,6 +396,7 @@ export const chatUIController = {
 
     async openSession(sessionId) {
         if (isGenerating) this.abortGeneration();
+        const historyLoadGeneration = ++sessionHistoryLoadGeneration;
         currentSessionId = sessionId;
         isFirstMessageOfSession = false;
         
@@ -385,11 +414,15 @@ export const chatUIController = {
         if (toolsList) toolsList.innerHTML = "";
         try {
             await terminalUIController.setSession(sessionId);
+            if (historyLoadGeneration !== sessionHistoryLoadGeneration || currentSessionId !== sessionId || activeProjectId !== this.getActiveProjectId()) return;
             const data = await sessionsApi.messages(sessionId);
+            if (historyLoadGeneration !== sessionHistoryLoadGeneration || currentSessionId !== sessionId || activeProjectId !== this.getActiveProjectId()) return;
             (data.messages || []).forEach((m) => this.appendMessage(m.role, m.content, m.id));
             const traceData = await sessionsApi.traces(sessionId).catch(() => ({ traces: [] }));
+            if (historyLoadGeneration !== sessionHistoryLoadGeneration || currentSessionId !== sessionId || activeProjectId !== this.getActiveProjectId()) return;
             (traceData.traces || []).forEach((t) => this.renderTraceEntry(t.badge, t.text, t.timestamp));
             const toolData = await sessionsApi.tools(sessionId).catch(() => ({ tools: [] }));
+            if (historyLoadGeneration !== sessionHistoryLoadGeneration || currentSessionId !== sessionId || activeProjectId !== this.getActiveProjectId()) return;
             (toolData.tools || []).forEach((tl) => this.appendActiveTool(tl.tool_id, tl.tool_name, tl.status));
             
             document.querySelectorAll(".session-item").forEach(el => {
