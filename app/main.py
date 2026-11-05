@@ -10,6 +10,11 @@ from typing import Optional
 from contextlib import asynccontextmanager
 import subprocess
 import sys
+import shutil
+import stat
+import tempfile
+import zipfile
+from pathlib import PurePosixPath
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -57,7 +62,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.0.6",
+    version="1.0.9",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -181,89 +186,150 @@ _update_state = {"status": "idle", "message": ""}
 
 
 def _apply_ide_update():
-    """Safely fast-forward the clean IDE checkout to stable main and restart Uvicorn."""
+    """Install the latest public stable ZIP without relying on Git or user credentials."""
     global _update_state
     root = BASE_DIR.parent.resolve()
+    archive_url = "https://codeload.github.com/Georgediego/runtimeforce-app/zip/refs/heads/main"
+    max_archive_bytes = 200 * 1024 * 1024
+    protected_dirs = {
+        ".git", "venv", ".venv", "__pycache__", ".pytest_cache",
+        "data", "runtime", "workspaces", "logs", "backups",
+    }
 
-    def run_git(*args, timeout=60):
-        return subprocess.run(
-            ["git", *args],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+    def is_protected(relative_path: PurePosixPath) -> bool:
+        parts = relative_path.parts
+        if not parts or any(part in protected_dirs for part in parts):
+            return True
+        name = parts[-1].lower()
+        return name == ".env" or name.startswith(".env.") or name.endswith((".db", ".sqlite", ".sqlite3", ".log"))
 
+    temp_root = None
+    backups = {}
+    created_files = []
     try:
-        _update_state = {"status": "updating", "message": "Checking the local installation..."}
-        if "uvicorn" not in Path(sys.argv[0]).as_posix().lower():
-            raise RuntimeError("Automatic updates require the IDE to run through Uvicorn.")
-
-        top_level = run_git("rev-parse", "--show-toplevel")
-        if top_level.returncode != 0 or Path(top_level.stdout.strip()).resolve() != root:
-            raise RuntimeError("The IDE installation is not a Git repository.")
-
-        branch = run_git("branch", "--show-current")
-        if branch.returncode != 0 or branch.stdout.strip() != "main":
-            raise RuntimeError("Automatic updates require the stable main branch.")
-
-        remote = run_git("remote", "get-url", "origin")
-        allowed_remotes = {
-            "https://github.com/Georgediego/runtimeforce-app.git",
-            "https://github.com/Georgediego/runtimeforce-app",
-            "git@github.com:Georgediego/runtimeforce-app.git",
-        }
-        if remote.returncode != 0 or remote.stdout.strip().rstrip("/") not in allowed_remotes:
-            raise RuntimeError("The configured Git origin is not the official RuntimeForce IDE repository.")
-
-        changes = run_git("status", "--porcelain")
-        if changes.returncode != 0 or changes.stdout.strip():
-            raise RuntimeError("Local changes detected. Commit or stash them before updating.")
-
         _update_state = {"status": "updating", "message": "Downloading the latest stable release..."}
-        fetched = run_git("fetch", "origin", "main", "--quiet", timeout=180)
-        if fetched.returncode != 0:
-            logger.error("Git fetch failed: %s", fetched.stderr.strip())
-            raise RuntimeError("Unable to download the latest stable release. Check your internet connection and GitHub access.")
+        temp_root = Path(tempfile.mkdtemp(prefix="runtimeforce-update-"))
+        archive_path = temp_root / "release.zip"
+        with httpx.Client(timeout=httpx.Timeout(30.0, read=180.0), follow_redirects=True) as client:
+            with client.stream("GET", archive_url, headers={"Accept": "application/zip"}) as response:
+                response.raise_for_status()
+                total = 0
+                with archive_path.open("wb") as archive_file:
+                    for chunk in response.iter_bytes(1024 * 1024):
+                        total += len(chunk)
+                        if total > max_archive_bytes:
+                            raise RuntimeError("The release archive exceeds the permitted download size.")
+                        archive_file.write(chunk)
 
-        ancestry = run_git("merge-base", "--is-ancestor", "HEAD", "origin/main")
-        if ancestry.returncode != 0:
-            raise RuntimeError("The local branch cannot be updated with a safe fast-forward.")
+        _update_state = {"status": "updating", "message": "Validating the stable release..."}
+        staging = temp_root / "staging"
+        staging.mkdir()
+        with zipfile.ZipFile(archive_path) as archive:
+            members = archive.infolist()
+            if not members:
+                raise RuntimeError("The downloaded release archive is empty.")
+            roots = {PurePosixPath(item.filename).parts[0] for item in members if PurePosixPath(item.filename).parts}
+            if len(roots) != 1:
+                raise RuntimeError("The release archive has an unexpected directory structure.")
+            archive_root = next(iter(roots))
+            extracted_count = 0
+            for item in members:
+                raw_path = PurePosixPath(item.filename)
+                if raw_path.is_absolute() or ".." in raw_path.parts or not raw_path.parts:
+                    raise RuntimeError("The release archive contains an unsafe file path.")
+                if raw_path.parts[0] != archive_root:
+                    raise RuntimeError("The release archive contains an unexpected file.")
+                relative = PurePosixPath(*raw_path.parts[1:])
+                if not relative.parts or is_protected(relative):
+                    continue
+                mode = (item.external_attr >> 16) & 0o170000
+                if mode == stat.S_IFLNK:
+                    raise RuntimeError("The release archive contains an unsupported symbolic link.")
+                destination = staging.joinpath(*relative.parts)
+                if item.is_dir():
+                    destination.mkdir(parents=True, exist_ok=True)
+                    continue
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(item) as source, destination.open("wb") as target:
+                    shutil.copyfileobj(source, target)
+                archive_mode = (item.external_attr >> 16) & 0o777
+                if archive_mode:
+                    os.chmod(destination, archive_mode)
+                extracted_count += 1
 
-        merged = run_git("merge", "--ff-only", "origin/main")
-        if merged.returncode != 0:
-            logger.error("Git fast-forward failed: %s", merged.stderr.strip())
-            raise RuntimeError("Unable to apply the update. Check the local Git state and try again.")
+        staged_changelog = staging / "CHANGELOG.md"
+        if not staged_changelog.is_file():
+            raise RuntimeError("The release archive does not contain CHANGELOG.md.")
+        staged_version = parse_stable_ide_version(staged_changelog.read_text(encoding="utf-8"))
+        current_version = get_app_version()
+        if not is_newer_version(staged_version, current_version):
+            raise RuntimeError(f"No newer stable release is available (installed {current_version}, latest {staged_version}).")
+        if extracted_count == 0:
+            raise RuntimeError("The release archive contains no installable application files.")
 
-        _update_state = {"status": "installing", "message": "Installing application dependencies..."}
+        _update_state = {"status": "installing", "message": f"Installing RuntimeForce {staged_version}..."}
+        backup_root = temp_root / "backup"
+        for source in staging.rglob("*"):
+            if not source.is_file():
+                continue
+            relative = source.relative_to(staging)
+            destination = root / relative
+            if not destination.resolve().is_relative_to(root):
+                raise RuntimeError("An update file resolves outside the application directory.")
+            if destination.exists():
+                if not destination.is_file():
+                    raise RuntimeError(f"Cannot safely replace a non-file application path: {relative}")
+                backup = backup_root / relative
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(destination, backup)
+                backups[destination] = backup
+            else:
+                created_files.append(destination)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+
         installed = subprocess.run(
             [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=600,
-            check=False,
+            cwd=root, capture_output=True, text=True, timeout=600, check=False,
         )
         if installed.returncode != 0:
             logger.error("Dependency installation failed: %s", (installed.stderr or installed.stdout).strip()[-3000:])
-            raise RuntimeError("Dependency installation failed. Check the IDE logs and try again.")
+            raise RuntimeError("Dependency installation failed. The application files will be restored; check the IDE logs.")
 
-        _update_state = {"status": "restarting", "message": "Restarting RuntimeForce IDE..."}
+        _update_state = {"status": "restarting", "message": f"Restarting RuntimeForce {staged_version}..."}
+        shutil.rmtree(temp_root, ignore_errors=True)
+        temp_root = None
         os.execv(sys.executable, [sys.executable, *sys.argv])
     except Exception as exc:
+        for destination in reversed(created_files):
+            try:
+                destination.unlink(missing_ok=True)
+            except Exception:
+                logger.exception("Could not remove partially installed file: %s", destination)
+        for destination, backup in backups.items():
+            try:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(backup, destination)
+            except Exception:
+                logger.exception("Could not restore application file: %s", destination)
         logger.exception("IDE automatic update failed")
         _update_state = {"status": "error", "message": str(exc)[:1200]}
-
+    finally:
+        if temp_root is not None:
+            shutil.rmtree(temp_root, ignore_errors=True)
 
 @app.post("/api/v1/updates/apply")
 async def apply_ide_update(request: Request, background_tasks: BackgroundTasks):
     global _update_state
-    host = request.headers.get("host", "").split(":")[0].lower()
+    host = (request.url.hostname or "").lower()
     origin = request.headers.get("origin", "")
+    try:
+        local_port = int(os.getenv("PORT", "8000"))
+    except ValueError:
+        local_port = 8000
     if host not in {"localhost", "127.0.0.1"} or origin not in {
-        f"http://{host}:8000",
-        f"https://{host}:8000",
+        f"http://{host}:{local_port}",
+        f"https://{host}:{local_port}",
     }:
         raise HTTPException(status_code=403, detail="Update requests are allowed only from the local IDE.")
 
