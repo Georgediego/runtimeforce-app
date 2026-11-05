@@ -224,7 +224,8 @@ def _apply_ide_update():
         _update_state = {"status": "updating", "message": "Downloading the latest stable release..."}
         fetched = run_git("fetch", "origin", "main", "--quiet", timeout=180)
         if fetched.returncode != 0:
-            raise RuntimeError(fetched.stderr.strip() or "Unable to fetch the latest release.")
+            logger.error("Git fetch failed: %s", fetched.stderr.strip())
+            raise RuntimeError("Unable to download the latest stable release. Check your internet connection and GitHub access.")
 
         ancestry = run_git("merge-base", "--is-ancestor", "HEAD", "origin/main")
         if ancestry.returncode != 0:
@@ -232,7 +233,8 @@ def _apply_ide_update():
 
         merged = run_git("merge", "--ff-only", "origin/main")
         if merged.returncode != 0:
-            raise RuntimeError(merged.stderr.strip() or "Unable to apply the stable release.")
+            logger.error("Git fast-forward failed: %s", merged.stderr.strip())
+            raise RuntimeError("Unable to apply the update. Check the local Git state and try again.")
 
         _update_state = {"status": "installing", "message": "Installing application dependencies..."}
         installed = subprocess.run(
@@ -244,7 +246,8 @@ def _apply_ide_update():
             check=False,
         )
         if installed.returncode != 0:
-            raise RuntimeError((installed.stderr or installed.stdout).strip()[-1200:] or "Dependency installation failed.")
+            logger.error("Dependency installation failed: %s", (installed.stderr or installed.stdout).strip()[-3000:])
+            raise RuntimeError("Dependency installation failed. Check the IDE logs and try again.")
 
         _update_state = {"status": "restarting", "message": "Restarting RuntimeForce IDE..."}
         os.execv(sys.executable, [sys.executable, *sys.argv])
