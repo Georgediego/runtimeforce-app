@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-06
+
+### Changed
+- Establish the first RuntimeForce neon-glass design foundation with shared visual tokens, a restrained aurora background, and reusable glass surfaces.
+- Keep the existing layout, DOM hooks, frontend behavior, and backend unchanged.
+
 ## [1.1.0] - 2026-11-06
 
 ### Added
