@@ -28,6 +28,7 @@ let treeReloadTimer = null;
 let pendingStreamError = "";
 let generationFinalized = false;
 let userAbortedGeneration = false;
+const traceMilestones = new Set();
 const approvedCommandsCache = new Set();
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "deepseek", "xai"];
@@ -521,6 +522,7 @@ export const chatUIController = {
         currentPendingMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const requestPendingId = currentPendingMessageId;
         pendingStreamError = "";
+        traceMilestones.clear();
         generationFinalized = false;
         userAbortedGeneration = false;
         const assistantContentDiv = this.appendMessage("assistant", "", currentPendingMessageId);
@@ -699,6 +701,10 @@ export const chatUIController = {
             this.setOrchestratorProgress(40);
         } else if (event.status === "reasoning" && event.reasoning) {
             currentPhaseLabel = "Model is processing the request...";
+            if (!traceMilestones.has("think")) {
+                traceMilestones.add("think");
+                this.appendTrace("THINK", "Model reasoning started");
+            }
             if (assistantDiv) {
                 this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
                 this.scrollToBottom();
@@ -707,6 +713,10 @@ export const chatUIController = {
         } else if (event.status === "streaming" && event.content) {
             pendingStreamError = "";
             currentPhaseLabel = "Generating response...";
+            if (!traceMilestones.has("output")) {
+                traceMilestones.add("output");
+                this.appendTrace("OUTPUT", "Response stream started");
+            }
             fullResponseText += event.content;
             if (assistantDiv) {
                 this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
@@ -908,22 +918,22 @@ export const chatUIController = {
     renderTraceEntry(badge, text, isoTimestamp) {
         const log = document.getElementById("debug-trace-log");
         if (!log) return;
+        const kind = String(badge || "INFO").toLowerCase().replace(/[^a-z0-9_-]/g, "");
         const time = isoTimestamp ? new Date(isoTimestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-        let badgeBg = "bg-amber-500/20";
-        let textColor = "text-amber-400";
-        if (badge === "ERROR" || badge === "FAILED") {
-            badgeBg = "bg-red-500/20";
-            textColor = "text-red-400";
-        } else if (badge === "DONE" || badge === "SUCCESS") {
-            badgeBg = "bg-emerald-500/20";
-            textColor = "text-emerald-400";
-        }
         const entry = document.createElement("div");
-        entry.className = "flex items-center gap-2 text-[10px] py-1 border-b border-[var(--ide-border-subtle)]";
-        entry.innerHTML = `
-            <span class="px-1.5 py-0.5 rounded ${badgeBg} ${textColor} font-bold uppercase shrink-0">${badge}</span>
-            <span class="truncate flex-1 ${textColor} font-medium">${text}</span>
-            <span class="text-[var(--ide-text-muted)] text-[9px] shrink-0">${time}</span>`;
+        entry.className = "rf-trace-entry";
+        entry.dataset.kind = kind;
+        const badgeEl = document.createElement("span");
+        badgeEl.className = "rf-trace-badge rf-trace-badge--" + kind;
+        badgeEl.textContent = String(badge || "INFO");
+        const textEl = document.createElement("span");
+        textEl.className = "rf-trace-message";
+        textEl.textContent = String(text || "");
+        textEl.title = String(text || "");
+        const timeEl = document.createElement("span");
+        timeEl.className = "rf-trace-time";
+        timeEl.textContent = time;
+        entry.append(badgeEl, textEl, timeEl);
         log.appendChild(entry);
         log.scrollTop = log.scrollHeight;
     },

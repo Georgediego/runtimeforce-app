@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-11-06
+
+### Changed
+- Restyle MANUAL and ATM model dropdowns with translucent emerald glass surfaces in dark and light themes.
+- Move AGENT TRACE and LIVE EVENTS inside the Agent Workflow card.
+- Give trace event badges consistent widths and distinct colors for phases, model attempts, tools, completion, errors, and other states.
+- Log the start of model reasoning and response streaming once per generation without exposing private reasoning content.
+- Replace the empty Active Tools message with a quiet, styled waiting state.
+
+
 ## [1.1.4] - 2026-11-06
 
 ### Changed

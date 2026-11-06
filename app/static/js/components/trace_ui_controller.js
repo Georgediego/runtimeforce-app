@@ -94,10 +94,11 @@ export const traceUIController = {
 
     appendTrace(badge, text) {
         const log = document.getElementById("debug-trace-log"); if (!log) return;
-        const entry = document.createElement("div"); entry.className = "flex items-center gap-2 text-[10px] py-1 border-b border-[var(--ide-border-subtle)]";
-        const badgeEl = document.createElement("span"); badgeEl.className = "px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold uppercase shrink-0"; badgeEl.textContent = String(badge);
-        const textEl = document.createElement("span"); textEl.className = "truncate flex-1 text-[var(--ide-text-primary)] font-medium"; textEl.textContent = String(text);
-        const timeEl = document.createElement("span"); timeEl.className = "text-[var(--ide-text-muted)] text-[9px] shrink-0"; timeEl.textContent = new Date().toLocaleTimeString();
+        const kind = String(badge || "INFO").toLowerCase().replace(/[^a-z0-9_-]/g, "");
+        const entry = document.createElement("div"); entry.className = "rf-trace-entry"; entry.dataset.kind = kind;
+        const badgeEl = document.createElement("span"); badgeEl.className = "rf-trace-badge rf-trace-badge--" + kind; badgeEl.textContent = String(badge || "INFO");
+        const textEl = document.createElement("span"); textEl.className = "rf-trace-message"; textEl.textContent = String(text || ""); textEl.title = String(text || "");
+        const timeEl = document.createElement("span"); timeEl.className = "rf-trace-time"; timeEl.textContent = new Date().toLocaleTimeString();
         entry.append(badgeEl, textEl, timeEl); log.appendChild(entry); log.scrollTop = log.scrollHeight;
     }
 };
