@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.13] - 2026-11-07
+
+### Changed
+- Align the workspace sidebar toggles with the Explorer and right-sidebar columns in the global header.
+- Restyle the selected Chat/Editor/Terminal tab with a soft emerald neon glow and remove the visual divider beneath the active tab.
+- Unify Projects and Sessions card borders with the Agent Workflow glass-card treatment.
+- Replace near-black dark-theme surfaces with a restrained forest-green palette.
+
+### Fixed
+- Disable clipped hover tooltips on sidebar navigation and panel controls.
+
+
 ## [1.1.12] - 2026-11-06
 
 ### Fixed

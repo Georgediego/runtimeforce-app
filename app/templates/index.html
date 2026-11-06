@@ -39,13 +39,13 @@
         </a>
     </div>
     <div class="rf-workspace-header-controls" aria-label="Workspace panels">
-        <button id="toggle-left-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" title="Toggle left sidebar"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
+        <button id="toggle-left-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle left sidebar"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
         <nav class="rf-workspace-tabs" role="tablist" aria-label="Workspace views">
             <button class="right-tab-btn border-[var(--ide-accent)] text-[var(--ide-text-primary)]" data-panel="chat" role="tab" aria-selected="true">Chat</button>
             <button class="right-tab-btn border-transparent text-[var(--ide-text-muted)]" data-panel="editor" role="tab" aria-selected="false">Editor</button>
             <button class="right-tab-btn border-transparent text-[var(--ide-text-muted)]" data-panel="terminal" role="tab" aria-selected="false">Terminal</button>
         </nav>
-        <button id="toggle-right-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" title="Toggle right sidebar"><i data-lucide="panel-right-close" class="w-4 h-4"></i></button>
+        <button id="toggle-right-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle right sidebar"><i data-lucide="panel-right-close" class="w-4 h-4"></i></button>
     </div>
     <div class="flex items-center gap-4 relative" id="rf-user-profile">
         <button id="theme-toggle-btn" class="w-8 h-8 rounded-full hover:bg-[var(--ide-elevated)] flex items-center justify-center text-[var(--ide-text-secondary)] cursor-pointer">
@@ -109,19 +109,19 @@
 <div class="flex flex-1 mt-[56px]"> 
     <aside id="left-sidebar" class="w-[60px] flex flex-col items-center py-4 justify-between h-[calc(100vh-56px)] z-40 border-r border-[var(--ide-border-subtle)] bg-[var(--ide-surface)] shrink-0">
         <div class="flex flex-col gap-2 items-center h-full min-h-[inherit]">
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn active" data-panel="sessions" title="Sessions">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn active" data-panel="sessions">
                 <i data-lucide="message-square" class="w-5 h-5"></i>
             </div>            
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center cursor-pointer left-tab-btn" data-panel="explorer" title="Explorer">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center cursor-pointer left-tab-btn" data-panel="explorer">
                 <i data-lucide="files" class="w-5 h-5"></i>
             </div>
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="git" title="Git">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="git">
                 <i data-lucide="git-branch" class="w-5 h-5"></i>
             </div>
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="projects" title="Projects">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="projects">
                 <i data-lucide="folder-git-2" class="w-5 h-5"></i>
             </div>
-            <div id="rf-menu-settings-btn" class="mt-auto sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer" title="Settings">
+            <div id="rf-menu-settings-btn" class="mt-auto sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer">
                 <i data-lucide="settings" class="w-5 h-5"></i>
             </div>
         </div>
