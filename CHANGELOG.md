@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-06
+
+### Fixed
+- Prevent the Agent Workflow panel from being clipped and overlapped by Agent Trace.
+- Give the workflow and trace log separate vertical space while preserving existing element IDs and behavior.
+
 ## [1.1.1] - 2026-11-06
 
 ### Changed

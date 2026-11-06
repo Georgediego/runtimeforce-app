@@ -45,3 +45,34 @@ html.light .rf-graph-stage.is-active {color:#065f35;background:rgba(0,179,95,.09
 html.light .rf-graph-tool {color:#166534;background:rgba(0,179,95,.05)}
 @media(prefers-reduced-motion:reduce){.rf-agent-graph::before,.rf-graph-stage.is-active .rf-stage-icon,.rf-graph-tool.is-running{animation:none!important}html.dark .mode-card{transition:none!important}}
 @media(max-width:900px){.rf-agent-graph{margin-left:6px;margin-right:6px;padding:9px}.rf-graph-stage{font-size:8px}}
+
+
+/* Keep Agent Workflow and Agent Trace in separate, visible vertical regions. */
+.rf-agent-workflow-panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+}
+
+.rf-agent-workflow-panel > #rf-agent-graph {
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+.rf-agent-workflow-panel > .flex.items-center.justify-between {
+    flex: 0 0 auto;
+}
+
+.rf-agent-workflow-panel > #debug-trace-log {
+    flex: 1 1 auto;
+    min-height: 112px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+    .rf-agent-workflow-panel > #debug-trace-log {
+        min-height: 88px;
+        max-height: 180px;
+    }
+}
