@@ -1830,14 +1830,7 @@ html.dark .trace-badge.try {
     0%, 100% { transform: translate3d(0,0,0); opacity: .45; }
     50% { transform: translate3d(0,-5px,0); opacity: .8; }
 }
-@media (prefers-reduced-motion: no-preference) {
-    html.dark #chat-container,
-    html.dark #file-tree,
-    html.dark #sessions-list,
-    html.dark #projects-list {
-        animation: rf-neon-drift 9s ease-in-out infinite;
-    }
-}
+/* Keep workspace content stable; motion belongs to decorative chrome only. */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: .01ms !important;
