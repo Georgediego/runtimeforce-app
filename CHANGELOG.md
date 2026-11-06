@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.10] - 2026-11-06
+
+### Changed
+- Move Agent Trace into the global header and render its five latest events in a compact emerald glass strip capped at 160px.
+- Restyle Chat, Editor, and Terminal tabs as rounded translucent emerald controls in both themes.
+
+
 ## [1.1.9] - 2026-11-06
 
 ### Changed

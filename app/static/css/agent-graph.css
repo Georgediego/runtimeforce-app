@@ -458,3 +458,121 @@ html.dark :where(div,section,aside,article,header)[class*="border"][class*="roun
 html.light :where(div,section,aside,article,header)[class*="border"][class*="rounded"] {
     border-color: var(--ide-border-subtle) !important;
 }
+
+
+/* Compact Agent Trace in the global header. Keep the five latest events visible. */
+.rf-agent-trace-header {
+    display:flex;
+    flex:1 1 auto;
+    flex-direction:column;
+    justify-content:center;
+    width:min(58vw,900px);
+    min-width:0;
+    height:42px;
+    max-height:160px;
+    margin:0 clamp(10px,2vw,28px);
+    padding:4px 8px;
+    overflow:hidden;
+    border:1px solid rgba(7,247,122,.20);
+    border-radius:12px;
+    background:linear-gradient(110deg,rgba(7,247,122,.075),rgba(7,247,122,.025));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 4px 16px rgba(0,0,0,.10);
+}
+.rf-agent-trace-header .rf-trace-heading {
+    flex:0 0 auto;
+    padding:0 2px 3px;
+    font-size:8px;
+    line-height:10px;
+}
+.rf-agent-trace-header .rf-trace-heading svg {width:11px;height:11px}
+.rf-agent-trace-header #debug-trace-log {
+    display:grid;
+    flex:1 1 auto;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:5px;
+    min-height:0;
+    max-height:160px;
+    padding:0;
+    overflow:hidden;
+}
+.rf-agent-trace-header #debug-trace-log .rf-trace-entry {
+    display:flex;
+    align-items:center;
+    gap:5px;
+    min-width:0;
+    min-height:0;
+    padding:3px 5px 3px 8px;
+    overflow:hidden;
+    border:1px solid rgba(7,247,122,.13);
+    border-left:1px solid var(--rf-trace-color,rgba(148,163,184,.45));
+    border-radius:7px;
+    background:rgba(7,247,122,.025);
+}
+.rf-agent-trace-header #debug-trace-log .rf-trace-entry::before {
+    left:-4px;
+    width:6px;
+    height:6px;
+}
+.rf-agent-trace-header .rf-trace-badge {
+    flex:0 0 auto;
+    width:auto;
+    min-width:0;
+    min-height:0;
+    padding:2px 4px;
+    font-size:7px;
+}
+.rf-agent-trace-header #debug-trace-log .rf-trace-message {
+    flex:1 1 auto;
+    font-size:8px;
+}
+.rf-agent-trace-header #debug-trace-log .rf-trace-time {display:none}
+html.light .rf-agent-trace-header {
+    border-color:rgba(0,150,75,.22);
+    background:linear-gradient(110deg,rgba(0,179,95,.075),rgba(0,179,95,.025));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 4px 16px rgba(15,23,42,.06);
+}
+html.light .rf-agent-trace-header #debug-trace-log .rf-trace-entry {
+    border-color:rgba(0,150,75,.14);
+    background:rgba(0,179,95,.035);
+}
+.right-tab-btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    height:32px;
+    border-width:1px!important;
+    border-radius:11px!important;
+    background:rgba(7,247,122,.045);
+    transition:color .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease;
+}
+.right-tab-btn.border-transparent {
+    color:var(--ide-text-muted)!important;
+    border-color:rgba(7,247,122,.12)!important;
+    background:rgba(7,247,122,.035);
+}
+.right-tab-btn:not(.border-transparent) {
+    color:var(--ide-text-primary)!important;
+    border-color:rgba(7,247,122,.34)!important;
+    background:linear-gradient(145deg,rgba(7,247,122,.16),rgba(7,247,122,.07));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 14px rgba(7,247,122,.055);
+}
+.right-tab-btn:hover {
+    color:var(--ide-text-primary)!important;
+    border-color:rgba(7,247,122,.38)!important;
+    background:rgba(7,247,122,.11);
+}
+html.light .right-tab-btn.border-transparent {
+    border-color:rgba(0,150,75,.15)!important;
+    background:rgba(0,179,95,.035);
+}
+html.light .right-tab-btn:not(.border-transparent) {
+    border-color:rgba(0,150,75,.30)!important;
+    background:linear-gradient(145deg,rgba(0,179,95,.15),rgba(0,179,95,.065));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 0 12px rgba(0,150,75,.045);
+}
+@media(max-width:760px) {
+    .rf-agent-trace-header {display:none}
+}
+@media(prefers-reduced-motion:reduce) {
+    .right-tab-btn {transition:none}
+}

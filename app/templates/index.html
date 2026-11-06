@@ -37,7 +37,13 @@
             <img src="/static/logo-light.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-dark">
             <img src="/static/logo-dark.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-light">
         </a>
-    </div> 
+    </div>
+    <div class="rf-agent-trace-panel rf-agent-trace-header max-h-40" aria-label="Agent trace">
+        <div class="rf-trace-heading">
+            <span><i data-lucide="activity" class="w-3.5 h-3.5"></i> AGENT TRACE</span><span class="rf-panel-live-label">LIVE EVENTS</span>
+        </div>
+        <div id="debug-trace-log" class="flex flex-col text-xs custom-scrollbar"></div>
+    </div>
     <div class="flex items-center gap-4 relative" id="rf-user-profile">
         <button id="theme-toggle-btn" class="w-8 h-8 rounded-full hover:bg-[var(--ide-elevated)] flex items-center justify-center text-[var(--ide-text-secondary)] cursor-pointer">
             <i data-lucide="moon" id="theme-icon" class="w-4 h-4"></i>
@@ -203,10 +209,10 @@
             <div class="h-10 flex items-center justify-between px-3 select-none bg-[var(--ide-bg)] border-b border-[var(--ide-border-subtle)]">
                 <div class="flex items-center gap-3">
                     <button id="toggle-left-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
-                    <div class="flex items-center gap-6 h-10">
-                        <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-[var(--ide-accent)] text-[var(--ide-text-primary)] cursor-pointer" data-panel="chat">Chat</button>
-                        <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-transparent text-[var(--ide-text-muted)] cursor-pointer" data-panel="editor">Editor</button>
-                        <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-transparent text-[var(--ide-text-muted)] cursor-pointer" data-panel="terminal">Terminal</button>
+                    <div class="flex items-center gap-2 h-10">
+                        <button class="right-tab-btn h-8 text-xs font-medium px-3 rounded-xl border border-[var(--ide-accent)] text-[var(--ide-text-primary)] cursor-pointer" data-panel="chat">Chat</button>
+                        <button class="right-tab-btn h-8 text-xs font-medium px-3 rounded-xl border border-transparent text-[var(--ide-text-muted)] cursor-pointer" data-panel="editor">Editor</button>
+                        <button class="right-tab-btn h-8 text-xs font-medium px-3 rounded-xl border border-transparent text-[var(--ide-text-muted)] cursor-pointer" data-panel="terminal">Terminal</button>
                     </div>
                 </div>
                 <button id="toggle-right-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer"><i data-lucide="panel-right-close" class="w-4 h-4"></i></button>
@@ -392,12 +398,6 @@
                     </div>
                 </div>
             </section>
-            <div class="rf-agent-trace-panel glass-cover" aria-label="Agent trace">
-                <div class="rf-trace-heading">
-                    <span><i data-lucide="activity" class="w-3.5 h-3.5"></i> AGENT TRACE</span><span class="rf-panel-live-label">LIVE EVENTS</span>
-                </div>
-                <div id="debug-trace-log" class="flex flex-col text-xs custom-scrollbar"></div>
-            </div>
             <div class="rf-active-tools-panel glass-cover">
                 <div class="rf-trace-heading">
                     <span><i data-lucide="wrench" class="w-3.5 h-3.5"></i> ACTIVE TOOLS</span><span class="rf-panel-live-label">LIVE</span>
