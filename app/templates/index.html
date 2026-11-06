@@ -12,6 +12,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/agent-graph.css?v={{ app_version }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
@@ -381,6 +382,21 @@
             </div>               
             <div>
                 <div class="relative h-[10rem] glass-cover overflow-hidden flex flex-col">
+                    <section id="rf-agent-graph" class="rf-agent-graph" aria-label="Live agent workflow">
+                        <div class="rf-graph-heading">
+                            <div><span class="rf-live-dot"></span><span>AGENT WORKFLOW</span></div>
+                            <span id="rf-graph-state" class="rf-graph-state">IDLE</span>
+                        </div>
+                        <div class="rf-graph-stages" id="rf-graph-stages">
+                            <div class="rf-graph-stage" data-stage="context"><span class="rf-stage-icon">⌕</span><span>Context</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="plan"><span class="rf-stage-icon">⌘</span><span>Plan</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="execute"><span class="rf-stage-icon">⟡</span><span>Build</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="verify"><span class="rf-stage-icon">✓</span><span>Verify</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="deliver"><span class="rf-stage-icon">↗</span><span>Result</span><i></i></div>
+                        </div>
+                        <div class="rf-graph-meta"><span id="rf-graph-role">Waiting for task</span><span id="rf-graph-model">—</span></div>
+                        <div id="rf-graph-tools" class="rf-graph-tools"><span class="rf-graph-empty">Execution events will appear here</span></div>
+                    </section>
                     <div class="flex items-center justify-between text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] px-3 pt-3 pb-1">
                         <span>Agent Trace</span>
                     </div>
