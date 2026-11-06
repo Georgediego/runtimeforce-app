@@ -352,6 +352,50 @@ register_all(app)
 async def index(request: Request):
     return templates.TemplateResponse(request, "index.html")
 
+
+
+def _read_linux_memory():
+    """Return real host memory values from /proc; None when unavailable."""
+    try:
+        values = {}
+        with open("/proc/meminfo", "r", encoding="utf-8") as handle:
+            for line in handle:
+                key, raw = line.split(":", 1)
+                values[key] = int(raw.strip().split()[0]) * 1024
+        total, available = values.get("MemTotal"), values.get("MemAvailable")
+        if not total or available is None:
+            return None
+        used = max(0, total - available)
+        return {"total_bytes": total, "used_bytes": used, "percent": round(used / total * 100, 1)}
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _read_host_uptime():
+    try:
+        return round(float(Path("/proc/uptime").read_text(encoding="utf-8").split()[0]))
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+@app.get("/api/v1/system/metrics")
+async def get_system_metrics():
+    """Expose read-only host metrics for the local IDE monitor."""
+    try:
+        load = [round(value, 2) for value in os.getloadavg()]
+    except (AttributeError, OSError):
+        load = None
+    memory = _read_linux_memory()
+    try:
+        disk = shutil.disk_usage(BASE_DIR)
+        disk_data = {"total_bytes": disk.total, "used_bytes": disk.used,
+                     "percent": round(disk.used / disk.total * 100, 1) if disk.total else None}
+    except OSError:
+        disk_data = None
+    return {"version": get_app_version(), "platform": sys.platform, "cpu_count": os.cpu_count(),
+            "load_average": load, "memory": memory, "disk": disk_data,
+            "uptime_seconds": _read_host_uptime()}
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "runtimeforce-app"}
