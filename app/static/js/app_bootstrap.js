@@ -120,9 +120,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.querySelectorAll(".right-tab-btn").forEach((b) => {
                 b.classList.remove("border-[var(--ide-accent)]", "text-[var(--ide-text-primary)]");
                 b.classList.add("border-transparent", "text-[var(--ide-text-muted)]");
+                b.setAttribute("aria-selected", "false");
             });
             btn.classList.remove("border-transparent", "text-[var(--ide-text-muted)]");
             btn.classList.add("border-[var(--ide-accent)]", "text-[var(--ide-text-primary)]");
+            btn.setAttribute("aria-selected", "true");
         });
     });
 
@@ -180,10 +182,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("rf-auth-google-btn")?.addEventListener("click", () => authFrontendService.oauth("google"));
     document.getElementById("rf-auth-github-btn")?.addEventListener("click", () => authFrontendService.oauth("github"));
 
-    // Wait for the SaaS session/token before any project API request can run.
-    // The auth:success handler loads the active project after authentication.
-    await authFrontendService.init();
+    // Start update checks alongside authentication so a slow or failed auth request
+    // cannot prevent the IDE from detecting available stable releases.
+    const authInitPromise = authFrontendService.init();
     updateNotificationService.init();
+    await authInitPromise;
 
     if (window.lucide) window.lucide.createIcons();
 });

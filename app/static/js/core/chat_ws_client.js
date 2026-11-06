@@ -51,6 +51,7 @@ export class ChatWSClient {
                 atm_tester_model: options.atm_tester_model || null,
                 atm_critic_model: options.atm_critic_model || null,
                 atm_designer_model: options.atm_designer_model || null,
+                existing_message_id: options.existing_message_id || null,
             })
         );
         return true;

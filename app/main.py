@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.0.9",
+    version="1.1.15",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -321,15 +321,11 @@ def _apply_ide_update():
 @app.post("/api/v1/updates/apply")
 async def apply_ide_update(request: Request, background_tasks: BackgroundTasks):
     global _update_state
-    host = (request.url.hostname or "").lower()
+    host = request.headers.get("host", "").split(":")[0].lower()
     origin = request.headers.get("origin", "")
-    try:
-        local_port = int(os.getenv("PORT", "8000"))
-    except ValueError:
-        local_port = 8000
     if host not in {"localhost", "127.0.0.1"} or origin not in {
-        f"http://{host}:{local_port}",
-        f"https://{host}:{local_port}",
+        f"http://{host}:8000",
+        f"https://{host}:8000",
     }:
         raise HTTPException(status_code=403, detail="Update requests are allowed only from the local IDE.")
 

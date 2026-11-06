@@ -70,6 +70,11 @@ class ConversationDBRepository:
         row = cur.fetchone()
         return row["project_id"] if row and row["project_id"] else ""
 
+    def get_session_owner(self, session_id: str) -> Optional[str]:
+        conn = self.db.get_connection()
+        row = conn.execute("SELECT user_id FROM sessions WHERE id=?", (session_id,)).fetchone()
+        return row["user_id"] if row else None
+
     def ensure_session_exists(
         self, session_id: str, user_id: str = "anonymous", title: str = "New Chat", project_id: str = ""
     ):
@@ -147,18 +152,13 @@ class ConversationDBRepository:
         )
         return [{"id": r["id"], "role": r["role"], "content": r["content"]} for r in cur.fetchall()]
 
-    def append_message(self, session_id: str, role: str, content: str, user_id: str = "anonymous", project_id: str = ""):
+    def append_message(self, session_id: str, role: str, content: str, user_id: str = "anonymous", project_id: str = "") -> int:
         self.ensure_session_exists(session_id, user_id=user_id, project_id=project_id)
         conn = self.db.get_connection()
-        conn.execute(
-            "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
-            (session_id, role, content)
-        )
-        conn.execute(
-            "UPDATE sessions SET updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (session_id,)
-        )
+        cursor = conn.execute("INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)", (session_id, role, content))
+        conn.execute("UPDATE sessions SET updated_at=CURRENT_TIMESTAMP WHERE id=?", (session_id,))
         conn.commit()
+        return int(cursor.lastrowid)
 
     def get_message_by_id(self, message_id: int) -> Optional[Dict[str, Any]]:
         conn = self.db.get_connection()
@@ -169,12 +169,28 @@ class ConversationDBRepository:
 
     def update_message(self, message_id: int, new_content: str) -> bool:
         conn = self.db.get_connection()
-        cur = conn.execute(
-            "UPDATE messages SET content=? WHERE id=?",
-            (new_content, message_id)
-        )
+        cur = conn.execute("UPDATE messages SET content=? WHERE id=?", (new_content, message_id))
         conn.commit()
         return cur.rowcount > 0
+
+    def edit_message_and_truncate_after(self, message_id: int, new_content: str) -> Optional[str]:
+        """Update the target row in place and atomically discard its later conversation branch."""
+        conn = self.db.get_connection()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT session_id FROM messages WHERE id=?", (message_id,)).fetchone()
+            if not row:
+                conn.rollback()
+                return None
+            session_id = row["session_id"]
+            conn.execute("UPDATE messages SET content=? WHERE id=?", (new_content, message_id))
+            conn.execute("DELETE FROM messages WHERE session_id=? AND id>?", (session_id, message_id))
+            conn.execute("UPDATE sessions SET updated_at=CURRENT_TIMESTAMP WHERE id=?", (session_id,))
+            conn.commit()
+            return session_id
+        except Exception:
+            conn.rollback()
+            raise
 
     def truncate_from_message(self, message_id: int) -> Optional[str]:
         """Delete target message and all subsequent messages to allow fresh resend without duplicates."""

@@ -38,6 +38,7 @@ from app.services.memory.local_embedding_service import LocalEmbeddingService
 from app.services.memory.graph_memory_service import GraphMemoryService
 from app.services.memory.file_intelligence_service import FileIntelligenceService
 from app.services.memory.context_builder_service import ContextBuilderService
+from app.services.memory.context_cache_service import ContextCacheService
 from app.services.memory.decision_recorder_service import DecisionRecorderService
 from app.services.memory.terminal_intelligence_service import TerminalIntelligenceService
 
@@ -304,6 +305,9 @@ def get_versioning_repo() -> VersioningDBRepository:
 
 def get_graph_repo() -> GraphDBRepository:
     return container.graph_repo
+
+def get_context_cache_service() -> ContextCacheService:
+    return container.context_cache_service
 
 def get_decision_repo() -> DecisionDBRepository:
     return container.decision_repo

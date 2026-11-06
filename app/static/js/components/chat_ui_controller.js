@@ -28,6 +28,7 @@ let treeReloadTimer = null;
 let pendingStreamError = "";
 let generationFinalized = false;
 let userAbortedGeneration = false;
+const traceMilestones = new Set();
 const approvedCommandsCache = new Set();
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "deepseek", "xai"];
@@ -497,7 +498,7 @@ export const chatUIController = {
         }
     },
 
-    async sendMessage(overrideText = null, isEditing = false) {
+    async sendMessage(overrideText = null, isEditing = false, existingMessageId = null) {
         if (isGenerating && overrideText === null) return;
         const input = document.getElementById("prompt-input");
         const rawUserPrompt = overrideText !== null ? overrideText : input?.value.trim() || "";
@@ -516,11 +517,13 @@ export const chatUIController = {
             this.autoResizeTextarea(input);
         }
 
-        if (!isEditing) this.appendMessage("user", rawUserPrompt);
+        const userMessageContent = !isEditing ? this.appendMessage("user", rawUserPrompt) : null;
+        const userMessageCard = userMessageContent?.parentElement || null;
 
         currentPendingMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const requestPendingId = currentPendingMessageId;
         pendingStreamError = "";
+        traceMilestones.clear();
         generationFinalized = false;
         userAbortedGeneration = false;
         const assistantContentDiv = this.appendMessage("assistant", "", currentPendingMessageId);
@@ -547,6 +550,7 @@ export const chatUIController = {
         wsClient = new ChatWSClient(currentSessionId, {
             onEvent: (event) => {
                 if (requestPendingId !== currentPendingMessageId) return;
+                if (event.status === "message_saved" && userMessageCard && event.message_id) userMessageCard.dataset.messageId = String(event.message_id);
                 this.handleStreamEvent(event, requestPendingId);
             },
             onError: (err) => {
@@ -590,6 +594,7 @@ export const chatUIController = {
                 atm_designer_model: atmModels.designer,
                 atm_tester_model: atmModels.tester,
                 atm_critic_model: atmModels.critic,
+                existing_message_id: isEditing ? Number(existingMessageId) : null,
             });
         } catch (err) {
             if (requestPendingId !== currentPendingMessageId || generationFinalized) return;
@@ -676,6 +681,7 @@ export const chatUIController = {
     },
 
     async handleStreamEvent(event, pendingId) {
+        eventBus.emit("agent:graph_event", event);
         const assistantDiv = this.getPendingMessageContentDiv(pendingId);
 
         if (event.status === "phase" && event.label) {
@@ -698,6 +704,10 @@ export const chatUIController = {
             this.setOrchestratorProgress(40);
         } else if (event.status === "reasoning" && event.reasoning) {
             currentPhaseLabel = "Model is processing the request...";
+            if (!traceMilestones.has("think")) {
+                traceMilestones.add("think");
+                this.appendTrace("THINK", "Model reasoning started");
+            }
             if (assistantDiv) {
                 this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
                 this.scrollToBottom();
@@ -706,6 +716,10 @@ export const chatUIController = {
         } else if (event.status === "streaming" && event.content) {
             pendingStreamError = "";
             currentPhaseLabel = "Generating response...";
+            if (!traceMilestones.has("output")) {
+                traceMilestones.add("output");
+                this.appendTrace("OUTPUT", "Response stream started");
+            }
             fullResponseText += event.content;
             if (assistantDiv) {
                 this.renderAssistantBubble(assistantDiv, fullResponseText, fullReasoningText);
@@ -876,23 +890,37 @@ export const chatUIController = {
     appendActiveTool(toolId, toolName, status) {
         const container = document.getElementById("active-tools-list");
         if (!container) return;
-        let existing = container.querySelector(`[data-tool-id="${toolId}"]`);
+        container.querySelector(".rf-tools-empty-state")?.remove();
+        let existing = Array.from(container.querySelectorAll("[data-tool-id]")).find((node) => node.dataset.toolId === String(toolId));
         if (!existing) {
             existing = document.createElement("div");
-            existing.dataset.toolId = toolId;
-            existing.className = "flex items-center justify-between p-1.5 border-b border-[var(--ide-border-subtle)] text-[10px]";
+            existing.dataset.toolId = String(toolId);
+            existing.className = "rf-active-tool-entry";
             container.appendChild(existing);
         }
         const isRunning = status === "running";
-        const textColor = isRunning ? "text-amber-400" : "text-emerald-400";
-        const time = new Date().toLocaleTimeString();
-        const checkmarkHTML = !isRunning && status === "success" ? `<span class="text-emerald-400 font-bold mr-1">&#10004;</span>` : "";
-        existing.innerHTML = `
-            <div class="flex items-center min-w-0 flex-1">
-                ${checkmarkHTML}
-                <span class="truncate ${textColor} font-mono font-medium">${toolName}</span>
-            </div>
-            <span class="text-[var(--ide-text-muted)] text-[9px] shrink-0 ml-2">${time}</span>`;
+        const iconNames = [
+            [/execute_command|terminal|shell/i, "terminal"],
+            [/read_workspace_file|file_read/i, "file-text"],
+            [/write_workspace_file|apply_code_patch|file_write/i, "file-pen-line"],
+            [/scan_workspace|search_grep|search/i, "search"],
+            [/^git_|git_/i, "git-branch"],
+            [/browser|web/i, "globe"],
+            [/python|code|lint|test/i, "code"],
+        ];
+        const iconName = (iconNames.find(([pattern]) => pattern.test(String(toolName))) || [null, "wrench"])[1];
+        const icon = document.createElement("i");
+        icon.dataset.lucide = iconName;
+        icon.className = "rf-active-tool-icon " + (isRunning ? "is-running" : "is-complete");
+        icon.setAttribute("aria-hidden", "true");
+        const label = document.createElement("span");
+        label.className = "rf-active-tool-name " + (isRunning ? "is-running" : "is-complete");
+        label.textContent = String(toolName || "Tool");
+        const time = document.createElement("span");
+        time.className = "rf-active-tool-time";
+        time.textContent = new Date().toLocaleTimeString();
+        existing.replaceChildren(icon, label, time);
+        if (window.lucide) window.lucide.createIcons({ root: existing });
         container.scrollTop = container.scrollHeight;
     },
 
@@ -907,22 +935,22 @@ export const chatUIController = {
     renderTraceEntry(badge, text, isoTimestamp) {
         const log = document.getElementById("debug-trace-log");
         if (!log) return;
+        const kind = String(badge || "INFO").toLowerCase().replace(/[^a-z0-9_-]/g, "");
         const time = isoTimestamp ? new Date(isoTimestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-        let badgeBg = "bg-amber-500/20";
-        let textColor = "text-amber-400";
-        if (badge === "ERROR" || badge === "FAILED") {
-            badgeBg = "bg-red-500/20";
-            textColor = "text-red-400";
-        } else if (badge === "DONE" || badge === "SUCCESS") {
-            badgeBg = "bg-emerald-500/20";
-            textColor = "text-emerald-400";
-        }
         const entry = document.createElement("div");
-        entry.className = "flex items-center gap-2 text-[10px] py-1 border-b border-[var(--ide-border-subtle)]";
-        entry.innerHTML = `
-            <span class="px-1.5 py-0.5 rounded ${badgeBg} ${textColor} font-bold uppercase shrink-0">${badge}</span>
-            <span class="truncate flex-1 ${textColor} font-medium">${text}</span>
-            <span class="text-[var(--ide-text-muted)] text-[9px] shrink-0">${time}</span>`;
+        entry.className = "rf-trace-entry";
+        entry.dataset.kind = kind;
+        const badgeEl = document.createElement("span");
+        badgeEl.className = "rf-trace-badge rf-trace-badge--" + kind;
+        badgeEl.textContent = String(badge || "INFO");
+        const textEl = document.createElement("span");
+        textEl.className = "rf-trace-message";
+        textEl.textContent = String(text || "");
+        textEl.title = String(text || "");
+        const timeEl = document.createElement("span");
+        timeEl.className = "rf-trace-time";
+        timeEl.textContent = time;
+        entry.append(badgeEl, textEl, timeEl);
         log.appendChild(entry);
         log.scrollTop = log.scrollHeight;
     },
@@ -973,27 +1001,42 @@ export const chatUIController = {
                 showToast("Copied", "success");
             });
             actionsBar.querySelector(".edit-msg-btn")?.addEventListener("click", async () => {
-                const edited = await showMultiLinePrompt("Edit Prompt", "", rawText, "Resend", "Cancel");
-                if (edited && edited.trim() && messageId) {
+                const edited = await showMultiLinePrompt("Edit Prompt", "", rawText, "Save & Regenerate", "Cancel");
+                const nextContent = edited?.trim();
+                if (!nextContent || !messageId) return;
+                try {
+                    if (isGenerating) this.abortGeneration();
                     const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-                    await fetch(`/api/v1/messages/${messageId}/truncate-from`, { 
-                        method: "POST", 
-                        headers: { Authorization: `Bearer ${token}` } 
+                    const response = await fetch(`/api/v1/messages/${messageId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ content: nextContent }),
                     });
-                    await this.openSession(currentSessionId);
-                    this.sendMessage(edited.trim(), false);
-                }
+                    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Failed to edit message.");
+                    contentDiv.innerHTML = window.marked ? window.marked.parse(nextContent) : this.escapeHtml(nextContent);
+                    let next = msgWrapper.nextElementSibling;
+                    while (next) { const current = next; next = next.nextElementSibling; current.remove(); }
+                    document.getElementById("debug-trace-log")?.replaceChildren();
+                    document.getElementById("active-tools-list")?.replaceChildren();
+                    this.sendMessage(nextContent, true, Number(messageId));
+                } catch (error) { showToast(error.message || "Failed to edit message", "error"); }
             });
             actionsBar.querySelector(".delete-msg-btn")?.addEventListener("click", async () => {
-                const confirmed = await showConfirm("Delete Message", "Delete this and subsequent messages?", "Delete", "Cancel");
-                if (confirmed && messageId) {
+                const confirmed = await showConfirm("Delete Message", "Delete this and all following messages?", "Delete", "Cancel");
+                if (!confirmed || !messageId) return;
+                try {
+                    if (isGenerating) this.abortGeneration();
                     const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-                    await fetch(`/api/v1/messages/${messageId}/truncate-from`, { 
-                        method: "POST", 
-                        headers: { Authorization: `Bearer ${token}` } 
+                    const response = await fetch(`/api/v1/messages/${messageId}`, {
+                        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
                     });
-                    await this.openSession(currentSessionId);
-                }
+                    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Failed to delete message.");
+                    let current = msgWrapper;
+                    while (current) { const next = current.nextElementSibling; current.remove(); current = next; }
+                    document.getElementById("debug-trace-log")?.replaceChildren();
+                    document.getElementById("active-tools-list")?.replaceChildren();
+                    showToast("Message and later conversation deleted", "info");
+                } catch (error) { showToast(error.message || "Failed to delete message", "error"); }
             });
         } else {
             actionsBar.innerHTML = `
