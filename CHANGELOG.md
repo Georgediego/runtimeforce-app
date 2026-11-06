@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.14] - 2026-11-07
+
+### Changed
+- Restore the Chat, Editor, and Terminal toolbar between the left and right sidebars.
+- Keep the active workspace tab emerald with a compact pill treatment.
+- Darken chat message surfaces for more comfortable reading.
+- Apply translucent emerald glass styling to confirmation, prompt, and settings dialogs.
+- Limit Agent Trace to 160px and scroll its event list internally.
+
+### Fixed
+- Remove the extra focus frame around the chat composer.
+- Persist database message IDs in the live chat UI so edit and delete actions target the correct records.
+- Edit user messages in place, remove the later conversation branch, and regenerate without inserting a duplicate user message.
+- Cascade message edits/deletions through SQLite history, session-scoped graph summaries, embeddings, and context cache.
+- Restrict message read/edit/delete operations to the authenticated session owner.
+
+
 ## [1.1.13] - 2026-11-07
 
 ### Changed

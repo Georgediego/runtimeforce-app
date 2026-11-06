@@ -14,6 +14,9 @@ class ContextCacheService:
         self.threshold = similarity_threshold
         self._cache: Dict[str, Dict[str, Any]] = {}
 
+    def invalidate_session(self, session_id: str) -> None:
+        self._cache.pop(session_id, None)
+
     def get_delta_context(
         self,
         user_prompt: str,

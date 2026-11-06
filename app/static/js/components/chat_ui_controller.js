@@ -498,7 +498,7 @@ export const chatUIController = {
         }
     },
 
-    async sendMessage(overrideText = null, isEditing = false) {
+    async sendMessage(overrideText = null, isEditing = false, existingMessageId = null) {
         if (isGenerating && overrideText === null) return;
         const input = document.getElementById("prompt-input");
         const rawUserPrompt = overrideText !== null ? overrideText : input?.value.trim() || "";
@@ -517,7 +517,8 @@ export const chatUIController = {
             this.autoResizeTextarea(input);
         }
 
-        if (!isEditing) this.appendMessage("user", rawUserPrompt);
+        const userMessageContent = !isEditing ? this.appendMessage("user", rawUserPrompt) : null;
+        const userMessageCard = userMessageContent?.parentElement || null;
 
         currentPendingMessageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const requestPendingId = currentPendingMessageId;
@@ -549,6 +550,7 @@ export const chatUIController = {
         wsClient = new ChatWSClient(currentSessionId, {
             onEvent: (event) => {
                 if (requestPendingId !== currentPendingMessageId) return;
+                if (event.status === "message_saved" && userMessageCard && event.message_id) userMessageCard.dataset.messageId = String(event.message_id);
                 this.handleStreamEvent(event, requestPendingId);
             },
             onError: (err) => {
@@ -592,6 +594,7 @@ export const chatUIController = {
                 atm_designer_model: atmModels.designer,
                 atm_tester_model: atmModels.tester,
                 atm_critic_model: atmModels.critic,
+                existing_message_id: isEditing ? Number(existingMessageId) : null,
             });
         } catch (err) {
             if (requestPendingId !== currentPendingMessageId || generationFinalized) return;
@@ -998,27 +1001,42 @@ export const chatUIController = {
                 showToast("Copied", "success");
             });
             actionsBar.querySelector(".edit-msg-btn")?.addEventListener("click", async () => {
-                const edited = await showMultiLinePrompt("Edit Prompt", "", rawText, "Resend", "Cancel");
-                if (edited && edited.trim() && messageId) {
+                const edited = await showMultiLinePrompt("Edit Prompt", "", rawText, "Save & Regenerate", "Cancel");
+                const nextContent = edited?.trim();
+                if (!nextContent || !messageId) return;
+                try {
+                    if (isGenerating) this.abortGeneration();
                     const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-                    await fetch(`/api/v1/messages/${messageId}/truncate-from`, { 
-                        method: "POST", 
-                        headers: { Authorization: `Bearer ${token}` } 
+                    const response = await fetch(`/api/v1/messages/${messageId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ content: nextContent }),
                     });
-                    await this.openSession(currentSessionId);
-                    this.sendMessage(edited.trim(), false);
-                }
+                    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Failed to edit message.");
+                    contentDiv.innerHTML = window.marked ? window.marked.parse(nextContent) : this.escapeHtml(nextContent);
+                    let next = msgWrapper.nextElementSibling;
+                    while (next) { const current = next; next = next.nextElementSibling; current.remove(); }
+                    document.getElementById("debug-trace-log")?.replaceChildren();
+                    document.getElementById("active-tools-list")?.replaceChildren();
+                    this.sendMessage(nextContent, true, Number(messageId));
+                } catch (error) { showToast(error.message || "Failed to edit message", "error"); }
             });
             actionsBar.querySelector(".delete-msg-btn")?.addEventListener("click", async () => {
-                const confirmed = await showConfirm("Delete Message", "Delete this and subsequent messages?", "Delete", "Cancel");
-                if (confirmed && messageId) {
+                const confirmed = await showConfirm("Delete Message", "Delete this and all following messages?", "Delete", "Cancel");
+                if (!confirmed || !messageId) return;
+                try {
+                    if (isGenerating) this.abortGeneration();
                     const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-                    await fetch(`/api/v1/messages/${messageId}/truncate-from`, { 
-                        method: "POST", 
-                        headers: { Authorization: `Bearer ${token}` } 
+                    const response = await fetch(`/api/v1/messages/${messageId}`, {
+                        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
                     });
-                    await this.openSession(currentSessionId);
-                }
+                    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Failed to delete message.");
+                    let current = msgWrapper;
+                    while (current) { const next = current.nextElementSibling; current.remove(); current = next; }
+                    document.getElementById("debug-trace-log")?.replaceChildren();
+                    document.getElementById("active-tools-list")?.replaceChildren();
+                    showToast("Message and later conversation deleted", "info");
+                } catch (error) { showToast(error.message || "Failed to delete message", "error"); }
             });
         } else {
             actionsBar.innerHTML = `

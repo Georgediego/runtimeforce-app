@@ -38,15 +38,6 @@
             <img src="/static/logo-dark.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-light">
         </a>
     </div>
-    <div class="rf-workspace-header-controls" aria-label="Workspace panels">
-        <button id="toggle-left-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle left sidebar"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
-        <nav class="rf-workspace-tabs" role="tablist" aria-label="Workspace views">
-            <button class="right-tab-btn border-[var(--ide-accent)] text-[var(--ide-text-primary)]" data-panel="chat" role="tab" aria-selected="true">Chat</button>
-            <button class="right-tab-btn border-transparent text-[var(--ide-text-muted)]" data-panel="editor" role="tab" aria-selected="false">Editor</button>
-            <button class="right-tab-btn border-transparent text-[var(--ide-text-muted)]" data-panel="terminal" role="tab" aria-selected="false">Terminal</button>
-        </nav>
-        <button id="toggle-right-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle right sidebar"><i data-lucide="panel-right-close" class="w-4 h-4"></i></button>
-    </div>
     <div class="flex items-center gap-4 relative" id="rf-user-profile">
         <button id="theme-toggle-btn" class="w-8 h-8 rounded-full hover:bg-[var(--ide-elevated)] flex items-center justify-center text-[var(--ide-text-secondary)] cursor-pointer">
             <i data-lucide="moon" id="theme-icon" class="w-4 h-4"></i>
@@ -209,6 +200,17 @@
 
         <!-- CENTER PANEL -->
         <section id="center-panel-col" class="flex-1 min-w-0 flex flex-col bg-[var(--ide-bg)] overflow-hidden">
+            <div class="rf-center-workspace-toolbar">
+                <div class="flex items-center gap-3 min-w-0">
+                    <button id="toggle-left-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle left sidebar"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
+                    <nav class="rf-center-workspace-tabs" role="tablist" aria-label="Workspace views">
+                        <button class="right-tab-btn" data-panel="chat" role="tab" aria-selected="true">Chat</button>
+                        <button class="right-tab-btn" data-panel="editor" role="tab" aria-selected="false">Editor</button>
+                        <button class="right-tab-btn" data-panel="terminal" role="tab" aria-selected="false">Terminal</button>
+                    </nav>
+                </div>
+                <button id="toggle-right-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle right sidebar"><i data-lucide="panel-right-close" class="w-4 h-4"></i></button>
+            </div>
             <!-- CHAT PANEL -->
             <div id="right-panel-chat" class="right-panel-content flex-1 flex flex-col overflow-hidden relative">
                 <div id="chat-container" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">

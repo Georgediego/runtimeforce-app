@@ -41,7 +41,10 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
     
     coordinator = container.agent_loop_coordinator
     conv_repo = container.conversation_repo
-    
+    if conv_repo.get_session_owner(session_id) != user_id:
+        await websocket.close(code=1008, reason="Session access denied")
+        return
+
     try:
         while True:
             raw_data = await websocket.receive_text()
@@ -60,6 +63,18 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             prompt = data.get("prompt") or data.get("text") or ""
             if not prompt and not data.get("messages"):
                 continue
+
+            existing_message_id = data.get("existing_message_id")
+            if existing_message_id is not None:
+                try:
+                    existing_message_id = int(existing_message_id)
+                except (TypeError, ValueError):
+                    await websocket.send_json({"status": "error", "error": "Invalid edited message id."})
+                    continue
+                existing_message = conv_repo.get_message_by_id(existing_message_id)
+                if not existing_message or existing_message.get("session_id") != session_id or existing_message.get("role") != "user":
+                    await websocket.send_json({"status": "error", "error": "Edited message not found in this session."})
+                    continue
 
             project_id = conv_repo.get_session_project(session_id)
             if not project_id or project_id == "default_project":
@@ -113,6 +128,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     atm_tester_model=atm_tester,
                     atm_critic_model=atm_critic,
                     atm_designer_model=atm_designer,
+                    existing_message_id=existing_message_id,
                 )
 
                 async for event in agent_stream:

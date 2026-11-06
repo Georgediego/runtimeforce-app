@@ -120,9 +120,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.querySelectorAll(".right-tab-btn").forEach((b) => {
                 b.classList.remove("border-[var(--ide-accent)]", "text-[var(--ide-text-primary)]");
                 b.classList.add("border-transparent", "text-[var(--ide-text-muted)]");
+                b.setAttribute("aria-selected", "false");
             });
             btn.classList.remove("border-transparent", "text-[var(--ide-text-muted)]");
             btn.classList.add("border-[var(--ide-accent)]", "text-[var(--ide-text-primary)]");
+            btn.setAttribute("aria-selected", "true");
         });
     });
 
