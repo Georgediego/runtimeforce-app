@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-11-06
+
+### Changed
+- Restore AGENT TRACE as a standalone glass card with its heading and LIVE EVENTS label inside the card, separate from AGENT WORKFLOW.
+- Apply the translucent emerald glass treatment to the AUTO, ATM, LOCAL, and MANUAL strategy selector in dark and light themes.
+
+
 ## [1.1.5] - 2026-11-06
 
 ### Changed
