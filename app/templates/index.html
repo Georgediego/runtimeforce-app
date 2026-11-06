@@ -393,6 +393,14 @@
                     <div id="active-tools-list" class="flex flex-col gap-1 text-xs h-auto overflow-y-auto"></div>
                 </div>
             </div>
+
+            <div class="rf-monitor-card glass-cover" id="rf-system-monitor" aria-live="polite">
+                <div class="rf-monitor-heading"><div><div class="rf-eyebrow">LIVE SYSTEM</div><div class="rf-monitor-title">Backend Monitor</div></div><span class="rf-live-indicator"><span></span> LIVE</span></div>
+                <div class="rf-monitor-metric"><div class="rf-monitor-label"><i data-lucide="cpu"></i><span>System load · 1m</span></div><strong id="rf-monitor-load">—</strong></div>
+                <div class="rf-monitor-metric"><div class="rf-monitor-label"><i data-lucide="memory-stick"></i><span>Memory usage</span></div><strong id="rf-monitor-memory">—</strong><div class="rf-monitor-track"><span id="rf-monitor-memory-bar"></span></div></div>
+                <div class="rf-monitor-metric"><div class="rf-monitor-label"><i data-lucide="hard-drive"></i><span>Disk usage</span></div><strong id="rf-monitor-disk">—</strong><div class="rf-monitor-track"><span id="rf-monitor-disk-bar"></span></div></div>
+                <div class="rf-monitor-footer"><span id="rf-monitor-uptime">Uptime —</span><span id="rf-monitor-updated">Waiting for metrics</span></div>
+            </div>
         </section>
     </main>
 </div>
@@ -952,6 +960,7 @@
 <script type="module" src="/static/js/components/terminal.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/components/projects_ui_controller.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/components/trace_ui_controller.js?v={{ app_version }}"></script>
+<script type="module" src="/static/js/components/system_monitor.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/components/setup_wizard_ui_controller.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/app_bootstrap.js?v={{ app_version }}"></script>
 
