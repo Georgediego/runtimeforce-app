@@ -12,6 +12,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/agent-graph.css?v={{ app_version }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
@@ -36,7 +37,7 @@
             <img src="/static/logo-light.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-dark">
             <img src="/static/logo-dark.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-light">
         </a>
-    </div> 
+    </div>
     <div class="flex items-center gap-4 relative" id="rf-user-profile">
         <button id="theme-toggle-btn" class="w-8 h-8 rounded-full hover:bg-[var(--ide-elevated)] flex items-center justify-center text-[var(--ide-text-secondary)] cursor-pointer">
             <i data-lucide="moon" id="theme-icon" class="w-4 h-4"></i>
@@ -99,19 +100,19 @@
 <div class="flex flex-1 mt-[56px]"> 
     <aside id="left-sidebar" class="w-[60px] flex flex-col items-center py-4 justify-between h-[calc(100vh-56px)] z-40 border-r border-[var(--ide-border-subtle)] bg-[var(--ide-surface)] shrink-0">
         <div class="flex flex-col gap-2 items-center h-full min-h-[inherit]">
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn active" data-panel="sessions" title="Sessions">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn active" data-panel="sessions">
                 <i data-lucide="message-square" class="w-5 h-5"></i>
             </div>            
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center cursor-pointer left-tab-btn" data-panel="explorer" title="Explorer">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center cursor-pointer left-tab-btn" data-panel="explorer">
                 <i data-lucide="files" class="w-5 h-5"></i>
             </div>
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="git" title="Git">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="git">
                 <i data-lucide="git-branch" class="w-5 h-5"></i>
             </div>
-            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="projects" title="Projects">
+            <div class="sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer left-tab-btn" data-panel="projects">
                 <i data-lucide="folder-git-2" class="w-5 h-5"></i>
             </div>
-            <div id="rf-menu-settings-btn" class="mt-auto sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer" title="Settings">
+            <div id="rf-menu-settings-btn" class="mt-auto sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer">
                 <i data-lucide="settings" class="w-5 h-5"></i>
             </div>
         </div>
@@ -199,18 +200,17 @@
 
         <!-- CENTER PANEL -->
         <section id="center-panel-col" class="flex-1 min-w-0 flex flex-col bg-[var(--ide-bg)] overflow-hidden">
-            <div class="h-10 flex items-center justify-between px-3 select-none bg-[var(--ide-bg)] border-b border-[var(--ide-border-subtle)]">
-                <div class="flex items-center gap-3">
-                    <button id="toggle-left-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
-                    <div class="flex items-center gap-6 h-10">
-                        <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-[var(--ide-accent)] text-[var(--ide-text-primary)] cursor-pointer" data-panel="chat">Chat</button>
-                        <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-transparent text-[var(--ide-text-muted)] cursor-pointer" data-panel="editor">Editor</button>
-                        <button class="right-tab-btn h-full text-xs font-medium px-1 border-b-2 border-transparent text-[var(--ide-text-muted)] cursor-pointer" data-panel="terminal">Terminal</button>
-                    </div>
+            <div class="rf-center-workspace-toolbar">
+                <div class="flex items-center gap-3 min-w-0">
+                    <button id="toggle-left-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle left sidebar"><i data-lucide="panel-left-close" class="w-4 h-4"></i></button>
+                    <nav class="rf-center-workspace-tabs" role="tablist" aria-label="Workspace views">
+                        <button class="right-tab-btn" data-panel="chat" role="tab" aria-selected="true">Chat</button>
+                        <button class="right-tab-btn" data-panel="editor" role="tab" aria-selected="false">Editor</button>
+                        <button class="right-tab-btn" data-panel="terminal" role="tab" aria-selected="false">Terminal</button>
+                    </nav>
                 </div>
-                <button id="toggle-right-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer"><i data-lucide="panel-right-close" class="w-4 h-4"></i></button>
+                <button id="toggle-right-sidebar-btn" class="text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] p-1 rounded-md cursor-pointer" aria-label="Toggle right sidebar"><i data-lucide="panel-right-close" class="w-4 h-4"></i></button>
             </div>
-
             <!-- CHAT PANEL -->
             <div id="right-panel-chat" class="right-panel-content flex-1 flex flex-col overflow-hidden relative">
                 <div id="chat-container" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
@@ -283,19 +283,31 @@
         </section>
 
         <!-- RIGHT SIDEBAR -->
-        <section id="right-sidebar-col" class="w-[280px] shrink-0 bg-[var(--ide-surface)] flex flex-col p-4 gap-6 overflow-y-auto border-l border-[var(--ide-border-subtle)] h-full">
-            <div>
-                <div class="p-3 glass-cover space-y-2">
-                    <div class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-3 flex items-center justify-between">
-                        <span>Orchestrator</span>
-                        <span id="orchestrator-status-badge" class="hidden text-[9px] px-1.5 py-0.2 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] font-bold uppercase animate-pulse">Running</span>
+        <section id="right-sidebar-col" class="w-[280px] shrink-0 bg-[var(--ide-surface)] flex flex-col p-3 gap-3 overflow-y-auto border-l border-[var(--ide-border-subtle)] h-full">
+            <section id="rf-agent-graph" class="rf-agent-graph rf-agent-workflow-panel relative glass-cover flex flex-col" aria-label="Live agent workflow">
+                        <div class="rf-graph-heading">
+                            <div><span class="rf-live-dot"></span><span>AGENT WORKFLOW</span></div>
+                            <span id="rf-graph-state" class="rf-graph-state">IDLE</span>
+                        </div>
+                        <div class="rf-graph-stages" id="rf-graph-stages">
+                            <div class="rf-graph-stage" data-stage="context"><span class="rf-stage-icon">⌕</span><span>Context</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="plan"><span class="rf-stage-icon">⌘</span><span>Plan</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="execute"><span class="rf-stage-icon">⟡</span><span>Build</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="verify"><span class="rf-stage-icon">✓</span><span>Verify</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="deliver"><span class="rf-stage-icon">↗</span><span>Result</span><i></i></div>
+                        </div>
+                        <div class="rf-graph-meta hidden" aria-hidden="true"><span id="rf-graph-role">Waiting for task</span><span id="rf-graph-model">—</span></div>
+                        <div id="rf-graph-tools" class="rf-graph-tools hidden" aria-hidden="true"></div>
+                <div class="rf-orchestrator-controls">
+                    <div class="rf-orchestrator-heading">
+                        <div class="rf-orchestrator-title"><i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i><span>MODEL CONTROL</span></div>
+                        <span id="orchestrator-status-badge" class="hidden rf-orchestrator-status animate-pulse">Running</span>
                     </div>
-                    <div class="flex justify-between items-center text-[11px]">
+                    <div class="rf-orchestrator-model-row">
+                        <span class="rf-model-caption">ACTIVE MODEL</span>
                         <span id="current-model-display" class="text-[var(--ide-text-secondary)] font-mono truncate">No active model</span>
                     </div>
-                    <div class="w-full h-1.5 bg-[var(--ide-elevated-2)] rounded-full overflow-hidden relative">
-                        <div id="orchestrator-progress-bar" class="h-full bg-[var(--ide-accent)] w-0 transition-all duration-300 shadow-[0_0_8px_var(--ide-accent)]"></div>
-                    </div>
+                    <div class="rf-orchestrator-progress"><div id="orchestrator-progress-bar" class="h-full bg-[var(--ide-accent)] w-0 transition-all duration-300 shadow-[0_0_8px_var(--ide-accent)]"></div></div>
                     <div id="orchestrator-settings" class="space-y-3 pt-2">
                         <div id="model-filters-container" class="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)]">
                             <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="filter-tier-free" class="rounded accent-[var(--ide-accent)]" checked> Free</label>
@@ -378,20 +390,18 @@
                         </div>
                     </div>
                 </div>
-            </div>               
-            <div>
-                <div class="relative h-[10rem] glass-cover overflow-hidden flex flex-col">
-                    <div class="flex items-center justify-between text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] px-3 pt-3 pb-1">
-                        <span>Agent Trace</span>
-                    </div>
-                    <div id="debug-trace-log" class="pl-6 flex flex-col gap-2 text-xs flex-1 overflow-y-auto custom-scrollbar p-3"></div>
+            </section>
+            <section class="rf-agent-trace-panel glass-cover" aria-label="Agent trace">
+                <div class="rf-trace-heading">
+                    <span><i data-lucide="activity" class="w-3.5 h-3.5"></i> AGENT TRACE</span><span class="rf-panel-live-label">LIVE EVENTS</span>
                 </div>
-            </div>
-            <div>
-                <div class="p-3 glass-cover flex flex-col gap-1">
-                    <div class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-2">Active Tools</div>
-                    <div id="active-tools-list" class="flex flex-col gap-1 text-xs h-auto overflow-y-auto"></div>
+                <div id="debug-trace-log" class="flex flex-col text-xs custom-scrollbar"></div>
+            </section>
+            <div class="rf-active-tools-panel glass-cover">
+                <div class="rf-trace-heading">
+                    <span><i data-lucide="wrench" class="w-3.5 h-3.5"></i> ACTIVE TOOLS</span><span class="rf-panel-live-label">LIVE</span>
                 </div>
+                <div id="active-tools-list" class="flex flex-col gap-1 text-xs custom-scrollbar"></div>
             </div>
         </section>
     </main>
@@ -948,10 +958,10 @@
 <script type="module" src="/static/js/components/providers_ui_controller.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/components/settings_ui_controller.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/components/orchestrator_ui.js?v={{ app_version }}"></script>
-<script type="module" src="/static/js/components/chat_ui_controller.js?v={{ app_version }}"></script>
+<script type="module" src="/static/js/components/chat_ui_controller.js?v={{ app_version }}-agent-graph"></script>
 <script type="module" src="/static/js/components/terminal.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/components/projects_ui_controller.js?v={{ app_version }}"></script>
-<script type="module" src="/static/js/components/trace_ui_controller.js?v={{ app_version }}"></script>
+<script type="module" src="/static/js/components/trace_ui_controller.js?v={{ app_version }}-agent-graph"></script>
 <script type="module" src="/static/js/components/setup_wizard_ui_controller.js?v={{ app_version }}"></script>
 <script type="module" src="/static/js/app_bootstrap.js?v={{ app_version }}"></script>
 

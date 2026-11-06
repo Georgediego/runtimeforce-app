@@ -147,6 +147,7 @@ class AgentLoopCoordinator:
         atm_tester_model: Optional[str] = None,
         atm_critic_model: Optional[str] = None,
         atm_designer_model: Optional[str] = None,
+        existing_message_id: Optional[int] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
@@ -190,10 +191,19 @@ class AgentLoopCoordinator:
                     elif name == "designer": atm_designer_model = None
 
         if self._conversation_repo and user_prompt:
-            self._conversation_repo.append_message(
-                session_id=session_id, role="user", content=user_prompt,
-                user_id=user_id, project_id=project_id,
-            )
+            if existing_message_id is not None:
+                existing = self._conversation_repo.get_message_by_id(existing_message_id)
+                if not existing or existing.get("session_id") != session_id or existing.get("role") != "user":
+                    yield {"status": "error", "error": "Edited message no longer exists in this session."}
+                    yield {"status": "done"}
+                    return
+                saved_message_id = existing_message_id
+            else:
+                saved_message_id = self._conversation_repo.append_message(
+                    session_id=session_id, role="user", content=user_prompt,
+                    user_id=user_id, project_id=project_id,
+                )
+            yield {"status": "message_saved", "message_id": saved_message_id}
 
         logger.info(
             f"[AgentCoordinator] Loop start session='{session_id}', "

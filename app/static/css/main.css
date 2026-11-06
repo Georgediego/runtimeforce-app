@@ -5,10 +5,10 @@
 /* DARK THEME (default) */
 :root,
 html.dark {
-    --ide-bg: #0a0a0f;
-    --ide-surface: #111319;
-    --ide-elevated: #1a1d27;
-    --ide-elevated-2: #232733;
+    --ide-bg: #0b1711;
+    --ide-surface: #102018;
+    --ide-elevated: #17291f;
+    --ide-elevated-2: #203629;
     --ide-text-primary: #f0f0f0;
     --ide-text-secondary: #94a3b8;
     --ide-text-muted: #64748b;
@@ -18,15 +18,15 @@ html.dark {
     --ide-error-hover: #ef4444;
     --ide-success: #07f77a;
     --ide-warning: #f59e0b;
-    --ide-border-subtle: rgba(255, 255, 255, 0.08);
+    --ide-border-subtle: rgba(0, 244, 175, 0.30);
     --ide-scrollbar: rgba(255, 255, 255, 0.15);
-    --ide-bg-rgb: 10, 10, 15;
+    --ide-bg-rgb: 11, 23, 17;
     transition: background 200ms ease, color 200ms ease;
     --ide-text: var(--ide-text-primary);
     --ide-muted: var(--ide-text-secondary);
     --ide-border: var(--ide-border-subtle);
-    --ide-border-bright: rgba(255, 255, 255, 0.15);
-    --ide-hover: rgba(255, 255, 255, 0.04);
+    --ide-border-bright: rgba(0, 244, 175, 0.48);
+    --ide-hover: rgba(62, 210, 145, 0.07);
     --ide-overlay: rgba(0, 0, 0, 0.8);
     --ide-shadow: rgba(0, 0, 0, 0.5);
 }
@@ -46,13 +46,13 @@ html.light {
     --ide-error-hover: #b91c1c;
     --ide-success: #00b35f;
     --ide-warning: #d97706;
-    --ide-border-subtle: rgba(31, 35, 40, 0.12);
+    --ide-border-subtle: rgba(0, 150, 75, 0.20);
     --ide-scrollbar: rgba(31, 35, 40, 0.2);
     --ide-bg-rgb: 255, 255, 255;
     --ide-text: var(--ide-text-primary);
     --ide-muted: var(--ide-text-secondary);
     --ide-border: var(--ide-border-subtle);
-    --ide-border-bright: rgba(31, 35, 40, 0.2);
+    --ide-border-bright: rgba(0, 150, 75, 0.34);
     --ide-hover: rgba(31, 35, 40, 0.05);
     --ide-overlay: rgba(255, 255, 255, 0.9);
     --ide-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
@@ -1609,14 +1609,14 @@ from { transform: rotate(0deg); }
 
 /* RuntimeForce unified glass surfaces */
 .rf-glass-surface {
-    background: rgba(17, 19, 25, .82) !important;
+    background: rgba(16, 32, 24, .92) !important;
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
     border-color: var(--ide-border-subtle) !important;
     box-shadow: 0 24px 70px rgba(0, 0, 0, .38);
 }
 [id$="-modal"]:not(.hidden), [role="dialog"] {
-    background: rgba(0, 0, 0, .58) !important;
+    background: rgba(4, 18, 11, .72) !important;
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
 }
@@ -1647,3 +1647,175 @@ from { transform: rotate(0deg); }
 [data-rf-tooltip]:hover::after, [data-rf-tooltip]:focus-visible::after {
     opacity: 1; visibility: visible; transform: translate(-50%, 0);
 }
+
+
+/* RuntimeForce workspace alignment and unified emerald glass surfaces */
+.rf-workspace-header-controls {
+    position: absolute;
+    inset: 0 0 0 60px;
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) 280px;
+    align-items: stretch;
+    gap: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+.rf-workspace-header-controls > button,
+.rf-workspace-header-controls > nav {
+    pointer-events: auto;
+}
+.rf-workspace-header-controls > button {
+    width: 32px;
+    height: 32px;
+    align-self: center;
+    justify-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    transition: color .15s ease, background .15s ease, border-color .15s ease;
+}
+.rf-workspace-header-controls > button:hover {
+    color: var(--ide-accent);
+    background: rgba(0, 244, 175, .08);
+    border-color: var(--ide-border-subtle);
+}
+.rf-workspace-tabs {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 5px;
+    min-width: 0;
+    height: 100%;
+}
+.rf-workspace-tabs .right-tab-btn {
+    position: relative;
+    align-self: stretch;
+    min-width: 76px;
+    padding: 0 18px;
+    border: 1px solid transparent;
+    border-bottom: 1px solid transparent !important;
+    border-radius: 11px 11px 0 0;
+    background: transparent;
+    color: var(--ide-text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    transition: color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.rf-workspace-tabs .right-tab-btn:hover:not([aria-selected="true"]) {
+    color: var(--ide-text-primary);
+    background: rgba(0, 244, 175, .045);
+}
+.rf-workspace-tabs .right-tab-btn[aria-selected="true"] {
+    z-index: 1;
+    color: #b8ffdc !important;
+    background: linear-gradient(180deg, rgba(0, 244, 175, .16), rgba(0, 244, 175, .075));
+    border-color: rgba(0, 244, 175, .52) !important;
+    border-bottom-color: var(--ide-bg) !important;
+    box-shadow: 0 -2px 15px rgba(0, 244, 175, .16), inset 0 0 13px rgba(0, 244, 175, .08);
+    text-shadow: 0 0 9px rgba(0, 244, 175, .45);
+    margin-bottom: -1px;
+}
+html.light .rf-workspace-tabs .right-tab-btn[aria-selected="true"] {
+    color: #087849 !important;
+    background: linear-gradient(180deg, rgba(0, 179, 95, .15), rgba(0, 179, 95, .07));
+    border-color: rgba(0, 150, 75, .42) !important;
+    border-bottom-color: var(--ide-bg) !important;
+    box-shadow: 0 -2px 13px rgba(0, 150, 75, .12), inset 0 0 12px rgba(0, 150, 75, .06);
+    text-shadow: 0 0 8px rgba(0, 150, 75, .2);
+}
+
+/* The selected tab covers the header divider so it visually joins its panel. */
+.glass-header {
+    background: rgba(var(--ide-bg-rgb, 11, 23, 17), .94);
+}
+.rf-workspace-tabs .right-tab-btn[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 3px;
+    background: var(--ide-bg);
+    pointer-events: none;
+}
+
+/* Match Sessions and Projects cards to the Agent Workflow glass-card border. */
+#sessions-list .session-item,
+#projects-list > [data-id] {
+    border: 1px solid rgba(0, 244, 175, .34) !important;
+    border-radius: 10px !important;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, .035), 0 5px 18px rgba(0, 20, 12, .12);
+    transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+#sessions-list .session-item:hover,
+#projects-list > [data-id]:hover {
+    border-color: rgba(0, 244, 175, .52) !important;
+    box-shadow: 0 0 14px rgba(0, 244, 175, .08), 0 7px 20px rgba(0, 20, 12, .16);
+}
+#sessions-list .session-item.active,
+#projects-list > [data-id][data-id] {
+    background-image: linear-gradient(135deg, rgba(0, 244, 175, .045), rgba(0, 244, 175, .015));
+}
+#projects-list > [data-id] > div + div {
+    border-top-color: rgba(0, 244, 175, .22) !important;
+}
+
+/* Disable hover tooltips: they were clipped by the viewport at the top edge. */
+[data-rf-tooltip]::after,
+[data-rf-tooltip]:hover::after,
+[data-rf-tooltip]:focus-visible::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* Keep the workspace controls aligned on narrower desktop windows. */
+@media (max-width: 1050px) {
+    .rf-workspace-header-controls {
+        grid-template-columns: 150px minmax(0, 1fr) 150px;
+    }
+    .rf-workspace-tabs .right-tab-btn {
+        min-width: 62px;
+        padding-inline: 11px;
+    }
+}
+@media (max-width: 760px) {
+    .rf-workspace-header-controls {
+        inset-inline: 56px 112px;
+        grid-template-columns: 32px minmax(0, 1fr) 32px;
+    }
+    .rf-workspace-tabs {
+        gap: 2px;
+    }
+    .rf-workspace-tabs .right-tab-btn {
+        min-width: 0;
+        padding-inline: 8px;
+        font-size: 11px;
+    }
+}
+
+
+/* Center workspace toolbar restored between the sidebars. */
+.rf-center-workspace-toolbar{height:40px;min-height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:var(--ide-bg);border-bottom:0;user-select:none}
+.rf-center-workspace-toolbar>div>button,.rf-center-workspace-toolbar>button{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;transition:color .15s ease,background .15s ease}
+.rf-center-workspace-toolbar>div>button:hover,.rf-center-workspace-toolbar>button:hover{color:var(--ide-accent);background:rgba(0,244,175,.08)}
+.rf-center-workspace-tabs{display:flex;align-items:center;gap:5px}
+.rf-center-workspace-tabs .right-tab-btn{height:30px;min-width:68px;padding:0 13px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ide-text-muted);font-size:11px;font-weight:600;transition:color .15s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.rf-center-workspace-tabs .right-tab-btn:hover:not([aria-selected="true"]){color:var(--ide-text-primary);background:rgba(0,244,175,.055)}
+.rf-center-workspace-tabs .right-tab-btn[aria-selected="true"]{color:#c1ffe0!important;border-color:rgba(0,244,175,.42)!important;background:linear-gradient(135deg,rgba(0,244,175,.15),rgba(0,244,175,.07));box-shadow:0 0 13px rgba(0,244,175,.11),inset 0 0 10px rgba(0,244,175,.06);text-shadow:0 0 8px rgba(0,244,175,.25)}
+html.light .rf-center-workspace-tabs .right-tab-btn[aria-selected="true"]{color:#087849!important;border-color:rgba(0,150,75,.34)!important;background:rgba(0,179,95,.08);box-shadow:0 0 10px rgba(0,150,75,.08);text-shadow:none}
+#chat-history>[data-message-id].self-end{background:rgba(15,35,24,.96)!important}
+#chat-history>[data-message-id].self-start{background:rgba(12,29,20,.96)!important}
+html.light #chat-history>[data-message-id].self-end{background:#eef7f1!important}
+html.light #chat-history>[data-message-id].self-start{background:#f5faf6!important}
+.input-focus-ring:focus-within{box-shadow:none!important;border-color:transparent!important;outline:none!important}
+.input-focus-ring{border:1px solid transparent}
+.rf-agent-trace-panel{max-height:160px;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.rf-agent-trace-panel .rf-trace-heading{flex:0 0 auto}
+.rf-agent-trace-panel #debug-trace-log{min-height:0;max-height:116px;overflow-y:auto;overscroll-behavior:contain}
+.rf-glass-surface{background:linear-gradient(145deg,rgba(20,55,37,.76),rgba(9,30,20,.72))!important;-webkit-backdrop-filter:blur(24px) saturate(145%);backdrop-filter:blur(24px) saturate(145%);border:1px solid rgba(0,244,175,.30)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 70px rgba(0,10,6,.42),0 0 24px rgba(0,244,175,.045)}
+html.light .rf-glass-surface{background:linear-gradient(145deg,rgba(250,255,251,.90),rgba(232,247,238,.86))!important;border-color:rgba(0,150,75,.25)!important;box-shadow:0 24px 60px rgba(20,60,35,.16)}
+[id$="-modal"]:not(.hidden),[role="dialog"]{background:rgba(4,18,11,.54)!important;-webkit-backdrop-filter:blur(14px) saturate(130%);backdrop-filter:blur(14px) saturate(130%)}
+[id$="-modal"]:not(.hidden)>div,[role="dialog"]>div{background:linear-gradient(145deg,rgba(20,55,37,.78),rgba(9,30,20,.76))!important;-webkit-backdrop-filter:blur(24px) saturate(145%);backdrop-filter:blur(24px) saturate(145%);border-color:rgba(0,244,175,.30)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 70px rgba(0,10,6,.42),0 0 24px rgba(0,244,175,.045)}
+html.light [id$="-modal"]:not(.hidden)>div,html.light [role="dialog"]>div{background:linear-gradient(145deg,rgba(250,255,251,.94),rgba(232,247,238,.90))!important;border-color:rgba(0,150,75,.25)!important}
+@media(max-width:760px){.rf-center-workspace-toolbar{padding-inline:7px}.rf-center-workspace-tabs{gap:2px}.rf-center-workspace-tabs .right-tab-btn{min-width:0;padding-inline:9px}}

@@ -7,17 +7,156 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.9] - 2026-11-06
+## [1.1.15] - 2026-11-07
 
-### Added
-- Install RuntimeForce as a per-user systemd service on Linux, with automatic startup after login and no root privileges.
-- Detect occupied local ports and select an available port from 8000–8010; persist the selected port across restarts.
+### Changed
+- Remove the bottom border from the centered workspace toolbar.
 
 ### Fixed
-- Replace Git-based in-app updates with validated public HTTPS ZIP downloads that do not require a GitHub account, SSH key, or configured Git remote.
-- Preserve local environment files, virtual environments, databases, projects, and runtime data during updates.
-- Preserve executable permissions from release archives and validate archive paths before installation.
-- Allow update requests from the configured local IDE port and align FastAPI version metadata with the release.
+- Start stable update checks independently of authentication completion so slow or failed sign-in initialization cannot block update detection.
+
+
+## [1.1.14] - 2026-11-07
+
+### Changed
+- Restore the Chat, Editor, and Terminal toolbar between the left and right sidebars.
+- Keep the active workspace tab emerald with a compact pill treatment.
+- Darken chat message surfaces for more comfortable reading.
+- Apply translucent emerald glass styling to confirmation, prompt, and settings dialogs.
+- Limit Agent Trace to 160px and scroll its event list internally.
+
+### Fixed
+- Remove the extra focus frame around the chat composer.
+- Persist database message IDs in the live chat UI so edit and delete actions target the correct records.
+- Edit user messages in place, remove the later conversation branch, and regenerate without inserting a duplicate user message.
+- Cascade message edits/deletions through SQLite history, session-scoped graph summaries, embeddings, and context cache.
+- Restrict message read/edit/delete operations to the authenticated session owner.
+
+
+## [1.1.13] - 2026-11-07
+
+### Changed
+- Align the workspace sidebar toggles with the Explorer and right-sidebar columns in the global header.
+- Restyle the selected Chat/Editor/Terminal tab with a soft emerald neon glow and remove the visual divider beneath the active tab.
+- Unify Projects and Sessions card borders with the Agent Workflow glass-card treatment.
+- Replace near-black dark-theme surfaces with a restrained forest-green palette.
+
+### Fixed
+- Disable clipped hover tooltips on sidebar navigation and panel controls.
+
+
+## [1.1.12] - 2026-11-06
+
+### Fixed
+- Preserve the original dark and light base gradients beneath the restored subtle aurora highlights on workflow, trace, tools, and glass cards.
+
+
+## [1.1.11] - 2026-11-06
+
+### Changed
+- Move the complete workspace navigation bar, including both sidebar toggles and Chat/Editor/Terminal tabs, into the global header.
+- Restore Agent Trace to its dedicated card in the right sidebar.
+- Restore a subtle emerald aurora wash across glass cards while preserving each card's theme surface.
+
+
+## [1.1.10] - 2026-11-06
+
+### Changed
+- Move Agent Trace into the global header and render its five latest events in a compact emerald glass strip capped at 160px.
+- Restyle Chat, Editor, and Terminal tabs as rounded translucent emerald controls in both themes.
+
+
+## [1.1.9] - 2026-11-06
+
+### Changed
+- Limit Agent Trace to the five most recent events and align timeline dots slightly left.
+- Standardize structural interface card borders with the emerald glass border tokens in dark and light themes.
+
+
+## [1.1.8] - 2026-11-06
+
+### Fixed
+- Keep the icon-led empty Active Tools state visible after session changes and tool cleanup.
+- Avoid CSS selector escaping for tool IDs when updating existing activity rows.
+- Pause Agent Trace and active-tool animations while the document is hidden.
+
+
+## [1.1.7] - 2026-11-06
+
+### Changed
+- Add color-matched animated timeline dots to Agent Trace entries and refine the vertical event line.
+- Replace the empty Active Tools message with a clear icon-led state and show a semantic icon for each active tool.
+- Prevent Agent Workflow, Agent Trace, and Active Tools cards from shrinking when Manual or ATM controls expand.
+
+
+## [1.1.6] - 2026-11-06
+
+### Changed
+- Restore AGENT TRACE as a standalone glass card with its heading and LIVE EVENTS label inside the card, separate from AGENT WORKFLOW.
+- Apply the translucent emerald glass treatment to the AUTO, ATM, LOCAL, and MANUAL strategy selector in dark and light themes.
+
+
+## [1.1.5] - 2026-11-06
+
+### Changed
+- Restyle MANUAL and ATM model dropdowns with translucent emerald glass surfaces in dark and light themes.
+- Move AGENT TRACE and LIVE EVENTS inside the Agent Workflow card.
+- Give trace event badges consistent widths and distinct colors for phases, model attempts, tools, completion, errors, and other states.
+- Log the start of model reasoning and response streaming once per generation without exposing private reasoning content.
+- Replace the empty Active Tools message with a quiet, styled waiting state.
+
+
+## [1.1.4] - 2026-11-06
+
+### Changed
+- Combine Agent Workflow and Model Control into one panel and remove the redundant outer wrapper.
+- Hide duplicate role/model metadata and graph tool events already represented by Agent Trace and Active Tools.
+- Keep existing workflow, model selection, progress, and live trace hooks intact.
+
+
+## [1.1.3] - 2026-11-06
+
+### Changed
+- Move Free/Pro filters, Manual model selection, ATM role model controls, orchestration status, and progress into Agent Workflow.
+- Replace the standalone Orchestrator card with an integrated workflow control surface.
+- Restyle Agent Trace and Active Tools with matching emerald glass panels while preserving their live data hooks.
+
+
+## [1.1.2] - 2026-11-06
+
+### Fixed
+- Prevent the Agent Workflow panel from being clipped and overlapped by Agent Trace.
+- Give the workflow and trace log separate vertical space while preserving existing element IDs and behavior.
+
+## [1.1.1] - 2026-11-06
+
+### Changed
+- Establish the first RuntimeForce neon-glass design foundation with shared visual tokens, a restrained aurora background, and reusable glass surfaces.
+- Keep the existing layout, DOM hooks, frontend behavior, and backend unchanged.
+
+## [1.1.0] - 2026-11-06
+
+### Added
+- Add a live Agent Workflow graph to the IDE sidebar, showing the real execution lifecycle across Context, Plan, Build, Verify, and Result stages.
+- Stream actual chat orchestration events into the graph, including the active agent role, selected model, and running/completed tool calls.
+- Add an emerald glass visual layer with translucent panels, backdrop blur, subtle green glow, animated stage indicators, and responsive layout.
+
+### Changed
+- Refresh the Agent Trace controller to render execution events safely through DOM text nodes and reset graph state when the active session changes.
+- Improve dark-theme surfaces and focus/hover states with the RuntimeForce emerald accent while retaining a readable light-theme graph.
+
+### Accessibility
+- Respect the operating system's reduced-motion preference by disabling decorative graph animations.
+
+
+## [1.0.9] - 2026-11-06
+
+### Fixed
+- Replace Git-based automatic updates with public HTTPS release downloads, so updates work on any local branch without a GitHub account, SSH key, or configured Git remote.
+- Validate downloaded release archives and preserve local environment files, virtual environments, databases, projects, and runtime data during installation.
+- Restore replaced application files if dependency installation fails, then restart the IDE after a successful update.
+- Align FastAPI version metadata with the current IDE release.
+
 
 ## [1.0.8] - 2026-11-06
 

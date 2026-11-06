@@ -82,6 +82,30 @@ class GraphDBRepository(IGraphMemory):
             logger.error(f"Failed to add graph node {node_id}: {e}")
             return False
 
+    def delete_session_memory(self, session_id: str, user_id: str, project_id: str = "") -> int:
+        """Delete graph nodes and vectors explicitly attributed to this session only."""
+        conn = self.db.get_connection()
+        rows = conn.execute(
+            "SELECT id, attributes_json FROM graph_nodes WHERE user_id=? AND (?='' OR project_id=?)",
+            (user_id, project_id, project_id)
+        ).fetchall()
+        node_ids = []
+        summary_prefix = f"summary-{session_id}-"
+        for row in rows:
+            try:
+                attributes = json.loads(row["attributes_json"] or "{}")
+            except (TypeError, ValueError):
+                attributes = {}
+            if attributes.get("session_id") == session_id or str(row["id"]).startswith(summary_prefix):
+                node_ids.append(str(row["id"]))
+        if not node_ids:
+            return 0
+        placeholders = ",".join("?" for _ in node_ids)
+        conn.execute(f"DELETE FROM node_embeddings WHERE node_id IN ({placeholders})", node_ids)
+        conn.execute(f"DELETE FROM graph_nodes WHERE id IN ({placeholders})", node_ids)
+        conn.commit()
+        return len(node_ids)
+
     def add_edge(
         self,
         edge_id: str,
