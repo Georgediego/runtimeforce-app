@@ -342,7 +342,7 @@ html.light #strategy-select option { color: #14532d; background: #effff5; }
     content: "";
     position: absolute;
     z-index: 2;
-    left: -4px;
+    left: -5px;
     top: 50%;
     width: 7px;
     height: 7px;
@@ -449,3 +449,12 @@ html.light #active-tools-list:empty {
 }
 html.light #active-tools-list:empty::before {background-color:#15803d}
 html.light #active-tools-list:empty::after {color:#64748b}
+
+
+/* Unified emerald glass border standard for structural interface cards. */
+html.dark :where(div,section,aside,article,header)[class*="border"][class*="rounded"] {
+    border-color: var(--ide-border-subtle) !important;
+}
+html.light :where(div,section,aside,article,header)[class*="border"][class*="rounded"] {
+    border-color: var(--ide-border-subtle) !important;
+}

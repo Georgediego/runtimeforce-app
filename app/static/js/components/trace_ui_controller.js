@@ -103,6 +103,8 @@ export const traceUIController = {
         const badgeEl = document.createElement("span"); badgeEl.className = "rf-trace-badge rf-trace-badge--" + kind; badgeEl.textContent = String(badge || "INFO");
         const textEl = document.createElement("span"); textEl.className = "rf-trace-message"; textEl.textContent = String(text || ""); textEl.title = String(text || "");
         const timeEl = document.createElement("span"); timeEl.className = "rf-trace-time"; timeEl.textContent = new Date().toLocaleTimeString();
-        entry.append(badgeEl, textEl, timeEl); log.appendChild(entry); log.scrollTop = log.scrollHeight;
+        entry.append(badgeEl, textEl, timeEl); log.appendChild(entry);
+        while (log.children.length > 5) log.firstElementChild.remove();
+        log.scrollTop = log.scrollHeight;
     }
 };

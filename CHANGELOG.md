@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-11-06
+
+### Changed
+- Limit Agent Trace to the five most recent events and align timeline dots slightly left.
+- Standardize structural interface card borders with the emerald glass border tokens in dark and light themes.
+
+
 ## [1.1.8] - 2026-11-06
 
 ### Fixed
