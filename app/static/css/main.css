@@ -1846,3 +1846,41 @@ html.dark .trace-badge.try {
         transition-duration: .01ms !important;
     }
 }
+
+
+/* PRODUCT UI: structured right rail and live backend monitor */
+html.dark #right-sidebar-col {
+    background: linear-gradient(180deg, rgba(7,25,25,.94), rgba(4,15,18,.97)) !important;
+    border-left: 1px solid rgba(25,245,154,.16) !important;
+    gap: 14px !important;
+}
+html.dark #right-sidebar-col > div:first-child .glass-cover {
+    border: 1px solid rgba(25,245,154,.2); border-radius: 16px;
+    background: linear-gradient(145deg, rgba(12,42,38,.9), rgba(5,21,23,.9));
+    box-shadow: inset 0 1px rgba(255,255,255,.06), 0 14px 34px rgba(0,0,0,.2);
+}
+html.dark #right-sidebar-col > div:nth-child(2) .glass-cover,
+html.dark #right-sidebar-col > div:nth-child(3) .glass-cover {
+    border: 1px solid rgba(36,217,238,.13); border-radius: 14px; background: rgba(7,25,28,.76);
+}
+.rf-monitor-card {
+    padding: 14px; border: 1px solid rgba(25,245,154,.2); border-radius: 16px;
+    background: linear-gradient(145deg, rgba(10,37,34,.94), rgba(5,19,22,.96));
+    box-shadow: inset 0 1px rgba(255,255,255,.055), 0 14px 34px rgba(0,0,0,.2), 0 0 24px rgba(25,245,154,.045);
+}
+.rf-monitor-heading,.rf-monitor-footer,.rf-monitor-label { display:flex; align-items:center; justify-content:space-between; }
+.rf-eyebrow { color:#6b9b8c; font-size:9px; font-weight:800; letter-spacing:.18em; }
+.rf-monitor-title { color:#e7fff5; font-size:13px; font-weight:700; margin-top:3px; }
+.rf-live-indicator { display:inline-flex; align-items:center; gap:6px; color:#79f7bd; font-size:9px; font-weight:800; letter-spacing:.12em; }
+.rf-live-indicator span { width:6px; height:6px; border-radius:50%; background:#19f59a; box-shadow:0 0 10px rgba(25,245,154,.9); animation:rf-status-breathe 2.4s ease-in-out infinite; }
+.rf-monitor-metric { padding:12px 0 9px; border-bottom:1px solid rgba(160,255,220,.08); }
+.rf-monitor-label { justify-content:flex-start; gap:7px; color:#8ba99e; font-size:10px; }
+.rf-monitor-label svg { width:12px; height:12px; color:#36e8ad; }
+.rf-monitor-metric strong { display:block; margin-top:5px; color:#e8fff5; font:600 15px 'JetBrains Mono',monospace; }
+.rf-monitor-track { height:3px; margin-top:7px; overflow:hidden; border-radius:9px; background:rgba(255,255,255,.08); }
+.rf-monitor-track span { display:block; width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,#19f59a,#24d9ee); box-shadow:0 0 10px rgba(25,245,154,.5); transition:width .5s ease; }
+.rf-monitor-footer { padding-top:10px; color:#66877c; font-size:9px; gap:8px; }
+.rf-monitor-footer span:last-child { text-align:right; }
+@media(max-width:1100px) { #right-sidebar-col { width:240px !important; padding:12px !important; } }
+@media(max-width:820px) { #right-sidebar-col { display:none !important; } }
+@media(prefers-reduced-motion:reduce) { .rf-monitor-track span { transition:none; } .rf-live-indicator span { animation:none !important; } }
