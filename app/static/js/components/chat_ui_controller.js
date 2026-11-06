@@ -676,6 +676,7 @@ export const chatUIController = {
     },
 
     async handleStreamEvent(event, pendingId) {
+        eventBus.emit("agent:graph_event", event);
         const assistantDiv = this.getPendingMessageContentDiv(pendingId);
 
         if (event.status === "phase" && event.label) {
