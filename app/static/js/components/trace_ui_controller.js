@@ -26,7 +26,7 @@ export const traceUIController = {
         if (state) { state.textContent = "IDLE"; state.classList.remove("is-running"); }
         if (role) role.textContent = "Waiting for task";
         if (model) model.textContent = "—";
-        if (tools) tools.innerHTML = '<span class="rf-graph-empty">Execution events will appear here</span>';
+        if (tools) tools.replaceChildren();
     },
 
     handleGraphEvent(event) {
@@ -83,7 +83,7 @@ export const traceUIController = {
     _renderTools() {
         const root = document.getElementById("rf-graph-tools"); if (!root) return;
         const entries = Array.from(this._tools.values()).slice(-4); root.replaceChildren();
-        if (!entries.length) { const empty = document.createElement("span"); empty.className = "rf-graph-empty"; empty.textContent = "Waiting for tool activity"; root.appendChild(empty); return; }
+        if (!entries.length) return;
         entries.forEach((item) => {
             const chip = document.createElement("span");
             chip.className = "rf-graph-tool " + (item.status === "running" ? "is-running" : "is-done");

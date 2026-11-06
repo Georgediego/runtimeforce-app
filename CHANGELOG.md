@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-11-06
+
+### Changed
+- Combine Agent Workflow and Model Control into one panel and remove the redundant outer wrapper.
+- Hide duplicate role/model metadata and graph tool events already represented by Agent Trace and Active Tools.
+- Keep existing workflow, model selection, progress, and live trace hooks intact.
+
+
 ## [1.1.3] - 2026-11-06
 
 ### Changed

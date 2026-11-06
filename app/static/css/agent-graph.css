@@ -79,9 +79,13 @@ html.light .rf-graph-tool {color:#166534;background:rgba(0,179,95,.05)}
 
 
 /* Integrated Agent Workflow controls and companion activity panels. */
-.rf-agent-workflow-panel{height:auto;min-height:0;overflow:visible;gap:9px;padding:9px;border:1px solid rgba(7,247,122,.20);border-radius:18px;background:linear-gradient(155deg,rgba(7,247,122,.055),rgba(10,19,15,.82) 48%,rgba(12,24,18,.78));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 12px 34px rgba(0,0,0,.20),0 0 24px rgba(7,247,122,.045)}
-.rf-agent-workflow-panel>#rf-agent-graph{flex:0 0 auto;min-height:0;margin:0;border-radius:13px;box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 8px 22px rgba(0,0,0,.16)}
-.rf-orchestrator-controls{padding:11px;border:1px solid rgba(7,247,122,.15);border-radius:13px;background:linear-gradient(145deg,rgba(7,247,122,.045),rgba(255,255,255,.018))}
+.rf-agent-workflow-panel.rf-agent-graph{flex:0 0 auto;height:auto;min-height:0;overflow:visible;gap:0;margin:0;padding:12px;border:1px solid rgba(7,247,122,.20);border-radius:18px;background:linear-gradient(155deg,rgba(7,247,122,.055),rgba(10,19,15,.82) 48%,rgba(12,24,18,.78));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 12px 34px rgba(0,0,0,.20),0 0 24px rgba(7,247,122,.045)}
+.rf-agent-workflow-panel.rf-agent-graph::before{display:none}
+.rf-agent-workflow-panel.rf-agent-graph>.rf-graph-heading,.rf-agent-workflow-panel.rf-agent-graph>.rf-graph-stages{position:relative;z-index:1}
+.rf-agent-workflow-panel.rf-agent-graph>.rf-graph-stages{margin-top:14px}
+.rf-agent-workflow-panel.rf-agent-graph>.rf-orchestrator-controls{position:relative;z-index:1;margin-top:12px;padding:12px 0 0;border:0;border-top:1px solid rgba(255,255,255,.08);border-radius:0;background:transparent}
+.rf-graph-meta,#rf-graph-tools{display:none!important}
+.rf-orchestrator-controls{padding:0;border:0;border-radius:0;background:transparent}
 .rf-orchestrator-heading,.rf-orchestrator-title,.rf-orchestrator-model-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .rf-orchestrator-title{justify-content:flex-start;color:#9bb6a7;font-size:9px;font-weight:800;letter-spacing:.14em}
 .rf-orchestrator-title svg,.rf-trace-heading svg{color:#07f77a}
@@ -119,10 +123,10 @@ html.light .rf-graph-tool {color:#166534;background:rgba(0,179,95,.05)}
 #active-tools-list>div>div{min-width:0}
 #active-tools-list>div>div>span{color:#b9d8c5;font-size:9px}
 #active-tools-list>div>span{color:#71877b;font:8px 'JetBrains Mono',monospace}
-html.light .rf-agent-workflow-panel,html.light .rf-active-tools-panel{background:linear-gradient(145deg,rgba(0,179,95,.055),rgba(255,255,255,.94));border-color:rgba(0,150,75,.20);box-shadow:0 8px 24px rgba(15,23,42,.06)}
+html.light .rf-agent-workflow-panel.rf-agent-graph,html.light .rf-active-tools-panel{background:linear-gradient(145deg,rgba(0,179,95,.055),rgba(255,255,255,.94));border-color:rgba(0,150,75,.20);box-shadow:0 8px 24px rgba(15,23,42,.06)}
 html.light .rf-orchestrator-controls,html.light #debug-trace-log,html.light #active-tools-list{background:rgba(15,23,42,.025);border-color:rgba(0,150,75,.15)}
 html.light .rf-orchestrator-title,html.light .rf-trace-heading{color:#475569}
 html.light #current-model-display,html.light #debug-trace-log>div>span:nth-child(2),html.light #active-tools-list>div>div>span{color:#166534}
 html.light #model-filters-container label{color:#166534}
-@media(max-width:900px){.rf-agent-workflow-panel{padding:7px;gap:8px}#debug-trace-log{min-height:88px;max-height:180px}}
+@media(max-width:900px){.rf-agent-workflow-panel.rf-agent-graph{padding:9px}#debug-trace-log{min-height:88px;max-height:180px}}
 @media(prefers-reduced-motion:reduce){#model-filters-container label{transition:none}}
