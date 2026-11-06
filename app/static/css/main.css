@@ -1796,7 +1796,7 @@ html.light .rf-workspace-tabs .right-tab-btn[aria-selected="true"] {
 
 
 /* Center workspace toolbar restored between the sidebars. */
-.rf-center-workspace-toolbar{height:40px;min-height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:var(--ide-bg);border-bottom:1px solid var(--ide-border-subtle);user-select:none}
+.rf-center-workspace-toolbar{height:40px;min-height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:var(--ide-bg);border-bottom:0;user-select:none}
 .rf-center-workspace-toolbar>div>button,.rf-center-workspace-toolbar>button{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;transition:color .15s ease,background .15s ease}
 .rf-center-workspace-toolbar>div>button:hover,.rf-center-workspace-toolbar>button:hover{color:var(--ide-accent);background:rgba(0,244,175,.08)}
 .rf-center-workspace-tabs{display:flex;align-items:center;gap:5px}

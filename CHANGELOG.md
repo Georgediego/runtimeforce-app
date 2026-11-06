@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.15] - 2026-11-07
+
+### Changed
+- Remove the bottom border from the centered workspace toolbar.
+
+### Fixed
+- Start stable update checks independently of authentication completion so slow or failed sign-in initialization cannot block update detection.
+
+
 ## [1.1.14] - 2026-11-07
 
 ### Changed
