@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-11-06
+
+### Changed
+- Move Free/Pro filters, Manual model selection, ATM role model controls, orchestration status, and progress into Agent Workflow.
+- Replace the standalone Orchestrator card with an integrated workflow control surface.
+- Restyle Agent Trace and Active Tools with matching emerald glass panels while preserving their live data hooks.
+
+
 ## [1.1.2] - 2026-11-06
 
 ### Fixed

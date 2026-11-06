@@ -284,19 +284,33 @@
         </section>
 
         <!-- RIGHT SIDEBAR -->
-        <section id="right-sidebar-col" class="w-[280px] shrink-0 bg-[var(--ide-surface)] flex flex-col p-4 gap-6 overflow-y-auto border-l border-[var(--ide-border-subtle)] h-full">
-            <div>
-                <div class="p-3 glass-cover space-y-2">
-                    <div class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-3 flex items-center justify-between">
-                        <span>Orchestrator</span>
-                        <span id="orchestrator-status-badge" class="hidden text-[9px] px-1.5 py-0.2 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] font-bold uppercase animate-pulse">Running</span>
+        <section id="right-sidebar-col" class="w-[280px] shrink-0 bg-[var(--ide-surface)] flex flex-col p-3 gap-3 overflow-y-auto border-l border-[var(--ide-border-subtle)] h-full">
+            <div class="rf-agent-workflow-panel relative glass-cover flex flex-col">
+                <section id="rf-agent-graph" class="rf-agent-graph" aria-label="Live agent workflow">
+                        <div class="rf-graph-heading">
+                            <div><span class="rf-live-dot"></span><span>AGENT WORKFLOW</span></div>
+                            <span id="rf-graph-state" class="rf-graph-state">IDLE</span>
+                        </div>
+                        <div class="rf-graph-stages" id="rf-graph-stages">
+                            <div class="rf-graph-stage" data-stage="context"><span class="rf-stage-icon">⌕</span><span>Context</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="plan"><span class="rf-stage-icon">⌘</span><span>Plan</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="execute"><span class="rf-stage-icon">⟡</span><span>Build</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="verify"><span class="rf-stage-icon">✓</span><span>Verify</span><i></i></div>
+                            <div class="rf-graph-stage" data-stage="deliver"><span class="rf-stage-icon">↗</span><span>Result</span><i></i></div>
+                        </div>
+                        <div class="rf-graph-meta"><span id="rf-graph-role">Waiting for task</span><span id="rf-graph-model">—</span></div>
+                        <div id="rf-graph-tools" class="rf-graph-tools"><span class="rf-graph-empty">Execution events will appear here</span></div>
+                    </section>
+                <div class="rf-orchestrator-controls">
+                    <div class="rf-orchestrator-heading">
+                        <div class="rf-orchestrator-title"><i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i><span>MODEL CONTROL</span></div>
+                        <span id="orchestrator-status-badge" class="hidden rf-orchestrator-status animate-pulse">Running</span>
                     </div>
-                    <div class="flex justify-between items-center text-[11px]">
+                    <div class="rf-orchestrator-model-row">
+                        <span class="rf-model-caption">ACTIVE MODEL</span>
                         <span id="current-model-display" class="text-[var(--ide-text-secondary)] font-mono truncate">No active model</span>
                     </div>
-                    <div class="w-full h-1.5 bg-[var(--ide-elevated-2)] rounded-full overflow-hidden relative">
-                        <div id="orchestrator-progress-bar" class="h-full bg-[var(--ide-accent)] w-0 transition-all duration-300 shadow-[0_0_8px_var(--ide-accent)]"></div>
-                    </div>
+                    <div class="rf-orchestrator-progress"><div id="orchestrator-progress-bar" class="h-full bg-[var(--ide-accent)] w-0 transition-all duration-300 shadow-[0_0_8px_var(--ide-accent)]"></div></div>
                     <div id="orchestrator-settings" class="space-y-3 pt-2">
                         <div id="model-filters-container" class="flex items-center gap-2 text-[11px] text-[var(--ide-text-secondary)]">
                             <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="filter-tier-free" class="rounded accent-[var(--ide-accent)]" checked> Free</label>
@@ -379,35 +393,16 @@
                         </div>
                     </div>
                 </div>
-            </div>               
-            <div>
-                <div class="rf-agent-workflow-panel relative glass-cover flex flex-col">
-                    <section id="rf-agent-graph" class="rf-agent-graph" aria-label="Live agent workflow">
-                        <div class="rf-graph-heading">
-                            <div><span class="rf-live-dot"></span><span>AGENT WORKFLOW</span></div>
-                            <span id="rf-graph-state" class="rf-graph-state">IDLE</span>
-                        </div>
-                        <div class="rf-graph-stages" id="rf-graph-stages">
-                            <div class="rf-graph-stage" data-stage="context"><span class="rf-stage-icon">⌕</span><span>Context</span><i></i></div>
-                            <div class="rf-graph-stage" data-stage="plan"><span class="rf-stage-icon">⌘</span><span>Plan</span><i></i></div>
-                            <div class="rf-graph-stage" data-stage="execute"><span class="rf-stage-icon">⟡</span><span>Build</span><i></i></div>
-                            <div class="rf-graph-stage" data-stage="verify"><span class="rf-stage-icon">✓</span><span>Verify</span><i></i></div>
-                            <div class="rf-graph-stage" data-stage="deliver"><span class="rf-stage-icon">↗</span><span>Result</span><i></i></div>
-                        </div>
-                        <div class="rf-graph-meta"><span id="rf-graph-role">Waiting for task</span><span id="rf-graph-model">—</span></div>
-                        <div id="rf-graph-tools" class="rf-graph-tools"><span class="rf-graph-empty">Execution events will appear here</span></div>
-                    </section>
-                    <div class="flex items-center justify-between text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] px-3 pt-3 pb-1">
-                        <span>Agent Trace</span>
-                    </div>
-                    <div id="debug-trace-log" class="pl-6 flex flex-col gap-2 text-xs flex-1 overflow-y-auto custom-scrollbar p-3"></div>
+                <div class="rf-trace-heading">
+                    <span><i data-lucide="activity" class="w-3.5 h-3.5"></i> AGENT TRACE</span><span class="rf-panel-live-label">LIVE EVENTS</span>
                 </div>
+                <div id="debug-trace-log" class="flex flex-col text-xs custom-scrollbar"></div>
             </div>
-            <div>
-                <div class="p-3 glass-cover flex flex-col gap-1">
-                    <div class="text-[10px] uppercase tracking-widest font-bold text-[var(--ide-text-muted)] mb-2">Active Tools</div>
-                    <div id="active-tools-list" class="flex flex-col gap-1 text-xs h-auto overflow-y-auto"></div>
+            <div class="rf-active-tools-panel glass-cover">
+                <div class="rf-trace-heading">
+                    <span><i data-lucide="wrench" class="w-3.5 h-3.5"></i> ACTIVE TOOLS</span><span class="rf-panel-live-label">LIVE</span>
                 </div>
+                <div id="active-tools-list" class="flex flex-col gap-1 text-xs custom-scrollbar"></div>
             </div>
         </section>
     </main>
