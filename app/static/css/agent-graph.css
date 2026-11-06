@@ -547,22 +547,45 @@ html.light .right-tab-btn:not(.border-transparent) {
     .right-tab-btn {transition:none}
 }
 
-/* Restore the restrained aurora wash across glass cards without darkening their base surfaces. */
-.glass-cover,
-.rf-agent-graph,
-.rf-agent-trace-panel,
-.rf-active-tools-panel {
+/* Restore a restrained aurora wash while retaining each card's original surface gradient. */
+.glass-cover {
     background-image:
         radial-gradient(ellipse at 8% 0%,rgba(7,247,122,.055),transparent 48%),
         radial-gradient(ellipse at 100% 100%,rgba(0,179,95,.035),transparent 52%);
-    background-size:140% 140%;
-    background-position:0% 0%;
 }
-html.light .glass-cover,
-html.light .rf-agent-graph,
+.rf-agent-workflow-panel.rf-agent-graph {
+    background-image:
+        radial-gradient(ellipse at 8% 0%,rgba(7,247,122,.055),transparent 48%),
+        radial-gradient(ellipse at 100% 100%,rgba(0,179,95,.035),transparent 52%),
+        linear-gradient(155deg,rgba(7,247,122,.055),rgba(10,19,15,.82) 48%,rgba(12,24,18,.78));
+}
+.rf-agent-trace-panel {
+    background-image:
+        radial-gradient(ellipse at 8% 0%,rgba(7,247,122,.055),transparent 48%),
+        radial-gradient(ellipse at 100% 100%,rgba(0,179,95,.035),transparent 52%),
+        linear-gradient(145deg,rgba(7,247,122,.045),rgba(12,20,17,.76));
+}
+.rf-active-tools-panel {
+    background-image:
+        radial-gradient(ellipse at 8% 0%,rgba(7,247,122,.055),transparent 48%),
+        radial-gradient(ellipse at 100% 100%,rgba(0,179,95,.035),transparent 52%),
+        linear-gradient(145deg,rgba(7,247,122,.045),rgba(12,20,17,.76));
+}
+html.light .glass-cover {
+    background-image:
+        radial-gradient(ellipse at 8% 0%,rgba(0,179,95,.045),transparent 48%),
+        radial-gradient(ellipse at 100% 100%,rgba(0,150,75,.025),transparent 52%);
+}
+html.light .rf-agent-workflow-panel.rf-agent-graph {
+    background-image:
+        radial-gradient(ellipse at 8% 0%,rgba(0,179,95,.045),transparent 48%),
+        radial-gradient(ellipse at 100% 100%,rgba(0,150,75,.025),transparent 52%),
+        linear-gradient(145deg,rgba(0,179,95,.055),rgba(255,255,255,.94));
+}
 html.light .rf-agent-trace-panel,
 html.light .rf-active-tools-panel {
     background-image:
         radial-gradient(ellipse at 8% 0%,rgba(0,179,95,.045),transparent 48%),
-        radial-gradient(ellipse at 100% 100%,rgba(0,150,75,.025),transparent 52%);
+        radial-gradient(ellipse at 100% 100%,rgba(0,150,75,.025),transparent 52%),
+        linear-gradient(145deg,rgba(0,179,95,.055),rgba(255,255,255,.94));
 }

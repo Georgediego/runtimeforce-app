@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.12] - 2026-11-06
+
+### Fixed
+- Preserve the original dark and light base gradients beneath the restored subtle aurora highlights on workflow, trace, tools, and glass cards.
+
+
 ## [1.1.11] - 2026-11-06
 
 ### Changed
