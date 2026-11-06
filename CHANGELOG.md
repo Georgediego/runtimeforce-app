@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.11] - 2026-11-06
+
+### Changed
+- Move the complete workspace navigation bar, including both sidebar toggles and Chat/Editor/Terminal tabs, into the global header.
+- Restore Agent Trace to its dedicated card in the right sidebar.
+- Restore a subtle emerald aurora wash across glass cards while preserving each card's theme surface.
+
+
 ## [1.1.10] - 2026-11-06
 
 ### Changed
