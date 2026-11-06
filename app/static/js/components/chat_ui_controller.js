@@ -887,23 +887,37 @@ export const chatUIController = {
     appendActiveTool(toolId, toolName, status) {
         const container = document.getElementById("active-tools-list");
         if (!container) return;
-        let existing = container.querySelector(`[data-tool-id="${toolId}"]`);
+        container.querySelector(".rf-tools-empty-state")?.remove();
+        let existing = container.querySelector(`[data-tool-id="${CSS.escape(String(toolId))}"]`);
         if (!existing) {
             existing = document.createElement("div");
-            existing.dataset.toolId = toolId;
-            existing.className = "flex items-center justify-between p-1.5 border-b border-[var(--ide-border-subtle)] text-[10px]";
+            existing.dataset.toolId = String(toolId);
+            existing.className = "rf-active-tool-entry";
             container.appendChild(existing);
         }
         const isRunning = status === "running";
-        const textColor = isRunning ? "text-amber-400" : "text-emerald-400";
-        const time = new Date().toLocaleTimeString();
-        const checkmarkHTML = !isRunning && status === "success" ? `<span class="text-emerald-400 font-bold mr-1">&#10004;</span>` : "";
-        existing.innerHTML = `
-            <div class="flex items-center min-w-0 flex-1">
-                ${checkmarkHTML}
-                <span class="truncate ${textColor} font-mono font-medium">${toolName}</span>
-            </div>
-            <span class="text-[var(--ide-text-muted)] text-[9px] shrink-0 ml-2">${time}</span>`;
+        const iconNames = [
+            [/execute_command|terminal|shell/i, "terminal"],
+            [/read_workspace_file|file_read/i, "file-text"],
+            [/write_workspace_file|apply_code_patch|file_write/i, "file-pen-line"],
+            [/scan_workspace|search_grep|search/i, "search"],
+            [/^git_|git_/i, "git-branch"],
+            [/browser|web/i, "globe"],
+            [/python|code|lint|test/i, "code"],
+        ];
+        const iconName = (iconNames.find(([pattern]) => pattern.test(String(toolName))) || [null, "wrench"])[1];
+        const icon = document.createElement("i");
+        icon.dataset.lucide = iconName;
+        icon.className = "rf-active-tool-icon " + (isRunning ? "is-running" : "is-complete");
+        icon.setAttribute("aria-hidden", "true");
+        const label = document.createElement("span");
+        label.className = "rf-active-tool-name " + (isRunning ? "is-running" : "is-complete");
+        label.textContent = String(toolName || "Tool");
+        const time = document.createElement("span");
+        time.className = "rf-active-tool-time";
+        time.textContent = new Date().toLocaleTimeString();
+        existing.replaceChildren(icon, label, time);
+        if (window.lucide) window.lucide.createIcons({ root: existing });
         container.scrollTop = container.scrollHeight;
     },
 

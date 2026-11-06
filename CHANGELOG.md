@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-11-06
+
+### Changed
+- Add color-matched animated timeline dots to Agent Trace entries and refine the vertical event line.
+- Replace the empty Active Tools message with a clear icon-led state and show a semantic icon for each active tool.
+- Prevent Agent Workflow, Agent Trace, and Active Tools cards from shrinking when Manual or ATM controls expand.
+
+
 ## [1.1.6] - 2026-11-06
 
 ### Changed

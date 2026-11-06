@@ -322,3 +322,94 @@ html.light #strategy-select option { color: #14532d; background: #effff5; }
 @media(prefers-reduced-motion:reduce) {
     #strategy-select { transition: none !important; }
 }
+
+
+/* Trace timeline markers and non-shrinking right-sidebar cards. */
+#right-sidebar-col > #rf-agent-graph,
+#right-sidebar-col > .rf-agent-trace-panel,
+#right-sidebar-col > .rf-active-tools-panel {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+#right-sidebar-col > #rf-agent-graph { flex-shrink: 0; }
+.rf-agent-trace-panel { flex-shrink: 0; }
+#debug-trace-log .rf-trace-entry {
+    position: relative;
+    border-left: 1px solid var(--rf-trace-color,rgba(148,163,184,.45));
+    padding-left: 9px;
+}
+#debug-trace-log .rf-trace-entry::before {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    left: -4px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--rf-trace-color,#94a3b8);
+    border-radius: 50%;
+    background: var(--rf-trace-color,#94a3b8);
+    box-shadow: 0 0 7px var(--rf-trace-glow,rgba(148,163,184,.55));
+    transform: translateY(-50%);
+    animation: rf-trace-dot-pulse 1.8s ease-in-out infinite;
+}
+#debug-trace-log .rf-trace-entry[data-kind="phase"] {--rf-trace-color:#38bdf8;--rf-trace-glow:rgba(56,189,248,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="try"] {--rf-trace-color:#c084fc;--rf-trace-glow:rgba(192,132,252,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="tool"] {--rf-trace-color:#60a5fa;--rf-trace-glow:rgba(96,165,250,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="done"],
+#debug-trace-log .rf-trace-entry[data-kind="success"] {--rf-trace-color:#4ade80;--rf-trace-glow:rgba(74,222,128,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="error"],
+#debug-trace-log .rf-trace-entry[data-kind="failed"] {--rf-trace-color:#fb7185;--rf-trace-glow:rgba(251,113,133,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="abort"] {--rf-trace-color:#fbbf24;--rf-trace-glow:rgba(251,191,36,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="think"] {--rf-trace-color:#a78bfa;--rf-trace-glow:rgba(167,139,250,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="output"] {--rf-trace-color:#2dd4bf;--rf-trace-glow:rgba(45,212,191,.65)}
+#debug-trace-log .rf-trace-entry[data-kind="info"] {--rf-trace-color:#94a3b8;--rf-trace-glow:rgba(148,163,184,.55)}
+@keyframes rf-trace-dot-pulse {
+    0%,100% { opacity:.72; transform:translateY(-50%) scale(.82); }
+    50% { opacity:1; transform:translateY(-50%) scale(1.28); }
+}
+.rf-tab-hidden #debug-trace-log .rf-trace-entry::before { animation-play-state:paused; }
+.rf-tools-empty-state {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:9px;
+    min-height:64px;
+    padding:10px;
+    color:#71877b;
+    text-align:center;
+}
+.rf-tools-empty-state i {
+    width:22px;
+    height:22px;
+    padding:4px;
+    border:1px solid rgba(7,247,122,.20);
+    border-radius:7px;
+    color:#07f77a;
+    background:rgba(7,247,122,.07);
+}
+.rf-tools-empty-state span {font-size:9px;letter-spacing:.02em}
+#active-tools-list .rf-active-tool-entry {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-width:0;
+    padding:8px 3px;
+    border-bottom:1px solid rgba(255,255,255,.055);
+}
+.rf-active-tool-icon {width:14px;height:14px;flex:0 0 14px;color:#07f77a}
+.rf-active-tool-icon.is-running {color:#fbbf24;animation:rf-tool-icon-pulse 1.5s ease-in-out infinite}
+.rf-active-tool-icon.is-complete {color:#4ade80}
+.rf-active-tool-name {min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:9px 'JetBrains Mono',monospace}
+.rf-active-tool-name.is-running {color:#fbbf24}
+.rf-active-tool-name.is-complete {color:#4ade80}
+.rf-active-tool-time {flex:0 0 auto;color:#71877b;font:8px 'JetBrains Mono',monospace}
+@keyframes rf-tool-icon-pulse {50% {opacity:.55;transform:scale(.9)}}
+html.light #debug-trace-log .rf-trace-entry {border-left-color:var(--rf-trace-color)}
+html.light .rf-tools-empty-state {color:#64748b}
+html.light .rf-active-tool-entry {border-bottom-color:rgba(15,23,42,.07)}
+html.light .rf-active-tool-time {color:#64748b}
+@media(prefers-reduced-motion:reduce) {
+    #debug-trace-log .rf-trace-entry::before,
+    .rf-active-tool-icon.is-running {animation:none!important}
+}
