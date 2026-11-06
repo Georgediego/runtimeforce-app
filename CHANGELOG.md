@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-11-06
+
+### Fixed
+- Keep the icon-led empty Active Tools state visible after session changes and tool cleanup.
+- Avoid CSS selector escaping for tool IDs when updating existing activity rows.
+- Pause Agent Trace and active-tool animations while the document is hidden.
+
+
 ## [1.1.7] - 2026-11-06
 
 ### Changed

@@ -14,6 +14,10 @@ export const traceUIController = {
         eventBus.on("agent:trace_event", (event) => this.appendTrace(event.badge || "INFO", event.text || ""));
         eventBus.on("agent:graph_event", (event) => this.handleGraphEvent(event || {}));
         eventBus.on("session:selected", () => this.resetGraph());
+        document.addEventListener("visibilitychange", () => {
+            document.documentElement.classList.toggle("rf-tab-hidden", document.hidden);
+        });
+        document.documentElement.classList.toggle("rf-tab-hidden", document.hidden);
         this.resetGraph();
     },
 

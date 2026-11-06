@@ -888,7 +888,7 @@ export const chatUIController = {
         const container = document.getElementById("active-tools-list");
         if (!container) return;
         container.querySelector(".rf-tools-empty-state")?.remove();
-        let existing = container.querySelector(`[data-tool-id="${CSS.escape(String(toolId))}"]`);
+        let existing = Array.from(container.querySelectorAll("[data-tool-id]")).find((node) => node.dataset.toolId === String(toolId));
         if (!existing) {
             existing = document.createElement("div");
             existing.dataset.toolId = String(toolId);
