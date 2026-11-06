@@ -1647,3 +1647,202 @@ from { transform: rotate(0deg); }
 [data-rf-tooltip]:hover::after, [data-rf-tooltip]:focus-visible::after {
     opacity: 1; visibility: visible; transform: translate(-50%, 0);
 }
+
+
+/* ============================================================
+   RUNTIMEFORCE NEON GLASS — V1.1.0 visual foundation
+   Keep existing layout and component contracts intact.
+   ============================================================ */
+:root,
+html.dark {
+    --rf-glass: rgba(7, 24, 24, .76);
+    --rf-glass-strong: rgba(5, 19, 20, .9);
+    --rf-glass-border: rgba(28, 255, 169, .22);
+    --rf-neon: #19f59a;
+    --rf-neon-soft: rgba(25, 245, 154, .16);
+    --rf-cyan: #24d9ee;
+    --rf-glow: 0 0 18px rgba(25,245,154,.16), inset 0 0 18px rgba(25,245,154,.035);
+}
+html.dark body {
+    background:
+        radial-gradient(ellipse at 12% 0%, rgba(0, 255, 153, .105), transparent 34%),
+        radial-gradient(ellipse at 88% 16%, rgba(0, 206, 224, .075), transparent 30%),
+        radial-gradient(ellipse at 52% 100%, rgba(0, 255, 153, .055), transparent 38%),
+        #041010;
+    background-attachment: fixed;
+}
+html.dark body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: .18;
+    background-image:
+        linear-gradient(rgba(31,255,174,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(31,255,174,.035) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+html.dark body > * { position: relative; z-index: 1; }
+html.dark .glass-header {
+    background: rgba(3, 18, 18, .78);
+    border-bottom: 1px solid var(--rf-glass-border);
+    box-shadow: 0 8px 30px rgba(0,0,0,.2), 0 1px 18px rgba(25,245,154,.08);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+    backdrop-filter: blur(22px) saturate(145%);
+}
+html.dark #left-sidebar,
+html.dark #file-explorer-col,
+html.dark #center-panel-col,
+html.dark #right-panel-chat,
+html.dark #right-panel-terminal,
+html.dark #right-panel-editor {
+    background-color: rgba(5, 19, 20, .76) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    backdrop-filter: blur(18px) saturate(135%);
+}
+html.dark #left-sidebar,
+html.dark #file-explorer-col,
+html.dark #center-panel-col {
+    border-color: rgba(25,245,154,.13) !important;
+}
+html.dark #active-project-bar,
+html.dark #right-panel-terminal #terminal-input-row,
+html.dark #right-panel-editor > div:first-child {
+    background: rgba(8, 34, 31, .72) !important;
+    border-color: var(--rf-glass-border) !important;
+}
+html.dark .sidebar-icon {
+    border: 1px solid transparent;
+    border-radius: 11px;
+    transition: color .22s ease, background .22s ease, border-color .22s ease, box-shadow .22s ease, transform .22s ease;
+}
+html.dark .sidebar-icon:hover,
+html.dark .sidebar-icon.active {
+    color: var(--rf-neon) !important;
+    background: linear-gradient(135deg, rgba(25,245,154,.16), rgba(36,217,238,.055));
+    border-color: rgba(25,245,154,.22);
+    box-shadow: 0 0 18px rgba(25,245,154,.12), inset 0 0 12px rgba(25,245,154,.045);
+    transform: translateY(-1px);
+}
+html.dark .input-focus-ring {
+    background: rgba(8, 31, 29, .82) !important;
+    border: 1px solid rgba(25,245,154,.2);
+    box-shadow: 0 0 0 1px rgba(25,245,154,.035), 0 10px 36px rgba(0,0,0,.22);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+}
+html.dark .input-focus-ring:focus-within {
+    border-color: rgba(25,245,154,.62);
+    box-shadow: 0 0 0 3px rgba(25,245,154,.08), 0 0 28px rgba(25,245,154,.13);
+}
+html.dark .provider-card,
+html.dark .ws-card,
+html.dark .session-item,
+html.dark #workspace-info-card {
+    background: linear-gradient(145deg, rgba(10,39,36,.78), rgba(5,20,22,.78));
+    border-color: rgba(25,245,154,.15);
+    box-shadow: inset 0 1px rgba(255,255,255,.035), 0 8px 24px rgba(0,0,0,.12);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+}
+html.dark .provider-card:hover,
+html.dark .ws-card:hover,
+html.dark .session-item:hover {
+    border-color: rgba(25,245,154,.42);
+    box-shadow: 0 0 22px rgba(25,245,154,.1), inset 0 1px rgba(255,255,255,.05);
+    transform: translateY(-1px);
+}
+html.dark .file-tree-item:hover,
+html.dark .tree-folder-toggle:hover,
+html.dark .tree-file-item:hover {
+    background: rgba(25,245,154,.075);
+}
+html.dark .file-tree-active,
+html.dark .ws-card.active {
+    background: linear-gradient(90deg, rgba(25,245,154,.14), rgba(25,245,154,.035));
+    box-shadow: inset 2px 0 var(--rf-neon), 0 0 16px rgba(25,245,154,.07);
+}
+html.dark button:not(:disabled):hover {
+    transition-duration: .22s;
+}
+html.dark .ide-btn-primary,
+html.dark .btn-positive,
+html.dark #send-btn,
+html.dark #add-local-ws-btn,
+html.dark #add-ssh-ws-btn,
+html.dark #save-keys-btn,
+html.dark #confirm-commit-btn,
+html.dark #update-now-btn,
+html.dark #ctx-picker-confirm,
+html.dark #model-picker-confirm,
+html.dark #git-init-btn,
+html.dark #confirm-context-picker-btn {
+    background: linear-gradient(120deg, #12d987, #20f5a0) !important;
+    color: #032017 !important;
+    border-color: rgba(69,255,185,.8) !important;
+    box-shadow: 0 0 18px rgba(25,245,154,.22);
+}
+html.dark .ide-btn-primary:hover,
+html.dark .btn-positive:hover,
+html.dark #send-btn:hover {
+    box-shadow: 0 0 26px rgba(25,245,154,.38);
+    filter: brightness(1.08);
+}
+html.dark .tab-active,
+html.dark .right-tab-btn:hover {
+    color: var(--rf-neon) !important;
+    text-shadow: 0 0 12px rgba(25,245,154,.35);
+}
+html.dark .right-tab-btn.border-b-2 {
+    transition: color .2s ease, border-color .2s ease, text-shadow .2s ease;
+}
+html.dark .conn-dot.connected,
+html.dark .key-status-dot.saved {
+    box-shadow: 0 0 6px var(--rf-neon), 0 0 14px rgba(25,245,154,.55);
+    animation: rf-status-breathe 2.8s ease-in-out infinite;
+}
+html.dark .toast,
+html.dark .confirm-modal,
+html.dark [id$="-modal"]:not(.hidden) > div {
+    background: rgba(5, 24, 24, .88) !important;
+    border-color: rgba(25,245,154,.22) !important;
+    box-shadow: 0 18px 60px rgba(0,0,0,.42), 0 0 24px rgba(25,245,154,.07);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+    backdrop-filter: blur(22px) saturate(145%);
+}
+html.dark #terminal-output,
+html.dark #terminal-cmd-input,
+html.dark #monaco-container {
+    text-shadow: 0 0 8px rgba(25,245,154,.08);
+}
+html.dark .trace-badge.success,
+html.dark .trace-badge.done,
+html.dark .trace-badge.try {
+    box-shadow: 0 0 10px rgba(25,245,154,.08);
+}
+@keyframes rf-status-breathe {
+    0%, 100% { opacity: 1; filter: drop-shadow(0 0 2px rgba(25,245,154,.25)); }
+    50% { opacity: .72; filter: drop-shadow(0 0 7px rgba(25,245,154,.65)); }
+}
+@keyframes rf-neon-drift {
+    0%, 100% { transform: translate3d(0,0,0); opacity: .45; }
+    50% { transform: translate3d(0,-5px,0); opacity: .8; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    html.dark #chat-container,
+    html.dark #file-tree,
+    html.dark #sessions-list,
+    html.dark #projects-list {
+        animation: rf-neon-drift 9s ease-in-out infinite;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+    }
+}
