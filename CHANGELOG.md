@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-06
+
+### Added
+- Add a live Agent Workflow graph to the IDE sidebar, showing the real execution lifecycle across Context, Plan, Build, Verify, and Result stages.
+- Stream actual chat orchestration events into the graph, including the active agent role, selected model, and running/completed tool calls.
+- Add an emerald glass visual layer with translucent panels, backdrop blur, subtle green glow, animated stage indicators, and responsive layout.
+
+### Changed
+- Refresh the Agent Trace controller to render execution events safely through DOM text nodes and reset graph state when the active session changes.
+- Improve dark-theme surfaces and focus/hover states with the RuntimeForce emerald accent while retaining a readable light-theme graph.
+
+### Accessibility
+- Respect the operating system's reduced-motion preference by disabling decorative graph animations.
+
+
 ## [1.0.9] - 2026-11-06
 
 ### Fixed
