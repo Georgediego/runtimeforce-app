@@ -7,7 +7,7 @@ export class ChatWSClient {
         this.ws = null;
         this.onEvent = callbacks.onEvent || (() => {});
         this.onError = callbacks.onError || (() => {});
-        this.onClose = callbacks.onClose || (() => {});
+        this.onClose = callbacks.onClose || (() => {});\n        this.abortRequested = false;
     }
 
     connect() {
@@ -27,6 +27,7 @@ export class ChatWSClient {
                         window.dispatchEvent(new CustomEvent("rf:memory-graph", { detail: data }));
                     }
                     this.onEvent(data);
+                    if (data.status === "aborted" && this.abortRequested) this.close();
                 } catch (e) {
                     console.error("WS JSON parse error:", e);
                 }
@@ -62,6 +63,7 @@ export class ChatWSClient {
 
     abort() {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+        this.abortRequested = true;
         this.ws.send(JSON.stringify({ action: "abort" }));
         return true;
     }
