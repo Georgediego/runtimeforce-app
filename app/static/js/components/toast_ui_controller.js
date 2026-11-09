@@ -28,14 +28,14 @@ export function showToast(message, type = "info", duration = 3000) {
     const icon = type === "success" ? "check-circle" : isError ? "x-circle" : type === "warning" ? "alert-triangle" : "info";
     const iconColor = type === "success" ? "text-[var(--ide-success)]" : isError ? "text-[var(--ide-error)]" : type === "warning" ? "text-[var(--ide-warning)]" : "text-[var(--ide-accent)]";
     const detail = errorText(message);
-    const heading = isError ? "Ошибка приложения" : type === "success" ? "Готово" : type === "warning" ? "Предупреждение" : "Уведомление";
+    const heading = isError ? "Application error" : type === "success" ? "Success" : type === "warning" ? "Warning" : "Notification";
     toast.className = `rf-toast-notification flex items-start gap-3 px-4 py-3 rounded-xl border shadow-2xl transform transition-all duration-300 translate-y-4 opacity-0 pointer-events-auto border-[var(--ide-border-subtle)] min-w-[280px] max-w-md`;
     toast.innerHTML = `
         <div class="mt-0.5 shrink-0"><i data-lucide="${icon}" class="w-4 h-4 ${iconColor}"></i></div>
         <div class="flex-1 min-w-0">
             <div class="text-sm font-semibold text-[var(--ide-text-primary)] leading-tight rf-toast-heading"></div>
             <div class="text-xs text-[var(--ide-text-secondary)] leading-relaxed mt-1 rf-toast-message whitespace-pre-wrap break-words"></div>
-            ${isError ? '<div class="flex gap-2 mt-3"><button class="rf-toast-report px-3 py-1.5 rounded-lg text-[11px] font-bold bg-[var(--ide-accent)] text-black hover:brightness-110">Отправить разработчику</button><span class="rf-toast-report-status text-[10px] text-[var(--ide-text-muted)] self-center"></span></div>' : ''}
+            ${isError ? '<div class="flex gap-2 mt-3"><button class="rf-toast-report px-3 py-1.5 rounded-lg text-[11px] font-bold bg-[var(--ide-accent)] text-black hover:brightness-110">Send to developer</button><span class="rf-toast-report-status text-[10px] text-[var(--ide-text-muted)] self-center"></span></div>' : ''}
         </div>
         <button class="shrink-0 text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] toast-close cursor-pointer" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
     `;
@@ -54,7 +54,7 @@ export function showToast(message, type = "info", duration = 3000) {
         const reportStatus = toast.querySelector(".rf-toast-report-status");
         reportButton?.addEventListener("click", async () => {
             reportButton.disabled = true;
-            reportButton.textContent = "Отправка…";
+            reportButton.textContent = "Sending…";
             try {
                 const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
                 const clientInstanceId = localStorage.getItem("rf_client_instance_id") || (crypto.randomUUID ? crypto.randomUUID() : "rf-" + Date.now() + "-" + Math.random().toString(36).slice(2));
@@ -67,9 +67,9 @@ export function showToast(message, type = "info", duration = 3000) {
                         ...(token ? { "Authorization": `Bearer ${token.replace(/^Bearer\s+/i, "")}` } : {})
                     },
                     body: JSON.stringify({
-                        title: "Ошибка RuntimeForce IDE",
+                        title: "RuntimeForce IDE error",
                         message: detail.slice(0, 8000),
-                        component: "Уведомление IDE",
+                        component: "IDE Notification",
                         diagnostics: {
                             app_version: document.documentElement.dataset.appVersion || "unknown",
                             url: location.pathname,
@@ -81,11 +81,11 @@ export function showToast(message, type = "info", duration = 3000) {
                 });
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
-                reportButton.textContent = "Отправлено";
-                reportStatus.textContent = "Отчёт получен разработчиком";
+                reportButton.textContent = "Sent";
+                reportStatus.textContent = "Report received by the developer";
             } catch (error) {
                 reportButton.disabled = false;
-                reportButton.textContent = "Повторить отправку";
+                reportButton.textContent = "Retry";
                 reportStatus.textContent = errorText(error).slice(0, 100);
             }
         });
@@ -297,51 +297,138 @@ if (typeof window !== "undefined" && !window.__rfGlobalErrorToastsBound) {
 }
 
 
-// Check whether the developer has resolved a bug reported by this IDE account.
-if (typeof window !== "undefined" && !window.__rfResolutionUpdatesStarted) {
-    window.__rfResolutionUpdatesStarted = true;
-    const checkResolutionUpdates = async () => {
+// Persistent developer inbox in the user profile area.
+if (typeof window !== "undefined" && !window.__rfInboxStarted) {
+    window.__rfInboxStarted = true;
+    const API = "https://runtimeforce.dev/api/v1/bug-reports";
+    const authHeaders = () => {
+        const token = (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
+        return token ? { Authorization: "Bearer " + token } : {};
+    };
+    const escInbox = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    let inboxItems = [];
+
+    function ensureInboxUI() {
+        const profile = document.getElementById("rf-user-profile");
+        if (!profile || document.getElementById("rf-inbox-button")) return;
+        const button = document.createElement("button");
+        button.id = "rf-inbox-button";
+        button.type = "button";
+        button.className = "relative w-8 h-8 rounded-full hover:bg-[var(--ide-elevated)] flex items-center justify-center text-[var(--ide-text-secondary)] cursor-pointer";
+        button.setAttribute("aria-label", "Developer inbox");
+        button.innerHTML = '<i data-lucide="mail" class="w-4 h-4"></i><span id="rf-inbox-badge" class="hidden absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] leading-4 font-bold text-center"></span>';
+        const panel = document.createElement("section");
+        panel.id = "rf-inbox-panel";
+        panel.className = "hidden absolute top-10 right-0 z-[250] w-[min(390px,calc(100vw-24px))] max-h-[min(70vh,620px)] overflow-hidden rounded-xl border border-[var(--ide-border-subtle)] bg-[var(--ide-surface)] shadow-2xl";
+        panel.innerHTML = '<div class="flex items-center justify-between px-3 py-3 border-b border-[var(--ide-border-subtle)]"><div class="text-xs font-bold text-[var(--ide-text-primary)]">Developer messages</div><button type="button" id="rf-inbox-refresh" class="text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)]">Refresh</button></div><div id="rf-inbox-list" class="overflow-y-auto max-h-[calc(min(70vh,620px)-48px)] p-2 space-y-2"><div class="p-4 text-xs text-[var(--ide-text-muted)]">Loading messages…</div></div>';
+        profile.insertBefore(button, profile.firstChild);
+        profile.appendChild(panel);
+        button.addEventListener("click", event => {
+            event.stopPropagation();
+            panel.classList.toggle("hidden");
+            if (!panel.classList.contains("hidden")) loadInbox(true);
+        });
+        panel.addEventListener("click", event => event.stopPropagation());
+        panel.querySelector("#rf-inbox-refresh")?.addEventListener("click", () => loadInbox(true));
+        document.addEventListener("click", event => {
+            if (!panel.contains(event.target) && !button.contains(event.target)) panel.classList.add("hidden");
+        });
+        if (window.lucide) window.lucide.createIcons({ root: button });
+    }
+
+    function updateBadge(count) {
+        const badge = document.getElementById("rf-inbox-badge");
+        if (!badge) return;
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.classList.toggle("hidden", !count);
+    }
+
+    function renderInbox() {
+        const list = document.getElementById("rf-inbox-list");
+        if (!list) return;
+        if (!inboxItems.length) {
+            list.innerHTML = '<div class="p-5 text-center text-xs text-[var(--ide-text-muted)]">No messages yet.</div>';
+            return;
+        }
+        list.innerHTML = inboxItems.map(item => {
+            const messages = (item.messages || []).map(message => {
+                const own = message.sender === "user";
+                return '<div class="rounded-lg p-2.5 ' + (own ? 'bg-[var(--ide-elevated)]' : 'bg-[var(--ide-accent)]/10') + '">' +
+                    '<div class="flex justify-between gap-2 text-[9px] text-[var(--ide-text-muted)]"><b>' + (own ? 'You' : 'RuntimeForce Support') + '</b><time>' + escInbox(message.created_at ? new Date(message.created_at).toLocaleString() : '') + '</time></div>' +
+                    '<div class="mt-1 text-xs text-[var(--ide-text-primary)] whitespace-pre-wrap break-words">' + escInbox(message.message) + '</div></div>';
+            }).join("");
+            return '<article class="rounded-lg border border-[var(--ide-border-subtle)] p-2.5 space-y-2" data-inbox-report="' + Number(item.report_id) + '">' +
+                '<div class="text-[11px] font-bold text-[var(--ide-text-primary)]">' + escInbox(item.title || 'Support message') + '</div>' +
+                '<div class="space-y-2">' + messages + '</div>' +
+                '<form class="rf-inbox-reply flex gap-2" data-reply-report="' + Number(item.report_id) + '">' +
+                '<textarea rows="2" maxlength="8000" required placeholder="Write a reply…" class="min-w-0 flex-1 resize-y rounded-lg border border-[var(--ide-border-subtle)] bg-[var(--ide-bg)] p-2 text-xs text-[var(--ide-text-primary)] outline-none focus:border-[var(--ide-accent)]"></textarea>' +
+                '<button type="submit" class="shrink-0 self-end rounded-lg bg-[var(--ide-accent)] px-3 py-2 text-[10px] font-bold text-black">Send</button></form></article>';
+        }).join("");
+        list.querySelectorAll(".rf-inbox-reply").forEach(form => form.addEventListener("submit", async event => {
+            event.preventDefault();
+            const field = form.querySelector("textarea");
+            const button = form.querySelector("button");
+            const message = field?.value.trim();
+            if (!message) return;
+            button.disabled = true;
+            button.textContent = "Sending…";
+            try {
+                const response = await fetch(API + "/" + form.dataset.replyReport + "/reply", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
+                    credentials: "include",
+                    body: JSON.stringify({ message })
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(payload.detail || "HTTP " + response.status);
+                field.value = "";
+                await loadInbox(false);
+                showToast("Your reply was sent to RuntimeForce Support.", "success", 5000);
+            } catch (error) {
+                showToast("Could not send reply: " + errorText(error), "error", 0);
+            } finally {
+                button.disabled = false;
+                button.textContent = "Send";
+            }
+        }));
+    }
+
+    async function loadInbox(markRead) {
+        ensureInboxUI();
         try {
-            const token = (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
-            const clientInstanceId = localStorage.getItem("rf_client_instance_id");
-            if (!clientInstanceId) return;
-            const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports/updates?client_instance_id=" + encodeURIComponent(clientInstanceId), {
-                headers: token ? { Authorization: "Bearer " + token } : {},
-                credentials: "include",
-                cache: "no-store"
-            });
+            const response = await fetch(API + "/inbox", { headers: authHeaders(), credentials: "include", cache: "no-store" });
             if (!response.ok) return;
-            const updates = await response.json();
-            for (const update of (Array.isArray(updates) ? updates : [])) {
-                const seenKey = "rf_resolution_notice_" + update.id;
-                if (localStorage.getItem(seenKey) === "1") {
-                    fetch("https://runtimeforce.dev/api/v1/bug-reports/" + update.id + "/ack", {
-                        method: "POST", headers: token ? { Authorization: "Bearer " + token } : {},
-                        credentials: "include"
-                    }).catch(() => {});
-                    continue;
+            const payload = await response.json();
+            inboxItems = Array.isArray(payload.items) ? payload.items : [];
+            updateBadge(Number(payload.unread_count || 0));
+            renderInbox();
+            if (markRead) {
+                const unreadReports = inboxItems.filter(item => (item.messages || []).some(message => message.unread)).map(item => item.report_id);
+                await Promise.all(unreadReports.map(id => fetch(API + "/" + id + "/read", {
+                    method: "POST", headers: authHeaders(), credentials: "include"
+                }).catch(() => null)));
+                if (unreadReports.length) {
+                    const refreshed = await fetch(API + "/inbox", { headers: authHeaders(), credentials: "include", cache: "no-store" });
+                    if (refreshed.ok) {
+                        const data = await refreshed.json();
+                        inboxItems = Array.isArray(data.items) ? data.items : [];
+                        updateBadge(Number(data.unread_count || 0));
+                        renderInbox();
+                    }
                 }
-                showToast(
-                    (update.message || "Мы исправили ошибку, о которой вы сообщили. Спасибо за обратную связь!") +
-                    "\n\nВаш отчёт: " + (update.title || "Ошибка RuntimeForce IDE"),
-                    "success",
-                    12000
-                );
-                localStorage.setItem(seenKey, "1");
-                fetch("https://runtimeforce.dev/api/v1/bug-reports/" + update.id + "/ack", {
-                    method: "POST", headers: token ? { Authorization: "Bearer " + token } : {},
-                    credentials: "same-origin"
-                }).catch(() => {});
             }
         } catch (_) {
-            // Resolution notifications are best-effort and must never interrupt IDE startup.
+            const list = document.getElementById("rf-inbox-list");
+            if (list) list.innerHTML = '<div class="p-4 text-xs text-red-400">Inbox is temporarily unavailable.</div>';
         }
-    };
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", checkResolutionUpdates, { once: true });
-    } else {
-        checkResolutionUpdates();
     }
-    window.addEventListener("focus", checkResolutionUpdates);
-    window.setInterval(checkResolutionUpdates, 60000);
+
+    function startInbox() {
+        ensureInboxUI();
+        loadInbox(false);
+        window.setInterval(() => loadInbox(false), 30000);
+        window.addEventListener("focus", () => loadInbox(false));
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startInbox, { once: true });
+    else startInbox();
 }
