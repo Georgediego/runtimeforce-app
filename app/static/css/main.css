@@ -1860,7 +1860,7 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 @media(prefers-reduced-motion:reduce){.rf-monitor-live{animation:none}}
 
 /* Workflow stage cards: 20% lower without changing their five-column layout. */
-.rf-agent-workflow-panel.rf-agent-graph>.rf-graph-stages{margin-top:11px;margin-bottom:8px}
-.rf-graph-stage{gap:4px;padding:6px 2px 5px}
-.rf-stage-icon{width:19px;height:19px;border-radius:6px;font-size:12px}
-.rf-graph-stage:not(:last-child)::after{top:14px}
+#rf-agent-graph .rf-graph-stages{margin-top:11px;margin-bottom:8px}
+#rf-agent-graph .rf-graph-stage{gap:4px;padding:6px 2px 5px}
+#rf-agent-graph .rf-stage-icon{width:19px;height:19px;border-radius:6px;font-size:12px}
+#rf-agent-graph .rf-graph-stage:not(:last-child)::after{top:14px}
