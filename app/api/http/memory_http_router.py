@@ -40,15 +40,15 @@ async def get_graph_status(
     user_id: str = Depends(require_authenticated_user),
     graph_service: GraphMemoryService = Depends(get_graph_memory_service)
 ):
-    """Return up to 300 real SQLite nodes, prioritizing nodes matched by the active memory query."""
+    """Return up to 300 real SQLite nodes, prioritizing active matches and their neighbors."""
     conn = graph_service.graph_repo.db.get_connection()
-    graph = graph_service.graph_repo.query_subgraph(project_id, user_id, limit=300)
-    raw_nodes = list(graph.get("nodes", [])[:300])
+    requested_ids = list(dict.fromkeys(str(value) for value in (active_node_ids or []) if value))[:30]
+    base_limit = max(1, 300 - len(requested_ids))
+    graph = graph_service.graph_repo.query_subgraph(project_id, user_id, limit=base_limit)
+    raw_nodes = list(graph.get("nodes", [])[:base_limit])
     included_ids = {str(node.get("id")) for node in raw_nodes if node.get("id")}
 
-    # A matched node can rank below the general 300-node snapshot. Fetch those exact
-    # SQLite records as well so an active query is never silently invisible.
-    requested_ids = list(dict.fromkeys(str(value) for value in (active_node_ids or []) if value))[:30]
+    # Fetch exact matched nodes even when they fall outside the normal top-N snapshot.
     missing_ids = [value for value in requested_ids if value not in included_ids]
     if missing_ids:
         placeholders = ",".join("?" for _ in missing_ids)
@@ -62,6 +62,41 @@ async def get_graph_status(
         raw_nodes.extend(dict(row) for row in matched_rows)
         included_ids.update(str(row["id"]) for row in matched_rows)
 
+    # Pull one-hop neighbors of active matches so their real relationships can be drawn.
+    active_ids_found = [value for value in requested_ids if value in included_ids]
+    if active_ids_found and len(raw_nodes) < 300:
+        placeholders = ",".join("?" for _ in active_ids_found)
+        incident_edges = conn.execute(
+            f"""
+            SELECT edge.source_id, edge.target_id
+            FROM graph_edges AS edge
+            JOIN graph_nodes AS source ON source.id=edge.source_id
+            JOIN graph_nodes AS target ON target.id=edge.target_id
+            WHERE source.project_id=? AND source.user_id=?
+              AND target.project_id=? AND target.user_id=?
+              AND (edge.source_id IN ({placeholders}) OR edge.target_id IN ({placeholders}))
+            LIMIT 600
+            """,
+            (project_id, user_id, project_id, user_id, *active_ids_found, *active_ids_found),
+        ).fetchall()
+        neighbor_ids = list(dict.fromkeys(
+            str(row["target_id"] if str(row["source_id"]) in active_ids_found else row["source_id"])
+            for row in incident_edges
+        ))
+        neighbor_ids = [value for value in neighbor_ids if value not in included_ids]
+        neighbor_ids = neighbor_ids[: max(0, 300 - len(raw_nodes))]
+        if neighbor_ids:
+            placeholders = ",".join("?" for _ in neighbor_ids)
+            neighbor_rows = conn.execute(
+                f"""
+                SELECT * FROM graph_nodes
+                WHERE project_id=? AND user_id=? AND id IN ({placeholders})
+                """,
+                (project_id, user_id, *neighbor_ids),
+            ).fetchall()
+            raw_nodes.extend(dict(row) for row in neighbor_rows)
+            included_ids.update(str(row["id"]) for row in neighbor_rows)
+
     nodes = [
         {
             "id": str(node.get("id", "")),
@@ -69,7 +104,7 @@ async def get_graph_status(
             "type": str(node.get("node_type", "memory")),
             "usage_count": int(node.get("usage_count") or 0),
         }
-        for node in raw_nodes
+        for node in raw_nodes[:300]
         if node.get("id")
     ]
     node_ids = [node["id"] for node in nodes]
