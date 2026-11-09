@@ -34,8 +34,8 @@ import { eventBus } from "../core/event_bus.js";
         if (edgeCountEl) edgeCountEl.textContent = graphEdges.length + " EDGES";
         if (statusEl && !root.classList.contains("is-querying")) statusEl.textContent = "SQLite graph · " + graphNodes.length + " nodes";
     }
-    async function loadGraph() {
-        const currentProject = projectId();
+    async function loadGraph(projectOverride = "") {
+        const currentProject = projectOverride || projectId();
         if (!currentProject) {
             setGraph({nodes: [], edges: []});
             if (statusEl) statusEl.textContent = "Select a project to inspect memory";
@@ -66,10 +66,11 @@ import { eventBus } from "../core/event_bus.js";
         while (feedEl.children.length > 5) feedEl.lastElementChild.remove();
     }
     function handleMemoryEvent(detail) {
-        // Do not drop live events while the project selector is still hydrating.
-        if (detail.project_id && projectId() && detail.project_id !== projectId()) return;
+        // The WebSocket event belongs to the active chat session. Trust its project scope;
+        // localStorage can lag behind project activation and must not suppress live operations.
         if (detail.phase === "started") {
             root.classList.add("is-querying");
+            if (detail.project_id) lastProjectId = detail.project_id;
             currentOperation = "Memory retrieval";
             lastActivityAt = performance.now();
             if (statusEl) statusEl.textContent = "Memory query running · " + (detail.model || "orchestrator");
@@ -112,7 +113,7 @@ import { eventBus } from "../core/event_bus.js";
             const stats = detail.graph_stats || {};
             pulseStartedAt = performance.now();
             pulseUntil = pulseStartedAt + 3200;
-            loadGraph().finally(() => {
+            loadGraph(detail.project_id || lastProjectId).finally(() => {
                 root.classList.remove("is-querying");
                 if (statusEl) statusEl.textContent = "Used " + activeIds.size + " nodes · " + (stats.context_tokens || 0) + " tokens";
                 draw();
@@ -183,18 +184,33 @@ import { eventBus } from "../core/event_bus.js";
                 const a = projected.get(String(edge.source)), b = projected.get(String(edge.target));
                 if (!a || !b || a.z + b.z < -.7) continue;
                 const active = activeIds.has(String(edge.source)) || activeIds.has(String(edge.target));
-                ctx.strokeStyle = active ? "rgba(255,75,205,.92)" : "rgba(151,91,255," + (.12 + ((a.z + b.z + 2) / 4) * .25) + ")";
-                ctx.shadowColor = active ? "#ff36c7" : "#8c45ff";
+                ctx.strokeStyle = active ? "rgba(7,247,122,.95)" : "rgba(7,247,122," + (.12 + ((a.z + b.z + 2) / 4) * .25) + ")";
+                ctx.shadowColor = active ? "#07f77a" : "#07f77a";
                 ctx.shadowBlur = active ? 9 : 2;
                 ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
             }
             ctx.shadowBlur = 0;
         } else {
             const ids = Array.from(projected.values());
-            ctx.strokeStyle = "rgba(151,91,255,.34)"; ctx.lineWidth = .7;
+            const previewLinks = [];
+            ctx.strokeStyle = "rgba(7,247,122,.28)"; ctx.lineWidth = .85;
             for (let i = 0; i < ids.length; i++) {
                 const nearest = ids.map((p,j)=>({j,d:(p.x-ids[i].x)**2+(p.y-ids[i].y)**2})).filter(v=>v.j!==i).sort((a,b)=>a.d-b.d).slice(0,2);
-                for (const n of nearest) if(n.j>i){ctx.beginPath();ctx.moveTo(ids[i].x,ids[i].y);ctx.lineTo(ids[n.j].x,ids[n.j].y);ctx.stroke();}
+                for (const n of nearest) if(n.j>i){
+                    ctx.beginPath();ctx.moveTo(ids[i].x,ids[i].y);ctx.lineTo(ids[n.j].x,ids[n.j].y);ctx.stroke();
+                    previewLinks.push([ids[i], ids[n.j]]);
+                }
+            }
+            // Empty-state scaffold is explicitly a visualization, never counted as stored nodes.
+            // While real memory operations run, animate packets over this scaffold so the
+            // retrieval pipeline remains visible even before the project has persisted nodes.
+            if (operationLive) {
+                previewLinks.forEach(([a,b], index) => {
+                    const t = (flowClock * .00042 + (index % 17) / 17) % 1;
+                    const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+                    ctx.beginPath(); ctx.arc(x, y, 1.7 + Math.sin(flowClock * .007 + index) * .6, 0, Math.PI * 2);
+                    ctx.fillStyle = "#9affc4"; ctx.shadowColor = "#07f77a"; ctx.shadowBlur = 14; ctx.fill();
+                });
             }
         }
         const pulseProgress = pulseUntil > performance.now()
@@ -211,9 +227,9 @@ import { eventBus } from "../core/event_bus.js";
                 const wave = (nowSafe() * .0012 + index * .173) % 1;
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 4 + wave * 16, 0, Math.PI * 2);
-                ctx.strokeStyle = "rgba(255,72,207," + (1 - wave) * .86 + ")";
+                ctx.strokeStyle = "rgba(7,247,122," + (1 - wave) * .86 + ")";
                 ctx.lineWidth = 1.6;
-                ctx.shadowColor = "#ff38c8"; ctx.shadowBlur = 10;
+                ctx.shadowColor = "#07f77a"; ctx.shadowBlur = 10;
                 ctx.stroke();
                 ctx.shadowBlur = 0;
             });
@@ -226,7 +242,7 @@ import { eventBus } from "../core/event_bus.js";
                 const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
                 ctx.beginPath();
                 ctx.arc(x, y, 2.0 + Math.sin(flowClock * .006 + index) * .65, 0, Math.PI * 2);
-                ctx.fillStyle = "#ffd5f5"; ctx.shadowColor = "#ff38c8"; ctx.shadowBlur = 15; ctx.fill();
+                ctx.fillStyle = "#caffdf"; ctx.shadowColor = "#ff38c8"; ctx.shadowBlur = 15; ctx.fill();
             });
         }
         let nodeIndex = 0;
@@ -235,21 +251,21 @@ import { eventBus } from "../core/event_bus.js";
             const twinkle = .72 + .28 * Math.sin(flowClock * .003 + nodeIndex * 1.71);
             const size = hasData ? (active ? 2.8 : 1.15) + depth * (active ? 2.7 : 1.8) : 1.8 + depth * 1.5;
             ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-            ctx.fillStyle = active ? "#fff0fb" : "rgba(177,112,255," + ((hasData ? .40 + depth * .58 : .42 + depth * .48) * twinkle) + ")";
+            ctx.fillStyle = active ? "#fff0fb" : "rgba(93,255,166," + ((hasData ? .40 + depth * .58 : .42 + depth * .48) * twinkle) + ")";
             ctx.shadowColor = active ? "#ff36c7" : "#9b55ff";
             ctx.shadowBlur = active ? 19 : 4 + depth * 5; ctx.fill();
             if (active) {
                 ctx.beginPath(); ctx.arc(p.x, p.y, size + 4 + (Math.sin(flowClock * .009 + nodeIndex) + 1) * 2, 0, Math.PI * 2);
-                ctx.strokeStyle = "rgba(255,66,207,.62)"; ctx.lineWidth = 1;
+                ctx.strokeStyle = "rgba(7,247,122,.62)"; ctx.lineWidth = 1;
                 ctx.shadowColor = "#ff36c7"; ctx.shadowBlur = 12; ctx.stroke();
             }
             nodeIndex++;
         }
         ctx.shadowBlur = 0;
         ctx.shadowBlur = 0; ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(248,224,255,.96)"; ctx.font = "600 11px Inter, sans-serif";
+        ctx.fillStyle = "rgba(210,255,226,.96)"; ctx.font = "600 11px Inter, sans-serif";
         ctx.fillText(hasData ? String(graphNodes.length) : "◌", cx, cy + 3);
-        ctx.fillStyle = "rgba(196,157,230,.86)"; ctx.font = "7px JetBrains Mono, monospace";
+        ctx.fillStyle = "rgba(133,210,162,.86)"; ctx.font = "7px JetBrains Mono, monospace";
         ctx.fillText(hasData ? "SQLITE MEMORY" : "WAITING FOR MEMORY", cx, cy + 16);
     }
     function animate(now) {
