@@ -39,11 +39,26 @@
         </a>
     </div>
     <div id="rf-system-monitor" class="rf-system-monitor" aria-label="Local system monitor">
-        <div class="rf-monitor-metric" title="CPU usage"><span class="rf-monitor-gauge" id="rf-monitor-cpu-gauge"></span><span>CPU <b id="rf-monitor-cpu">—</b></span></div>
-        <div class="rf-monitor-metric" title="Memory usage"><i data-lucide="memory-stick" class="w-3.5 h-3.5"></i><span>RAM <b id="rf-monitor-ram">—</b></span><span class="rf-monitor-bar"><i id="rf-monitor-ram-bar"></i></span></div>
-        <div class="rf-monitor-metric" title="API latency"><span id="rf-monitor-live" class="rf-monitor-live"></span><span>API <b id="rf-monitor-ping">—</b></span></div>
-        <div class="rf-monitor-metric" title="CPU temperature"><i data-lucide="thermometer" class="w-3.5 h-3.5"></i><b id="rf-monitor-temp">—</b></div>
-        <div class="rf-monitor-metric rf-monitor-network" title="Network throughput"><i data-lucide="arrow-up" class="w-3 h-3"></i><b id="rf-monitor-up">—</b><i data-lucide="arrow-down" class="w-3 h-3"></i><b id="rf-monitor-down">—</b></div>
+        <div class="rf-monitor-card" title="CPU usage">
+            <span class="rf-monitor-card-label">CPU</span>
+            <span class="rf-monitor-ring" id="rf-monitor-cpu-gauge"><b id="rf-monitor-cpu">—</b></span>
+        </div>
+        <div class="rf-monitor-card" title="Memory usage">
+            <span class="rf-monitor-card-label">RAM</span>
+            <span class="rf-monitor-ring" id="rf-monitor-ram-gauge"><b id="rf-monitor-ram">—</b></span>
+        </div>
+        <div class="rf-monitor-card" title="CPU temperature">
+            <span class="rf-monitor-card-label">TEMP</span>
+            <span class="rf-monitor-ring" id="rf-monitor-temp-gauge"><b id="rf-monitor-temp">—</b></span>
+        </div>
+        <div class="rf-monitor-card rf-monitor-api-card" title="API latency">
+            <span class="rf-monitor-card-label"><i id="rf-monitor-live" class="rf-monitor-live"></i> API</span>
+            <b id="rf-monitor-ping" class="rf-monitor-api-value">—</b>
+        </div>
+        <div class="rf-monitor-card rf-monitor-network" title="Network throughput">
+            <span class="rf-monitor-card-label">NET</span>
+            <span class="rf-monitor-network-values"><span>↑ <b id="rf-monitor-up">—</b></span><span>↓ <b id="rf-monitor-down">—</b></span></span>
+        </div>
     </div>
     <div class="flex items-center gap-4 relative" id="rf-user-profile">
         <button id="theme-toggle-btn" class="w-8 h-8 rounded-full hover:bg-[var(--ide-elevated)] flex items-center justify-center text-[var(--ide-text-secondary)] cursor-pointer">
