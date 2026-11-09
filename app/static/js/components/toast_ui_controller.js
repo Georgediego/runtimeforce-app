@@ -1,6 +1,20 @@
 /**
  * Toast Notifications, Prompts & Global Dangerous Command Approval Modal with Sudo Password (Section 15.5).
  */
+function errorText(value) {
+    if (value instanceof Error) return value.message || value.name || "Unknown error";
+    if (typeof value === "string") return value.trim() || "Unknown error";
+    if (value && typeof value === "object") {
+        for (const key of ["message", "detail", "error", "reason", "description"]) {
+            const candidate = value[key];
+            if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+            if (candidate && typeof candidate === "object") return errorText(candidate);
+        }
+        try { return JSON.stringify(value, null, 2); } catch (_) { return "Unknown application error"; }
+    }
+    return String(value ?? "Unknown error");
+}
+
 export function showToast(message, type = "info", duration = 3000) {
     let container = document.getElementById("rf-toast-container");
     if (!container) {
@@ -13,16 +27,20 @@ export function showToast(message, type = "info", duration = 3000) {
     const isError = type === "error";
     const icon = type === "success" ? "check-circle" : isError ? "x-circle" : type === "warning" ? "alert-triangle" : "info";
     const iconColor = type === "success" ? "text-[var(--ide-success)]" : isError ? "text-[var(--ide-error)]" : type === "warning" ? "text-[var(--ide-warning)]" : "text-[var(--ide-accent)]";
-    toast.className = `flex items-start gap-3 px-4 py-3 rounded-xl border shadow-2xl transform transition-all duration-300 translate-y-4 opacity-0 pointer-events-auto rf-glass-surface border-[var(--ide-border-subtle)] min-w-[280px] max-w-md`;
+    const detail = errorText(message);
+    const heading = isError ? "Ошибка приложения" : type === "success" ? "Готово" : type === "warning" ? "Предупреждение" : "Уведомление";
+    toast.className = `rf-toast-notification flex items-start gap-3 px-4 py-3 rounded-xl border shadow-2xl transform transition-all duration-300 translate-y-4 opacity-0 pointer-events-auto border-[var(--ide-border-subtle)] min-w-[280px] max-w-md`;
     toast.innerHTML = `
         <div class="mt-0.5 shrink-0"><i data-lucide="${icon}" class="w-4 h-4 ${iconColor}"></i></div>
         <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium text-[var(--ide-text-primary)] leading-tight rf-toast-message"></div>
-            ${isError ? '<div class="flex gap-2 mt-3"><button class="rf-toast-report px-3 py-1.5 rounded-lg text-[11px] font-bold bg-[var(--ide-accent)] text-black hover:brightness-110">Send to developer</button><span class="rf-toast-report-status text-[10px] text-[var(--ide-text-muted)] self-center"></span></div>' : ''}
+            <div class="text-sm font-semibold text-[var(--ide-text-primary)] leading-tight rf-toast-heading"></div>
+            <div class="text-xs text-[var(--ide-text-secondary)] leading-relaxed mt-1 rf-toast-message whitespace-pre-wrap break-words"></div>
+            ${isError ? '<div class="flex gap-2 mt-3"><button class="rf-toast-report px-3 py-1.5 rounded-lg text-[11px] font-bold bg-[var(--ide-accent)] text-black hover:brightness-110">Отправить разработчику</button><span class="rf-toast-report-status text-[10px] text-[var(--ide-text-muted)] self-center"></span></div>' : ''}
         </div>
         <button class="shrink-0 text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] toast-close cursor-pointer" aria-label="Close"><i data-lucide="x" class="w-4 h-4"></i></button>
     `;
-    toast.querySelector(".rf-toast-message").textContent = String(message ?? "Unknown error");
+    toast.querySelector(".rf-toast-heading").textContent = heading;
+    toast.querySelector(".rf-toast-message").textContent = detail;
     container.appendChild(toast);
     if (window.lucide) window.lucide.createIcons({ root: toast });
     requestAnimationFrame(() => toast.classList.remove("translate-y-4", "opacity-0"));
@@ -36,7 +54,7 @@ export function showToast(message, type = "info", duration = 3000) {
         const reportStatus = toast.querySelector(".rf-toast-report-status");
         reportButton?.addEventListener("click", async () => {
             reportButton.disabled = true;
-            reportButton.textContent = "Sending…";
+            reportButton.textContent = "Отправка…";
             try {
                 const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
                 const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports", {
@@ -44,11 +62,11 @@ export function showToast(message, type = "info", duration = 3000) {
                     credentials: "include",
                     headers: {
                         "Content-Type": "application/json",
-                        ...(token ? { "Authorization": `Bearer ${token.replace(/^Bearer\s+/i, "")}` } : {})
+                        ...(token ? { "Authorization": `Bearer ${token.replace(/^Bearer\\s+/i, "")}` } : {})
                     },
                     body: JSON.stringify({
-                        title: String(message ?? "RuntimeForce error").slice(0, 180),
-                        message: String(message ?? "Unknown error").slice(0, 8000),
+                        title: "Ошибка RuntimeForce IDE",
+                        message: detail.slice(0, 8000),
                         component: "IDE notification",
                         diagnostics: {
                             app_version: document.documentElement.dataset.appVersion || "unknown",
@@ -60,12 +78,12 @@ export function showToast(message, type = "info", duration = 3000) {
                 });
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
-                reportButton.textContent = "Sent";
-                reportStatus.textContent = "Report received";
+                reportButton.textContent = "Отправлено";
+                reportStatus.textContent = "Отчёт получен разработчиком";
             } catch (error) {
                 reportButton.disabled = false;
-                reportButton.textContent = "Retry";
-                reportStatus.textContent = String(error.message || error).slice(0, 100);
+                reportButton.textContent = "Повторить отправку";
+                reportStatus.textContent = errorText(error).slice(0, 100);
             }
         });
     } else if (duration > 0) {
