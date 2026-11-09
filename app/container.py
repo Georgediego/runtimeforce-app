@@ -60,6 +60,7 @@ from app.services.git.github_api_service import GitHubApiService
 
 # Tools Services
 from app.services.terminal.terminal_command_filter import TerminalCommandFilter
+from app.services.terminal.command_approval_service import CommandApprovalService
 from app.tools.tool_dispatcher_service import ToolDispatcherService
 
 # Auxiliary Services
@@ -124,11 +125,13 @@ class ApplicationContainer:
         self.embeddings_repo = EmbeddingsDBRepository(self.db_manager, embedding_engine=self.local_embedding_service)
         
         self.ssh_pool = SSHConnectionPool()
+        self.command_approval_service = CommandApprovalService(self.db_manager)
         self.workspace_driver_factory = WorkspaceDriverFactory(self.ssh_keys_repo, self.ssh_pool)
         self.workspace_manager_service = WorkspaceManagerService(
             self.workspace_repo,
             self.workspace_driver_factory,
-            project_repo=self.project_repo
+            project_repo=self.project_repo,
+            command_approval_service=self.command_approval_service,
         )
         
         self.version_calculator_service = VersionCalculatorService(version_repo=self.versioning_repo, event_bus=self.event_bus)
@@ -236,6 +239,7 @@ class ApplicationContainer:
             "embeddings_repo": self.embeddings_repo,
             "storage_repo": self.graph_repo,
             "workspace_manager": self.workspace_manager_service,
+            "command_approval_service": self.command_approval_service,
             "workspace_driver_factory": self.workspace_driver_factory,
             "project_service": self.project_service,
             "graph_memory": self.graph_memory_service,

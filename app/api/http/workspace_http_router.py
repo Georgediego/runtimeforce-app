@@ -22,6 +22,7 @@ class ExecuteCommandPayload(BaseModel):
     cwd: Optional[str] = None
     password: Optional[str] = None
     project_id: Optional[str] = None
+    session_id: Optional[str] = None
 
 def _get_active_project_id(user_id: str) -> str:
     active_proj = container.project_repo.get_active_project(user_id)
@@ -173,7 +174,8 @@ async def execute_command(
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
             raise HTTPException(status_code=404, detail="No workspace connected for this project")
-        res = await driver.execute_command(payload.command, cwd=payload.cwd, password=payload.password)
+        with container.command_approval_service.context(session_id=payload.session_id or "", project_id=target_project_id):
+            res = await driver.execute_command(payload.command, cwd=payload.cwd, password=payload.password)
         return res
     except Exception as e:
         logger.error(f"Error executing command '{payload.command}': {e}")

@@ -1819,3 +1819,226 @@ html.light .rf-glass-surface{background:linear-gradient(145deg,rgba(250,255,251,
 [id$="-modal"]:not(.hidden)>div,[role="dialog"]>div{background:linear-gradient(145deg,rgba(20,55,37,.78),rgba(9,30,20,.76))!important;-webkit-backdrop-filter:blur(24px) saturate(145%);backdrop-filter:blur(24px) saturate(145%);border-color:rgba(0,244,175,.30)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 70px rgba(0,10,6,.42),0 0 24px rgba(0,244,175,.045)}
 html.light [id$="-modal"]:not(.hidden)>div,html.light [role="dialog"]>div{background:linear-gradient(145deg,rgba(250,255,251,.94),rgba(232,247,238,.90))!important;border-color:rgba(0,150,75,.25)!important}
 @media(max-width:760px){.rf-center-workspace-toolbar{padding-inline:7px}.rf-center-workspace-tabs{gap:2px}.rf-center-workspace-tabs .right-tab-btn{min-width:0;padding-inline:9px}}
+
+
+/* Compact live local system monitor centered in the IDE header. */
+.rf-system-monitor{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:15px;padding:6px 11px;border:1px solid var(--ide-border-subtle);border-radius:10px;background:rgba(8,24,16,.48);color:var(--ide-text-secondary);font:9px 'JetBrains Mono',monospace;white-space:nowrap;backdrop-filter:blur(12px)}
+.rf-system-monitor .rf-monitor-metric{display:flex;align-items:center;gap:5px;min-width:0}
+.rf-system-monitor b{color:var(--ide-text-primary);font-weight:600}
+.rf-monitor-gauge{width:10px;height:10px;flex:0 0 10px;border-radius:50%;background:conic-gradient(var(--rf-monitor-color,#07f77a) 0 var(--rf-cpu-progress,0%),rgba(120,140,130,.2) var(--rf-cpu-progress,0%) 100%);box-shadow:0 0 7px var(--rf-monitor-color,#07f77a)}
+.rf-monitor-gauge[data-level="medium"]{--rf-monitor-color:#facc15}
+.rf-monitor-gauge[data-level="high"]{--rf-monitor-color:#f87171}
+.rf-monitor-bar{width:35px;height:3px;border-radius:9px;background:rgba(130,150,140,.22);overflow:hidden}
+.rf-monitor-bar i{display:block;width:0;height:100%;background:#07f77a;transition:width .5s ease}
+.rf-monitor-live{width:6px;height:6px;border-radius:50%;background:#07f77a;box-shadow:0 0 8px #07f77a;animation:rf-monitor-pulse 1.4s ease-in-out infinite}
+.rf-monitor-live.is-offline,.rf-system-monitor.is-offline .rf-monitor-live{background:#f87171;box-shadow:0 0 8px #f87171;animation:none}
+@keyframes rf-monitor-pulse{50%{opacity:.35;transform:scale(.75)}}
+html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
+@media(max-width:900px){.rf-system-monitor{gap:8px;padding:5px 7px}.rf-system-monitor .rf-monitor-network{display:none}}
+@media(max-width:680px){.rf-system-monitor{position:static;transform:none;margin-left:auto;margin-right:8px;gap:7px}.rf-system-monitor .rf-monitor-metric:nth-child(2),.rf-system-monitor .rf-monitor-metric:nth-child(4){display:none}}
+@media(prefers-reduced-motion:reduce){.rf-monitor-live{animation:none}}
+
+
+/* Header system monitor: five uniform 3rem cards with circular gauges. */
+.rf-system-monitor{gap:6px;padding:0;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.rf-system-monitor .rf-monitor-card{box-sizing:border-box;display:flex;flex:0 0 3rem;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:3rem;height:3rem;min-width:3rem;padding:3px;border:1px solid var(--ide-border-subtle);border-radius:9px;background:var(--ide-surface);color:var(--ide-text-secondary);font:8px 'JetBrains Mono',monospace;overflow:hidden}
+.rf-monitor-card-label{display:flex;align-items:center;justify-content:center;gap:3px;color:var(--ide-text-muted);font:700 7px 'Inter',sans-serif;letter-spacing:.08em;line-height:1}
+.rf-monitor-card .rf-monitor-ring{position:relative;display:grid;place-items:center;width:25px;height:25px;flex:0 0 25px;border-radius:50%;background:conic-gradient(var(--rf-monitor-color,#07f77a) 0 var(--rf-cpu-progress,0%),rgba(120,140,130,.20) var(--rf-cpu-progress,0%) 100%);box-shadow:0 0 7px color-mix(in srgb,var(--rf-monitor-color,#07f77a) 32%,transparent)}
+.rf-monitor-card .rf-monitor-ring::before{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--ide-surface)}
+.rf-monitor-card .rf-monitor-ring b{position:relative;z-index:1;color:var(--ide-text-primary);font:700 7px 'JetBrains Mono',monospace;white-space:nowrap}
+.rf-monitor-ring[data-level="medium"]{--rf-monitor-color:#facc15}
+.rf-monitor-ring[data-level="high"]{--rf-monitor-color:#f87171}
+.rf-monitor-live{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#07f77a;box-shadow:0 0 6px #07f77a;animation:rf-monitor-pulse 1.4s ease-in-out infinite}
+.rf-monitor-live.is-offline,.rf-system-monitor.is-offline .rf-monitor-live{background:#f87171;box-shadow:0 0 6px #f87171;animation:none}
+.rf-monitor-api-value{color:var(--ide-text-primary);font:700 9px 'JetBrains Mono',monospace;white-space:nowrap}
+.rf-monitor-network-values{display:flex;flex-direction:column;gap:2px;color:var(--ide-text-muted);font:7px 'JetBrains Mono',monospace;line-height:1.1}
+.rf-monitor-network-values b{color:var(--ide-text-primary);font-weight:700}
+.rf-approval-context-label{color:var(--ide-text-muted);font-weight:500}
+.rf-approval-context-value{color:var(--ide-text-primary);font-weight:800}
+@media(max-width:900px){.rf-system-monitor{gap:4px}}
+@media(max-width:680px){.rf-system-monitor{position:static;transform:none;margin-left:auto;margin-right:8px;gap:3px}.rf-system-monitor .rf-monitor-network{display:none}}
+@media(prefers-reduced-motion:reduce){.rf-monitor-live{animation:none}}
+
+/* Workflow stage cards: 20% lower without changing their five-column layout. */
+#rf-agent-graph .rf-graph-stages{margin-top:11px;margin-bottom:8px}
+#rf-agent-graph .rf-graph-stage{gap:4px;padding:6px 2px 5px}
+#rf-agent-graph .rf-stage-icon{width:19px;height:19px;border-radius:6px;font-size:12px}
+#rf-agent-graph .rf-graph-stage:not(:last-child)::after{top:14px}
+
+
+/* Chat composer: no nested focus border or hover ring. */
+.input-focus-ring,.input-focus-ring:hover,.input-focus-ring:focus-within{outline:0!important;border:0!important;box-shadow:none!important}
+#prompt-input,#prompt-input:hover,#prompt-input:focus{outline:0!important;border:0!important;box-shadow:none!important}
+
+/* More transparent glass for dialogs, info popups and toasts. */
+.rf-glass-surface{background:rgba(16,32,24,.76)!important;-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px)}
+[id$="-modal"]:not(.hidden),[role="dialog"]{background:rgba(4,18,11,.48)!important;-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
+[id$="-modal"]:not(.hidden)>div,[role="dialog"]>div{background:rgba(17,25,21,.74)!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+#command-approval-modal{background:rgba(4,18,11,.48)!important;backdrop-filter:blur(7px)!important}
+#command-approval-modal>div{background:rgba(17,25,21,.74)!important;backdrop-filter:blur(10px)!important}
+
+/* Compact workflow and model control blocks. */
+#rf-agent-graph{gap:5px}
+#rf-agent-graph .rf-graph-heading{padding-bottom:4px}
+#rf-agent-graph .rf-graph-stages{margin-top:7px;margin-bottom:5px}
+#rf-agent-graph .rf-graph-stage{gap:3px;padding:5px 1px 4px;font-size:10px}
+#rf-agent-graph .rf-stage-icon{width:17px;height:17px;font-size:11px}
+#rf-agent-graph .rf-graph-stage:not(:last-child)::after{top:12px}
+#rf-agent-graph .rf-orchestrator-controls{margin-top:4px;padding:8px 9px;gap:6px}
+#rf-agent-graph .rf-orchestrator-heading{margin-bottom:3px}
+#rf-agent-graph .rf-orchestrator-model-row{gap:4px;min-height:20px}
+#rf-agent-graph .rf-model-caption{font-size:9px}
+#rf-agent-graph #current-model-display{font-size:10px}
+#rf-agent-graph .rf-orchestrator-progress{height:3px}
+#rf-agent-graph #orchestrator-settings{gap:6px;padding-top:4px}
+
+/* Explorer names and paths can be selected and copied. */
+#file-tree,.tree-folder,.tree-file-item,.tree-node-name{user-select:text!important;-webkit-user-select:text!important}
+.tree-folder-toggle{user-select:text!important;-webkit-user-select:text!important}
+.tree-node-name::selection{background:rgba(7,247,122,.28);color:var(--ide-text-primary)}
+
+
+/* Local-first 3D memory sphere widget. Canvas is rendered without remote assets. */
+.rf-memory-widget{position:relative;z-index:60;display:flex;justify-content:center;width:100%;padding:5px 0}
+.rf-memory-widget-toggle{width:46px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border:1px solid var(--ide-border-subtle);border-radius:11px;background:rgba(7,247,122,.055);color:var(--ide-text-muted);font:700 7px 'JetBrains Mono',monospace;cursor:pointer;overflow:hidden;transition:border-color .2s,background .2s}
+.rf-memory-widget-toggle:hover,.rf-memory-widget.is-open .rf-memory-widget-toggle{border-color:var(--ide-accent);background:rgba(7,247,122,.10);color:var(--ide-accent)}
+#rf-memory-sphere-mini{width:38px;height:38px;display:block}
+.rf-memory-widget-popover{position:absolute;left:54px;bottom:0;width:204px;padding:10px;border:1px solid var(--ide-border-subtle);border-radius:14px;background:rgba(12,28,21,.84);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 18px 48px rgba(0,0,0,.38)}
+.rf-memory-widget-popover.hidden{display:none}
+.rf-memory-widget-heading{display:flex;justify-content:space-between;align-items:center;color:var(--ide-text-secondary);font:700 8px 'Inter',sans-serif;letter-spacing:.08em}
+#rf-memory-sphere-large{display:block;width:180px;height:180px;margin:2px auto}
+#rf-memory-widget-status{color:var(--ide-text-muted);font:8px 'JetBrains Mono',monospace;text-align:center}
+.rf-memory-widget.is-active .rf-memory-widget-toggle{border-color:#22d3ee;box-shadow:0 0 12px rgba(34,211,238,.18)}
+
+
+/* Shared transparent backdrop for dynamically-created dialogs and tooltips. */
+.rf-modal-backdrop{background:rgba(4,18,11,.48)!important;-webkit-backdrop-filter:blur(7px)!important;backdrop-filter:blur(7px)!important}
+[data-rf-tooltip]::after{background:rgba(17,25,21,.74)!important;-webkit-backdrop-filter:blur(8px)!important;backdrop-filter:blur(8px)!important}
+
+
+/* Persistent memory graph: reserved lower third of the left workspace sidebar. */
+#file-explorer-col{min-height:0}
+#rf-memory-widget.rf-memory-widget{
+    position:relative;z-index:2;flex:0 0 43.2%;min-height:282px;max-height:48%;
+    width:100%;padding:10px 10px 8px;margin-top:auto;display:flex;flex-direction:column;
+    justify-content:flex-start;gap:5px;overflow:hidden;
+    border-top:1px solid var(--ide-border-subtle);
+    background:linear-gradient(180deg,rgba(7,247,122,.035),rgba(10,25,19,.10));
+}
+.rf-memory-widget-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;flex:0 0 auto;
+    color:var(--ide-text-secondary);font:700 9px 'Inter',sans-serif;letter-spacing:.09em}
+.rf-memory-heading-title{display:flex;align-items:center;gap:7px}
+.rf-memory-live-dot{width:6px;height:6px;border-radius:50%;background:#39e6ad;box-shadow:0 0 9px rgba(57,230,173,.75)}
+#rf-memory-widget.is-querying .rf-memory-live-dot{background:var(--ide-accent);box-shadow:0 0 12px var(--ide-accent);animation:rf-memory-pulse .8s ease-in-out infinite alternate}
+@keyframes rf-memory-pulse{to{opacity:.35;transform:scale(.72)}}
+#rf-memory-widget-count,#rf-memory-widget-edges{font:8px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap}
+#rf-memory-sphere{display:block;width:100%;height:clamp(94px,13vh,145px);min-height:94px;flex:0 0 auto}
+.rf-memory-widget-stats{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+#rf-memory-widget-status{font:8px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-memory-activity-heading{font:700 8px 'Inter',sans-serif;letter-spacing:.08em;color:var(--ide-text-muted);padding-top:4px;border-top:1px solid rgba(120,180,160,.12)}
+.rf-memory-activity{display:flex;flex-direction:column;gap:3px;min-height:0;overflow:hidden}
+.rf-memory-activity-row{display:flex;align-items:center;gap:6px;min-width:0;min-height:17px;color:var(--ide-text-secondary)}
+.rf-memory-activity-pulse{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#47dcb5;box-shadow:0 0 7px rgba(7,247,122,.65)}
+.rf-memory-activity-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:1px}
+.rf-memory-activity-copy b{font:600 8px 'Inter',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-memory-activity-copy small{font:7px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-memory-activity-row time{font:7px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap}
+.rf-memory-activity-empty{font:8px 'JetBrains Mono',monospace;color:var(--ide-accent);padding:4px 0}
+@media(max-height:760px){
+    #rf-memory-widget.rf-memory-widget{min-height:234px;flex-basis:40.8%;padding:8px 10px 6px}
+    #rf-memory-sphere{height:94px;min-height:94px}
+    .rf-memory-activity-row{min-height:17px}
+}
+@media(max-width:900px){#rf-memory-widget.rf-memory-widget{min-height:170px}}
+
+
+/* Memory graph collapse control and always-visible 3D empty-state scaffold. */
+#rf-memory-widget .rf-memory-widget-heading{width:100%;min-height:22px}
+#rf-memory-widget .rf-memory-widget-toggle{
+    width:22px;height:20px;min-width:22px;display:flex;align-items:center;justify-content:center;
+    padding:0;border:1px solid var(--ide-border-subtle);border-radius:5px;
+    background:rgba(120,180,160,.07);color:var(--ide-text-muted);cursor:pointer;
+    transition:background .18s,border-color .18s,transform .18s;
+}
+#rf-memory-widget .rf-memory-widget-toggle:hover{border-color:var(--ide-accent);color:var(--ide-accent);background:rgba(7,247,122,.10)}
+#rf-memory-widget-body{display:flex;flex:1;min-height:0;flex-direction:column;gap:5px;overflow:hidden}
+#rf-memory-widget.is-collapsed{flex:0 0 28px;height:28px;min-height:28px;max-height:28px;padding:3px 8px;margin-top:auto;border-top:0;background:transparent;box-shadow:none}
+#rf-memory-widget.is-collapsed #rf-memory-widget-body{display:none}
+#rf-memory-widget.is-collapsed .rf-memory-widget-toggle i{transform:rotate(180deg)}
+#rf-memory-widget .rf-memory-widget-toggle i{transition:transform .18s}
+#rf-memory-sphere{min-height:110px!important;height:clamp(132px,18vh,190px)!important;flex:1 1 auto!important}
+@media(max-height:760px){#rf-memory-sphere{min-height:115px!important;height:115px!important;flex:0 0 115px!important}}
+
+
+/* Larger memory sphere and translucent persistent error notifications. */
+#rf-memory-sphere{height:clamp(150px,22vh,220px)!important;min-height:150px!important;flex:1 1 auto!important}
+@media(max-height:760px){#rf-memory-sphere{height:145px!important;min-height:145px!important;flex:0 0 145px!important}}
+.rf-toast-notification{background:rgba(16,32,24,.40)!important;-webkit-backdrop-filter:blur(12px)!important;backdrop-filter:blur(12px)!important}
+
+
+/* Memory graph: keep the globe and activity feed inside the sidebar card. */
+#rf-memory-widget.rf-memory-widget{
+    flex:0 1 43%;
+    min-height:220px;
+    max-height:48%;
+    overflow:hidden;
+}
+#rf-memory-widget-body{
+    flex:1 1 0;
+    min-height:0;
+    gap:4px;
+    overflow:hidden;
+}
+#rf-memory-sphere{
+    display:block;
+    width:100%;
+    height:auto!important;
+    min-height:105px!important;
+    max-height:none!important;
+    flex:1 1 125px!important;
+    align-self:stretch;
+}
+#rf-memory-widget .rf-memory-widget-stats,
+#rf-memory-widget .rf-memory-activity-heading{flex:0 0 auto}
+#rf-memory-activity{
+    flex:0 1 76px;
+    min-height:22px;
+    max-height:76px;
+    overflow-y:auto;
+    overflow-x:hidden;
+    scrollbar-width:thin;
+}
+#rf-memory-activity .rf-memory-activity-row{min-height:17px}
+@media(max-height:760px){
+    #rf-memory-widget.rf-memory-widget{flex-basis:41%;min-height:190px;max-height:48%;padding:7px 9px 6px}
+    #rf-memory-sphere{min-height:92px!important;flex-basis:100px!important}
+    #rf-memory-activity{flex-basis:55px;max-height:55px}
+}
+@media(max-height:620px){
+    #rf-memory-widget.rf-memory-widget{min-height:168px}
+    #rf-memory-sphere{min-height:78px!important;flex-basis:82px!important}
+    #rf-memory-activity{flex-basis:38px;max-height:38px}
+}
+
+
+/* Memory graph restore handle shown when the full sidebar card is hidden. */
+.rf-memory-widget-restore{
+    display:none;flex:0 0 28px;min-height:28px;width:100%;margin-top:auto;
+    align-items:center;justify-content:center;gap:7px;padding:3px 8px;
+    border:1px solid var(--ide-border-subtle);border-radius:7px;
+    background:rgba(7,247,122,.045);color:var(--ide-text-muted);
+    font:700 8px 'JetBrains Mono',monospace;letter-spacing:.08em;cursor:pointer;
+}
+.rf-memory-widget-restore:hover{border-color:var(--ide-accent);color:var(--ide-accent);background:rgba(7,247,122,.10)}
+
+
+/* Memory graph: let the rotating globe occupy the full card; UI stays overlaid. */
+#rf-memory-widget.rf-memory-widget{position:relative}
+#rf-memory-widget-body{position:relative;display:block!important;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important}
+#rf-memory-sphere{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;max-height:none!important;flex:none!important;z-index:0}
+#rf-memory-widget .rf-memory-widget-stats{position:absolute;left:8px;right:8px;top:4px;z-index:4;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+#rf-memory-widget .rf-memory-activity-heading{position:absolute;left:8px;bottom:82px;z-index:4;padding:2px 5px;border-radius:4px;background:rgba(5,12,20,.48);pointer-events:none}
+#rf-memory-activity{position:absolute;left:7px;right:7px;bottom:5px;z-index:4;flex:none!important;width:auto;max-height:72px!important;min-height:0!important;padding:3px 5px;border:1px solid rgba(130,155,190,.12);border-radius:6px;background:rgba(5,12,20,.42);backdrop-filter:blur(3px);overflow-y:auto}
+#rf-memory-activity .rf-memory-activity-row{background:transparent}
+@media(max-height:760px){#rf-memory-activity{max-height:52px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:60px}}
+@media(max-height:620px){#rf-memory-activity{max-height:36px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:44px}}

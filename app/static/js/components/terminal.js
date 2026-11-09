@@ -1,7 +1,8 @@
 /**
  * Terminal UI Controller with Real-Time Agent Execution Stream & Persistent Storage.
  */
-import { workspacesApi, sessionsApi } from "../core/api_http_client.js";
+import { workspacesApi, sessionsApi, approvalsApi, projectsApi } from "../core/api_http_client.js";
+import { showCommandApprovalModal, showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
 let currentSessionId = null;
@@ -9,6 +10,10 @@ let saveQueue = [];
 let isSaving = false;
 let terminalIdentity = { username: "user", hostname: "localhost" };
 let terminalIdentityPromise = Promise.resolve();
+let approvalPollTimer = null;
+let approvalPollRunning = false;
+let approvalDialogOpen = false;
+const activeApprovalDialogs = new Set();
 
 async function flushSaveQueue() {
     if (isSaving || !currentSessionId || saveQueue.length === 0) return;
@@ -32,6 +37,10 @@ function queueSave(entryType, content) {
 
 export const terminalUIController = {
     init() {
+        if (!approvalPollTimer) {
+            approvalPollTimer = setInterval(() => this.pollCommandApprovals(), 700);
+            this.pollCommandApprovals();
+        }
         terminalIdentityPromise = workspacesApi.environment().then((environment) => {
             terminalIdentity = {
                 username: environment.username || "user",
@@ -48,7 +57,7 @@ export const terminalUIController = {
                 this.appendPromptLine(cmd, true);
                 try {
                     const activeProjectId = localStorage.getItem("rf_active_project_id") || "";
-                    const res = await workspacesApi.execute(cmd, null, null, activeProjectId);
+                    const res = await workspacesApi.execute(cmd, null, null, activeProjectId, currentSessionId);
                     if (res.stdout) {
                         this.appendOutput(res.stdout, "text-slate-200", true);
                     }
@@ -83,6 +92,57 @@ export const terminalUIController = {
                 }
             }
         });
+    },
+
+    async pollCommandApprovals() {
+        if (approvalPollRunning || approvalDialogOpen) return;
+        approvalPollRunning = true;
+        try {
+            const data = await approvalsApi.pending();
+            for (const item of (data.pending || [])) {
+                if (approvalDialogOpen || activeApprovalDialogs.has(item.pending_id)) break;
+                activeApprovalDialogs.add(item.pending_id);
+                approvalDialogOpen = true;
+                (async () => {
+                    try {
+                        const [projectData, workspaceData] = await Promise.all([
+                            projectsApi.list().catch(() => ({ projects: [] })),
+                            workspacesApi.list(item.project_id || null).catch(() => ({ workspaces: [] })),
+                        ]);
+                        const projectList = Array.isArray(projectData) ? projectData : (projectData.projects || []);
+                        const workspaceList = Array.isArray(workspaceData) ? workspaceData : (workspaceData.workspaces || []);
+                        const projectName = projectList.find((project) => String(project.id) === String(item.project_id))?.name || (item.project_id ? "Project" : "");
+                        const workspaceName = workspaceList.find((workspace) => String(workspace.id) === String(item.workspace_id))?.name || (item.workspace_id ? "Workspace" : "");
+                        const context = [
+                            `Target: ${item.target || "local"}`,
+                            workspaceName ? `Workspace: ${workspaceName}` : "",
+                            projectName ? `Project: ${projectName}` : "",
+                            item.cwd ? `Working directory: ${item.cwd}` : "",
+                            item.session_id ? "Session: active" : "",
+                        ].filter(Boolean).join(" · ");
+                        const choice = await showCommandApprovalModal(item.command, context, {
+                            sessionAvailable: !!item.session_id,
+                            workspaceAvailable: !!item.workspace_id,
+                            projectAvailable: !!item.project_id,
+                        });
+                        if (choice === "cancelled") return;
+                        await approvalsApi.decide(item.pending_id, choice || "deny");
+                        if (choice === "deny") showToast("Command denied. It was not executed.", "warning");
+                    } catch (error) {
+                        console.error("Command approval decision failed:", error);
+                        showToast(`Failed to submit approval decision: ${error.message}`, "error");
+                    } finally {
+                        activeApprovalDialogs.delete(item.pending_id);
+                        approvalDialogOpen = false;
+                    }
+                })();
+                break;
+            }
+        } catch (error) {
+            // Authentication may not be ready during initial page load.
+        } finally {
+            approvalPollRunning = false;
+        }
     },
 
     async setSession(sessionId) {

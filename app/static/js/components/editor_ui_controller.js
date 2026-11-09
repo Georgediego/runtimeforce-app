@@ -8,8 +8,25 @@ import { eventBus } from "../core/event_bus.js";
 let editor = null;
 let currentPath = null;
 let isDirty = false;
+let monacoLoadPromise = null;
 
 export const editorUIController = {
+    async ensureMonaco() {
+        if (window.monaco?.editor) return window.monaco;
+        if (!window.require) return null;
+        if (!monacoLoadPromise) {
+            monacoLoadPromise = new Promise((resolve) => {
+                try {
+                    window.require(["vs/editor/editor.main"], () => resolve(window.monaco?.editor ? window.monaco : null), () => resolve(null));
+                } catch (error) {
+                    console.warn("Monaco loader failed:", error);
+                    resolve(null);
+                }
+            });
+        }
+        return monacoLoadPromise;
+    },
+
     init() {
         document.getElementById("editor-save-btn")?.addEventListener("click", () => this.save());
         document.getElementById("editor-close-btn")?.addEventListener("click", () => this.closeWithConfirmation());
@@ -44,10 +61,11 @@ export const editorUIController = {
         try {
             const activeProjectId = localStorage.getItem("rf_active_project_id");
             const data = await workspacesApi.file(path, activeProjectId);
+            const monacoApi = await this.ensureMonaco();
             container.innerHTML = "";
-            if (window.monaco) {
+            if (monacoApi?.editor) {
                 if (editor) editor.dispose();
-                editor = monaco.editor.create(container, {
+                editor = monacoApi.editor.create(container, {
                     value: data.content || "",
                     language: this.detectLanguage(path),
                     theme: document.documentElement.classList.contains("light") ? "vs" : "vs-dark",
@@ -125,7 +143,15 @@ export const editorUIController = {
 
     detectLanguage(path) {
         const ext = (path.split(".").pop() || "").toLowerCase();
-        const map = { py: "python", js: "javascript", ts: "typescript", json: "json", html: "html", css: "css", md: "markdown" };
+        const map = {
+            py: "python", pyw: "python", js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+            ts: "typescript", tsx: "typescript", json: "json", jsonc: "json", html: "html", htm: "html",
+            css: "css", scss: "scss", less: "less", md: "markdown", mdx: "markdown",
+            yml: "yaml", yaml: "yaml", xml: "xml", svg: "xml", sh: "shell", bash: "shell",
+            zsh: "shell", sql: "sql", go: "go", rs: "rust", java: "java", kt: "kotlin",
+            c: "c", h: "c", cpp: "cpp", hpp: "cpp", cs: "csharp", php: "php",
+            rb: "ruby", swift: "swift", toml: "ini", ini: "ini", dockerfile: "dockerfile"
+        };
         return map[ext] || "plaintext";
     }
 };

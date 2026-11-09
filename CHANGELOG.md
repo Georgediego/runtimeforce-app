@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.16] - 2026-11-10
+
+### Added
+- Add a live 3D Runtime Graph sphere built from real SQLite memory nodes and relationships, workspace topology, providers, models, chat modes, and agent roles.
+- Add live host resource monitoring and command-approval safeguards for shell execution.
+- Add IDE error reporting and developer inbox feedback with remote resolution notifications.
+
+### Changed
+- Keep the graph continuously rotating, accelerate it during assistant generation, and visualize real agent and memory activity throughout the full response lifecycle.
+- Preserve the assigned color of every activated graph node while keeping untouched nodes green.
+- Improve workspace navigation, editor language detection, and agent execution visibility.
+
+### Fixed
+- Improve cancellation and Stop acknowledgement so pending approvals, running commands, and chat WebSocket state are cleaned up reliably.
+- Improve memory graph retrieval, persistence, live event delivery, and graph refresh behavior.
+
 ## [1.1.15] - 2026-11-07
 
 ### Changed

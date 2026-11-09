@@ -36,6 +36,13 @@ class WorkspaceSSHDriver(IWorkspaceDriver):
     async def execute_command(
         self, command: str, cwd: Optional[str] = None, timeout: float = 30.0, env: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
+        approval_service = getattr(self, "command_approval_service", None)
+        if approval_service:
+            await approval_service.require_approval(
+                command,
+                getattr(self, "command_approval_metadata", {}),
+                cwd=cwd,
+            )
         if env:
             raise NotImplementedError("env is not supported for SSH workspaces")
         await self._ensure_connected()

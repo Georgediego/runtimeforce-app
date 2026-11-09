@@ -83,11 +83,11 @@ export const workspacesApi = {
             body: JSON.stringify({ path, content, project_id: pid }),
         });
     },
-    execute: (command, cwd = null, password = null, projectId = null) => {
+    execute: (command, cwd = null, password = null, projectId = null, sessionId = null) => {
         const pid = resolveProjectId(projectId);
         return request("/api/v1/workspaces/execute", {
             method: "POST",
-            body: JSON.stringify({ command, cwd, password, project_id: pid }),
+            body: JSON.stringify({ command, cwd, password, project_id: pid, session_id: sessionId }),
         });
     },
 };
@@ -203,3 +203,12 @@ export const supportApi = {
     listTickets: () => request("/api/v1/support/tickets"),
 };
 
+
+
+export const approvalsApi = {
+    pending: () => request("/api/v1/approvals/pending"),
+    decide: (pendingId, choice) => request(`/api/v1/approvals/${encodeURIComponent(pendingId)}/decision`, {
+        method: "POST",
+        body: JSON.stringify({ choice }),
+    }),
+};

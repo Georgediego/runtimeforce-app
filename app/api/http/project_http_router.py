@@ -58,10 +58,17 @@ async def create_project(
     entitlements = await license_service.get_entitlements(token)
     if not entitlements.get("valid"):
         raise HTTPException(403, detail="Account entitlements could not be verified")
-    if (entitlements.get("features") or {}).get("projects") is not True:
-        raise HTTPException(403, detail="Project creation is not enabled for this plan")
     limits = entitlements.get("limits") or {}
+    # Project access is derived from the authoritative project limit.
+    # Do not require a duplicate features.projects flag: cached entitlements
+    # may omit it while a dynamic plan still grants project slots.
     max_projects = limits.get("max_projects", 1)
+    try:
+        max_projects = max(0, int(max_projects))
+    except (TypeError, ValueError):
+        max_projects = 0
+    if max_projects <= 0:
+        raise HTTPException(403, detail="Project creation is not enabled for this plan")
     res = service.create_project(user_id, payload.dict(), plan=entitlements.get("plan", "free"), max_projects=max_projects)
     if "error" in res and res.get("status") == "limit_reached":
         raise HTTPException(403, detail=res["error"])

@@ -83,23 +83,39 @@ export const fileTreeUIController = {
         const isDir = child.is_dir || child.type === "directory";
         if (isDir) {
             return `
-                <div class="tree-folder" data-path="${child.path}">
+                <div class="tree-folder" data-path="${child.path}" title="${child.path}">
                     <div class="tree-folder-toggle flex items-center gap-1.5 py-1 text-sm cursor-pointer hover:bg-[var(--ide-elevated)] px-2 rounded select-none">
                         <i data-lucide="chevron-right" class="w-3 h-3 text-[var(--ide-text-muted)] tree-chevron transition-transform duration-150"></i>
                         <i data-lucide="folder" class="w-3.5 h-3.5 text-[var(--ide-accent)]"></i>
-                        <span class="truncate text-xs">${child.name}</span>
+                        <span class="tree-node-name truncate text-xs">${child.name}</span>
                     </div>
                     <div class="tree-folder-children hidden pl-4"></div>
                 </div>`;
         }
         return `
-            <div class="tree-file-item flex items-center gap-1.5 py-1 text-sm cursor-pointer hover:bg-[var(--ide-elevated)] px-2 rounded select-none" data-path="${child.path}" data-name="${child.name}">
+            <div class="tree-file-item flex items-center gap-1.5 py-1 text-sm cursor-pointer hover:bg-[var(--ide-elevated)] px-2 rounded" data-path="${child.path}" data-name="${child.name}" title="${child.path}">
                 <i data-lucide="file-code" class="w-3.5 h-3.5 text-[var(--ide-text-muted)]"></i>
                 <span class="truncate text-xs">${child.name}</span>
             </div>`;
     },
 
     bindTreeEvents(container) {
+        container.querySelectorAll(".tree-file-item, .tree-folder").forEach((item) => {
+            item.addEventListener("contextmenu", async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const path = item.dataset.path || "";
+                if (!path) return;
+                try {
+                    await navigator.clipboard.writeText(path);
+                    const previous = item.title;
+                    item.title = "Copied: " + path;
+                    setTimeout(() => { item.title = previous || path; }, 1200);
+                } catch (error) {
+                    console.warn("Could not copy workspace path:", error);
+                }
+            });
+        });
         container.querySelectorAll(".tree-file-item").forEach((item) => {
             item.addEventListener("click", () => {
                 eventBus.emit("file:open", { path: item.dataset.path, name: item.dataset.name });

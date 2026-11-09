@@ -4,6 +4,7 @@ IWorkspaceDriver implementation for Local Filesystem with Path Traversal Sandbox
 import os
 import asyncio
 import logging
+import signal
 from typing import Dict, Any, List, Optional
 from app.core.interfaces.workspace_driver_interface import IWorkspaceDriver
 
@@ -52,6 +53,13 @@ class WorkspaceLocalDriver(IWorkspaceDriver):
     async def execute_command(
         self, command: str, cwd: Optional[str] = None, timeout: float = 30.0, password: Optional[str] = None, env: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
+        approval_service = getattr(self, "command_approval_service", None)
+        if approval_service:
+            await approval_service.require_approval(
+                command,
+                getattr(self, "command_approval_metadata", {}),
+                cwd=cwd,
+            )
         work_dir = self._resolve(cwd) if cwd else self.root
         exec_cmd = command
 
@@ -73,17 +81,33 @@ class WorkspaceLocalDriver(IWorkspaceDriver):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env_vars,
+                start_new_session=True,
             )
             self._active_procs.append(proc)
             try:
                 stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             except asyncio.TimeoutError:
                 try:
-                    proc.kill()
-                except ProcessLookupError:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
                     pass
                 await proc.communicate()
                 return {"stdout": "", "stderr": f"Command timed out after {timeout}s", "exit_code": -124, "cwd": work_dir}
+            except asyncio.CancelledError:
+                logger.info("Stopping workspace command process group pid=%s", proc.pid)
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    pass
+                try:
+                    await asyncio.wait_for(proc.communicate(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except (ProcessLookupError, PermissionError):
+                        pass
+                    await proc.communicate()
+                raise
             finally:
                 if proc in self._active_procs:
                     self._active_procs.remove(proc)
@@ -151,7 +175,7 @@ class WorkspaceLocalDriver(IWorkspaceDriver):
         for proc in self._active_procs:
             try:
                 if proc.returncode is None:
-                    proc.kill()
+                    os.killpg(proc.pid, signal.SIGTERM)
             except Exception:
                 pass
         self._active_procs.clear()

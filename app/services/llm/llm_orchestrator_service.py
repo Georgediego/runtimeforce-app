@@ -43,7 +43,8 @@ class LLMOrchestratorService:
         model_name: str,
         messages: List[Dict[str, str]],
         temperature: float = 0.2,
-        timeout: float = 45.0
+        timeout: float = 45.0,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Direct native ndjson streaming to Ollama without truncating full system/graph context."""
         clean_url = api_base.rstrip("/").replace("/v1", "")
@@ -58,8 +59,11 @@ class LLMOrchestratorService:
                 "num_ctx": 8192
             }
         }
+        if tools:
+            payload["tools"] = tools
 
         client_timeout = httpx.Timeout(timeout, connect=5.0, read=timeout)
+        emitted_tool_calls = False
         async with httpx.AsyncClient(timeout=client_timeout) as client:
             async with client.stream("POST", endpoint, json=payload) as response:
                 if response.status_code != 200:
@@ -74,6 +78,23 @@ class LLMOrchestratorService:
                         content = msg_chunk.get("content", "")
                         if content:
                             yield {"status": "streaming", "content": content}
+                        native_calls = msg_chunk.get("tool_calls") or []
+                        if native_calls and not emitted_tool_calls:
+                            normalized_calls = []
+                            for index, native_call in enumerate(native_calls):
+                                function = native_call.get("function") or {}
+                                name = function.get("name")
+                                if not name:
+                                    continue
+                                arguments = function.get("arguments") or {}
+                                normalized_calls.append({
+                                    "id": native_call.get("id") or f"ollama_call_{index}_{int(time.time())}",
+                                    "name": name,
+                                    "arguments": arguments,
+                                })
+                            if normalized_calls:
+                                emitted_tool_calls = True
+                                yield {"status": "tool_calls", "calls": normalized_calls}
                         if chunk_json.get("done"):
                             break
                     except Exception:
@@ -143,14 +164,16 @@ class LLMOrchestratorService:
             clean_name = model_id.replace("ollama/", "")
             base_url = api_base or "http://localhost:11434"
             full_text = ""
+            native_tool_calls = False
             start_t = time.time()
             try:
-                async for chunk in self._stream_native_ollama(base_url, clean_name, messages, temperature=temperature, timeout=STREAM_LOCAL_TIMEOUT):
+                async for chunk in self._stream_native_ollama(base_url, clean_name, messages, temperature=temperature, timeout=STREAM_LOCAL_TIMEOUT, tools=tools):
                     full_text += chunk.get("content", "")
+                    native_tool_calls = native_tool_calls or chunk.get("status") == "tool_calls"
                     yield chunk
                 
-                if full_text.strip():
-                    logger.info(f"[Orchestrator] Native Ollama {clean_name} streamed {len(full_text)} chars in {int((time.time()-start_t)*1000)}ms")
+                if full_text.strip() or native_tool_calls:
+                    logger.info(f"[Orchestrator] Native Ollama {clean_name} completed with {len(full_text)} text chars and tool_calls={native_tool_calls} in {int((time.time()-start_t)*1000)}ms")
                     return
             except Exception as e:
                 err_desc = f"{type(e).__name__}: {str(e) or 'timeout'}"
@@ -169,6 +192,10 @@ class LLMOrchestratorService:
         # Cloud Models via LiteLLM: Full untouched context
         is_local_model = provider in ("lm_studio", "local") or model_id.startswith("local/")
         active_timeout = STREAM_LOCAL_TIMEOUT if is_local_model else STREAM_CLOUD_TIMEOUT
+        logger.info(
+            "[Orchestrator] STREAM START provider=%s model=%s strategy=%s timeout=%ss user=%s",
+            provider, model_id, strategy, active_timeout, user_id
+        )
 
         effective_max_tokens = max_tokens
         if provider == "openrouter" and ":free" not in model_id.lower():
@@ -200,7 +227,7 @@ class LLMOrchestratorService:
                     kwargs["api_key"] = api_key
                 if api_base:
                     kwargs["api_base"] = api_base
-                if tools and not is_local_model:
+                if tools:
                     kwargs["tools"] = tools
 
                 completion_coro = litellm.acompletion(**kwargs)
@@ -282,7 +309,7 @@ class LLMOrchestratorService:
                 error_str = str(e)
 
                 if _is_midstream_error(error_str):
-                    logger.info(f"[Orchestrator] Stream dropped on {model_id} — triggering safe fallback")
+                    logger.warning(f"[Orchestrator] STREAM DROPPED provider={provider} model={model_id}: {error_str[:500]}")
                     if self.rotation_service:
                         self.rotation_service.report_failure(model_id, provider, error_str)
                     yield {

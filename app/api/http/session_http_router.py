@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.container import (
+    container,
     get_conversation_repo,
     get_llm_orchestrator,
     get_project_service,
@@ -249,5 +250,8 @@ async def delete_session(
     user_id: str = Depends(require_authenticated_user),
     repo: ConversationDBRepository = Depends(get_conversation_repo)
 ):
+    if repo.get_session_owner(session_id) != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await container.command_approval_service.close_session(session_id)
     repo.delete_session(session_id)
     return {"status": "success", "message": f"Session {session_id} deleted."}

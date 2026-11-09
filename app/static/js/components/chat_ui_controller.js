@@ -20,6 +20,7 @@ let currentAgentModel = "";
 let attachedFiles = [];
 let lastUserPrompt = "";
 let isGenerating = false;
+let isStopping = false;
 let isFirstMessageOfSession = true;
 let executionTimer = null;
 let elapsedSeconds = 0;
@@ -78,7 +79,11 @@ export const chatUIController = {
 
         sendBtn?.addEventListener("click", () => {
             if (isGenerating) this.abortGeneration();
-            else this.sendMessage();
+            else if (!isStopping) this.sendMessage();
+        });
+        window.addEventListener("rf:agent-stop-ack", () => {
+            isStopping = false;
+            this.setGeneratingState(false);
         });
 
         document.getElementById("stop-gen-btn")?.addEventListener("click", () => this.abortGeneration());
@@ -262,12 +267,14 @@ export const chatUIController = {
 
     setGeneratingState(active) {
         isGenerating = active;
+        eventBus.emit("generation:state", { active: Boolean(active) });
         const sendBtn = document.getElementById("send-btn");
         const stopBtn = document.getElementById("stop-gen-btn");
         const statusBadge = document.getElementById("orchestrator-status-badge");
 
         if (active) {
             if (sendBtn) {
+                sendBtn.disabled = false;
                 sendBtn.className = "bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer shadow-lg";
                 sendBtn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i>`;
                 sendBtn.title = "Stop Generation";
@@ -281,6 +288,7 @@ export const chatUIController = {
                 sendBtn.innerHTML = `<i data-lucide="arrow-up" class="w-4 h-4"></i>`;
                 sendBtn.title = "Send Message";
             }
+            if (sendBtn) sendBtn.disabled = isStopping;
             if (stopBtn) stopBtn.classList.add("hidden");
             if (statusBadge) statusBadge.classList.add("hidden");
             setTimeout(() => this.setOrchestratorProgress(0), 1000);
@@ -289,13 +297,23 @@ export const chatUIController = {
     },
 
     abortGeneration() {
+        if (isStopping) return;
+        isStopping = true;
         userAbortedGeneration = true;
         generationFinalized = true;
-        if (wsClient) {
-            wsClient.abort();
-            wsClient.close();
+        window.dispatchEvent(new Event("rf:cancel-command-approval"));
+        const activeClient = wsClient;
+        if (activeClient) {
+            activeClient.abort();
             wsClient = null;
         }
+        // Fallback for a lost acknowledgement; normally the backend closes after cancellation.
+        setTimeout(() => {
+            if (!isStopping) return;
+            activeClient?.close();
+            isStopping = false;
+            this.setGeneratingState(false);
+        }, 2500);
         this.stopExecutionTimer();
         showToast("Generation aborted", "info");
         this.setGeneratingState(false);
@@ -499,7 +517,7 @@ export const chatUIController = {
     },
 
     async sendMessage(overrideText = null, isEditing = false, existingMessageId = null) {
-        if (isGenerating && overrideText === null) return;
+        if (isStopping || (isGenerating && overrideText === null)) return;
         const input = document.getElementById("prompt-input");
         const rawUserPrompt = overrideText !== null ? overrideText : input?.value.trim() || "";
         if (!rawUserPrompt && !attachedFiles.length) return;
@@ -652,27 +670,36 @@ export const chatUIController = {
         try {
             const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
             if (!token) throw new Error("Authentication token is missing. Please sign in again.");
-            const response = await fetch("https://runtimeforce.dev/api/v1/mail/report", {
+            const clientInstanceId = localStorage.getItem("rf_client_instance_id") || (crypto.randomUUID ? crypto.randomUUID() : "rf-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+            localStorage.setItem("rf_client_instance_id", clientInstanceId);
+            const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports", {
                 method: "POST",
+                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": "Bearer " + token.replace(/^Bearer\s+/i, "")
                 },
                 body: JSON.stringify({
-                    error: errText,
-                    session_id: currentSessionId || "",
-                    prompt: lastUserPrompt || "",
-                    partial_response: fullResponseText || "",
-                    model: currentAgentModel || "",
-                    strategy: document.getElementById("strategy-select")?.value || "",
-                    app_version: document.getElementById("active-project-ver-display")?.textContent?.trim() || "",
-                    user_agent: navigator.userAgent || ""
+                    title: ("Generation failure: " + (currentAgentModel || "model")).slice(0, 180),
+                    message: errText,
+                    component: "LLM Generation",
+                    diagnostics: {
+                        session_id: currentSessionId || "",
+                        prompt: String(lastUserPrompt || "").slice(0, 4000),
+                        partial_response: String(fullResponseText || "").slice(0, 4000),
+                        model: currentAgentModel || "",
+                        strategy: document.getElementById("strategy-select")?.value || "",
+                        app_version: document.getElementById("active-project-ver-display")?.textContent?.trim() || "",
+                        user_agent: navigator.userAgent || "",
+                        occurred_at: new Date().toISOString(),
+                        client_instance_id: clientInstanceId
+                    }
                 })
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.detail || ("HTTP " + response.status));
-            button.textContent = "Report sent";
-            if (status) status.textContent = "Отчёт отправлен на errors@runtimeforce.dev";
+            button.textContent = "Report submitted";
+            if (status) status.textContent = "Report submitted to Bug Reports.";
         } catch (error) {
             button.disabled = false;
             button.textContent = originalLabel || "Send to developer";

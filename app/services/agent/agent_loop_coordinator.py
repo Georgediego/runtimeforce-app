@@ -27,6 +27,17 @@ RUNTIMEFORCE_ATM_SYSTEM_DIRECTIVE = """
 You are the principal autonomous Software Engineering Agent in RuntimeForce AI Runtime Environment.
 You have direct, real filesystem and terminal execution capabilities.
 
+ACTIVE WORKSPACE ACCESS (IMPORTANT):
+- The currently connected Workspace is your authorized working directory and is already available through RuntimeForce workspace tools.
+- When asked to inspect, read, search, modify, test, or run the connected project, invoke the matching RuntimeForce workspace tool immediately in the current turn.
+- Tool calls are available in every chat mode, including Manual, Auto, ATM, and Coding. A mode change changes orchestration behavior, not Workspace permissions.
+- Never claim that Workspace access is missing when a connected workspace driver is present. Do not ask the user to provide paths or run listing/read commands that the tools can perform.
+- Treat the user's task as an instruction to act, not as a request for suggestions. Execute every safe, authorized step; ask only before destructive or elevated actions requiring approval.
+- Do not promise tool execution in prose: emit an actual tool call, inspect its result, and continue until the requested task is complete.
+- Use workspace-relative paths and the provided tools. The workspace driver enforces the configured root and access boundaries.
+- Local workspaces are read from the connected local directory; SSH workspaces use the connected SSH/SFTP-backed tools.
+- Do not claim access to files outside the connected Workspace. If a requested path is outside it, explain the boundary.
+
 CRITICAL INVARIANTS:
 1. STRICT FACTUAL GROUNDING (ZERO TOLERANCE FOR HALLUCINATIONS OR GUESSING):
    - NEVER assert that a file, directory, function, import, or architectural flaw exists or is missing WITHOUT FIRST verifying it using tools (`scan_workspace`, `read_workspace_file`, `search_grep`).
@@ -46,6 +57,9 @@ CRITICAL INVARIANTS:
 
 REFUSAL_PATTERNS = [
     r"не могу напрямую",
+    r"не могу выполнить сканирование",
+    r"без возможности выполнить команды",
+    r"нужен доступ к файлам и директориям",
     r"не могу изменять",
     r"предоставить архитектурные рекомендации",
     r"вы сможете применить",
@@ -151,6 +165,12 @@ class AgentLoopCoordinator:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
+        workspace_task_requested = bool(re.search(
+            r"\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\b|"
+            r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|команд(у|ы|ой|ами)?|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
+            user_prompt,
+            re.IGNORECASE,
+        ))
 
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
@@ -225,12 +245,83 @@ class AgentLoopCoordinator:
         memory_context_str = ""
         if self._context_builder:
             try:
-                context_res = await self._context_builder.build_optimal_context(
-                    user_prompt=user_prompt, session_id=session_id,
-                    user_id=user_id, project_id=project_id, max_context_tokens=8000,
+                # Memory retrieval precedes model routing: independent of provider and orchestrator mode.
+                yield {
+                    "status": "memory_graph",
+                    "phase": "started",
+                    "project_id": project_id,
+                    "mode": strategy_upper,
+                    "model": model_lock or "orchestrator",
+                    "query_active": True,
+                }
+                trace_queue: asyncio.Queue = asyncio.Queue()
+
+                def queue_memory_event(item: Dict[str, Any]) -> None:
+                    trace_queue.put_nowait(item)
+
+                context_task = asyncio.create_task(
+                    self._context_builder.build_optimal_context(
+                        user_prompt=user_prompt, session_id=session_id,
+                        user_id=user_id, project_id=project_id, max_context_tokens=8000,
+                        trace_callback=queue_memory_event,
+                    )
                 )
+                try:
+                    while True:
+                        if not trace_queue.empty():
+                            memory_event = trace_queue.get_nowait()
+                            yield {
+                                "status": "memory_graph",
+                                "phase": "activity",
+                                "project_id": project_id,
+                                "event": memory_event,
+                            }
+                            continue
+                        if context_task.done():
+                            break
+
+                        queue_waiter = asyncio.create_task(trace_queue.get())
+                        try:
+                            done, _ = await asyncio.wait(
+                                {context_task, queue_waiter},
+                                return_when=asyncio.FIRST_COMPLETED,
+                            )
+                            if queue_waiter in done:
+                                yield {
+                                    "status": "memory_graph",
+                                    "phase": "activity",
+                                    "project_id": project_id,
+                                    "event": queue_waiter.result(),
+                                }
+                        finally:
+                            if not queue_waiter.done():
+                                queue_waiter.cancel()
+                                await asyncio.gather(queue_waiter, return_exceptions=True)
+
+                    context_res = await context_task
+                except asyncio.CancelledError:
+                    context_task.cancel()
+                    await asyncio.gather(context_task, return_exceptions=True)
+                    raise
                 memory_context_str = context_res.get("compiled_memory_context", "")
+                active_memory_ids = context_res.get("active_node_ids", [])
+                yield {
+                    "status": "memory_graph",
+                    "phase": "completed",
+                    "active_node_ids": active_memory_ids,
+                    "active_edge_ids": context_res.get("active_edge_ids", []),
+                    "project_id": project_id,
+                    "query_active": False,
+                    "graph_stats": context_res.get("graph_stats", {}),
+                }
             except Exception as e:
+                yield {
+                    "status": "memory_graph",
+                    "phase": "failed",
+                    "project_id": project_id,
+                    "error": str(e)[:180],
+                    "query_active": False,
+                }
                 logger.warning(f"[AgentCoordinator] Context build failed: {e}")
 
         proj_context, proj_rules = "", ""
@@ -391,6 +482,10 @@ class AgentLoopCoordinator:
                 else:
                     current_step_role = "Agent"
 
+                logger.info(
+                    "[AgentCoordinator] MODEL TRY session=%s iteration=%s model=%s provider=%s strategy=%s",
+                    session_id, iteration, model_id, provider, strategy_upper
+                )
                 yield {
                     "status": "model_try",
                     "model": model_id,
@@ -429,6 +524,10 @@ class AgentLoopCoordinator:
                     elif status == "error":
                         has_chunk_error = True
                         error_details = chunk.get("error", "Unknown")
+                        logger.warning(
+                            "[AgentCoordinator] MODEL ERROR session=%s model=%s provider=%s code=%s error=%s",
+                            session_id, model_id, provider, chunk.get("error_code", "unknown"), str(error_details)[:500]
+                        )
                         partial_output_failure = bool(iteration_text or tool_calls)
                         if chunk.get("error_code") in ("STREAM_DROPPED", "TIMEOUT", "LOCAL_TIMEOUT", "LOCAL_UNREACHABLE"):
                             is_stream_dropped = True
@@ -479,6 +578,10 @@ class AgentLoopCoordinator:
 
             if not iteration_success:
                 err_msg = f"All candidate models failed: {error_details or 'No model returned a response.'}"
+                logger.error(
+                    "[AgentCoordinator] ALL MODELS FAILED session=%s strategy=%s candidates=%s error=%s",
+                    session_id, strategy_upper, len(active_candidates), str(error_details)[:1000]
+                )
                 if self._conversation_repo:
                     self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
                 yield {"status": "error", "error": err_msg}
@@ -486,7 +589,7 @@ class AgentLoopCoordinator:
                 return
 
             # Refusal and Blind Speculation Interceptor: Force tool execution before analysis
-            if strategy_upper in ("ATM", "CODING") and not tool_calls and iteration <= 2:
+            if (strategy_upper in ("ATM", "CODING") or workspace_task_requested) and not tool_calls and iteration <= 2:
                 has_refusal = self._contains_conversational_refusal(iteration_text)
                 has_passive_code = "```" in iteration_text or "class " in iteration_text or "def " in iteration_text
                 if has_refusal or has_passive_code:

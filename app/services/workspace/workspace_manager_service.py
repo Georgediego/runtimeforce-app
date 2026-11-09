@@ -19,10 +19,12 @@ class WorkspaceManagerService:
         workspace_repo: WorkspaceDBRepository,
         driver_factory: IWorkspaceDriverFactory,
         project_repo: Optional[Any] = None,
+        command_approval_service: Optional[Any] = None,
     ):
         self.workspace_repo = workspace_repo
         self.driver_factory = driver_factory
         self.project_repo = project_repo
+        self.command_approval_service = command_approval_service
         self._drivers: Dict[str, IWorkspaceDriver] = {}
 
     async def get_driver_for_project(
@@ -51,7 +53,9 @@ class WorkspaceManagerService:
                         "project_id": project_id,
                     }
         if not ws:
-            return await self.get_driver(user_id)
+            # A project without its own workspace must never inherit the user's
+            # globally active workspace (which may point to an unrelated SSH host).
+            return None
         return await self.get_driver_by_workspace_id(ws["id"], user_id, override_ws=ws)
 
     async def get_driver(self, user_id: str) -> Optional[IWorkspaceDriver]:
@@ -68,6 +72,9 @@ class WorkspaceManagerService:
                 return await self.get_driver_by_workspace_id(ws["id"], user_id)
             elif active_project.get("workspace_path") or active_project.get("ssh_host"):
                 return await self.get_driver_for_project(user_id, active_project["id"])
+            # An active project with no workspace is intentionally disconnected.
+            # Never fall through to a different project's globally active SSH/local workspace.
+            return None
 
         active_ws = self.workspace_repo.get_active_workspace(user_id)
         if not active_ws:
@@ -88,12 +95,25 @@ class WorkspaceManagerService:
         existing = self._drivers.get(wid)
         if existing:
             if ws_type == "local" and getattr(existing, "root", "") == norm_path:
+                self._attach_approval(existing, ws, user_id)
                 return existing
 
         driver = self.driver_factory.create_driver(ws, user_id)
         if driver:
             self._drivers[wid] = driver
+            self._attach_approval(driver, ws, user_id)
         return driver
+
+    def _attach_approval(self, driver, ws: Dict[str, Any], user_id: str) -> None:
+        if not self.command_approval_service:
+            return
+        driver.command_approval_service = self.command_approval_service
+        driver.command_approval_metadata = {
+            "user_id": user_id,
+            "workspace_id": str(ws.get("id") or ""),
+            "project_id": str(ws.get("project_id") or ""),
+            "target": "ssh" if ws.get("type") == "ssh" else "local",
+        }
 
     def invalidate_driver(self, wid: str) -> None:
         """Remove cached driver (e.g. after credentials change)."""

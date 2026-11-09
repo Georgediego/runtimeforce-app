@@ -112,21 +112,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("refresh-tree-btn")?.addEventListener("click", () => fileTreeUIController.loadTree(true));
 
+    const syncRightTabs = (preferredPanel = null) => {
+        const visiblePanel = preferredPanel || Array.from(document.querySelectorAll(".right-panel-content"))
+            .find((panel) => !panel.classList.contains("hidden"))?.id?.replace("right-panel-", "") || "chat";
+        document.querySelectorAll(".right-panel-content").forEach((panel) => panel.classList.toggle("hidden", panel.id !== `right-panel-${visiblePanel}`));
+        document.querySelectorAll(".right-tab-btn").forEach((button) => {
+            const active = button.dataset.panel === visiblePanel;
+            button.classList.toggle("border-[var(--ide-accent)]", active);
+            button.classList.toggle("text-[var(--ide-text-primary)]", active);
+            button.classList.toggle("border-transparent", !active);
+            button.classList.toggle("text-[var(--ide-text-muted)]", !active);
+            button.setAttribute("aria-selected", active ? "true" : "false");
+        });
+    };
     document.querySelectorAll(".right-tab-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
-            const panel = btn.dataset.panel;
-            document.querySelectorAll(".right-panel-content").forEach((p) => p.classList.add("hidden"));
-            document.getElementById(`right-panel-${panel}`)?.classList.remove("hidden");
-            document.querySelectorAll(".right-tab-btn").forEach((b) => {
-                b.classList.remove("border-[var(--ide-accent)]", "text-[var(--ide-text-primary)]");
-                b.classList.add("border-transparent", "text-[var(--ide-text-muted)]");
-                b.setAttribute("aria-selected", "false");
-            });
-            btn.classList.remove("border-transparent", "text-[var(--ide-text-muted)]");
-            btn.classList.add("border-[var(--ide-accent)]", "text-[var(--ide-text-primary)]");
-            btn.setAttribute("aria-selected", "true");
+            syncRightTabs(btn.dataset.panel);
+            if (btn.dataset.panel === "editor") window.dispatchEvent(new Event("runtimeforce:editor-visible"));
         });
     });
+    syncRightTabs();
 
     const openProfileBtn = document.getElementById("open-profile-btn");
     const userMenu = document.getElementById("rf-user-menu");

@@ -8,6 +8,7 @@ export class ChatWSClient {
         this.onEvent = callbacks.onEvent || (() => {});
         this.onError = callbacks.onError || (() => {});
         this.onClose = callbacks.onClose || (() => {});
+        this.abortRequested = false;
     }
 
     connect() {
@@ -23,7 +24,14 @@ export class ChatWSClient {
             this.ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
+                    if (data.status === "memory_graph") {
+                        window.dispatchEvent(new CustomEvent("rf:memory-graph", { detail: data }));
+                    }
                     this.onEvent(data);
+                    if (data.status === "aborted" && this.abortRequested) {
+                        window.dispatchEvent(new Event("rf:agent-stop-ack"));
+                        this.close();
+                    }
                 } catch (e) {
                     console.error("WS JSON parse error:", e);
                 }
@@ -59,6 +67,7 @@ export class ChatWSClient {
 
     abort() {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+        this.abortRequested = true;
         this.ws.send(JSON.stringify({ action: "abort" }));
         return true;
     }

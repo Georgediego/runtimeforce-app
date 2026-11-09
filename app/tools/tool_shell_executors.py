@@ -13,8 +13,6 @@ class ToolShellExecutors:
         password: Optional[str] = None,
         command_filter: Optional[Any] = None
     ) -> Dict[str, Any]:
-        if command_filter and hasattr(command_filter, "is_safe"):
-            is_safe, reason = command_filter.is_safe(command)
-            if not is_safe and not password:
-                return {"exit_code": -1, "stdout": "", "stderr": f"Security Block: {reason}", "status": "blocked"}
+        # Every shell command is gated by the workspace driver's approval service.
+        # Risk classification must never bypass the interactive approval flow.
         return await driver.execute_command(command, cwd=cwd, password=password)
