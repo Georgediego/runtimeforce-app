@@ -57,25 +57,6 @@
         feedEl.prepend(row);
         while (feedEl.children.length > 5) feedEl.lastElementChild.remove();
     }
-    function playTrace(events) {
-        if (!Array.isArray(events) || !events.length) return;
-        if (eventTimer) clearTimeout(eventTimer);
-        root.classList.add("is-querying");
-        let index = 0;
-        const next = () => {
-            if (index >= events.length) {
-                eventTimer = null;
-                root.classList.remove("is-querying");
-                if (statusEl) statusEl.textContent = "Query complete · " + activeIds.size + " nodes used";
-                return;
-            }
-            const item = events[index++];
-            appendActivity(item);
-            if (item.active_node_ids?.length) activeIds = new Set(item.active_node_ids.map(String));
-            eventTimer = setTimeout(next, 230);
-        };
-        next();
-    }
     function handleMemoryEvent(detail) {
         if (detail.project_id && detail.project_id !== projectId()) return;
         if (detail.phase === "started") {
@@ -84,19 +65,30 @@
             appendActivity({label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "model")});
             return;
         }
+        if (detail.phase === "activity") {
+            if (detail.event) {
+                appendActivity(detail.event);
+                if (detail.event.active_node_ids?.length) activeIds = new Set(detail.event.active_node_ids.map(String));
+                if (statusEl) statusEl.textContent = (detail.event.label || "Memory operation") + " · " + (detail.event.duration_ms ?? 0) + " ms";
+            }
+            startAnimation();
+            return;
+        }
         if (detail.phase === "failed") {
             root.classList.remove("is-querying");
             if (statusEl) statusEl.textContent = "Memory query failed";
             appendActivity({label: "Memory query failed", detail: detail.error || "See agent trace"});
             return;
         }
-        if (detail.active_node_ids) activeIds = new Set(detail.active_node_ids.map(String));
-        if (Array.isArray(detail.trace)) playTrace(detail.trace);
-        else {
-            root.classList.remove("is-querying");
-            if (statusEl) statusEl.textContent = "Memory context retrieved";
+        if (detail.phase === "completed") {
+            if (detail.active_node_ids) activeIds = new Set(detail.active_node_ids.map(String));
+            const stats = detail.graph_stats || {};
+            loadGraph().finally(() => {
+                root.classList.remove("is-querying");
+                if (statusEl) statusEl.textContent = "Used " + activeIds.size + " nodes · " + (stats.context_tokens || 0) + " tokens";
+            });
+            startAnimation();
         }
-        startAnimation();
     }
     function makePositions() {
         const positions = new Map(), count = graphNodes.length;
