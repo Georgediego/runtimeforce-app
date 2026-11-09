@@ -266,36 +266,43 @@ class AgentLoopCoordinator:
                         trace_callback=queue_memory_event,
                     )
                 )
-                while True:
-                    if not trace_queue.empty():
-                        memory_event = trace_queue.get_nowait()
-                        yield {
-                            "status": "memory_graph",
-                            "phase": "activity",
-                            "project_id": project_id,
-                            "event": memory_event,
-                        }
-                        continue
-                    if context_task.done():
-                        break
+                try:
+                    while True:
+                        if not trace_queue.empty():
+                            memory_event = trace_queue.get_nowait()
+                            yield {
+                                "status": "memory_graph",
+                                "phase": "activity",
+                                "project_id": project_id,
+                                "event": memory_event,
+                            }
+                            continue
+                        if context_task.done():
+                            break
 
-                    queue_waiter = asyncio.create_task(trace_queue.get())
-                    done, _ = await asyncio.wait(
-                        {context_task, queue_waiter},
-                        return_when=asyncio.FIRST_COMPLETED,
-                    )
-                    if queue_waiter in done:
-                        yield {
-                            "status": "memory_graph",
-                            "phase": "activity",
-                            "project_id": project_id,
-                            "event": queue_waiter.result(),
-                        }
-                    else:
-                        queue_waiter.cancel()
-                        await asyncio.gather(queue_waiter, return_exceptions=True)
+                        queue_waiter = asyncio.create_task(trace_queue.get())
+                        try:
+                            done, _ = await asyncio.wait(
+                                {context_task, queue_waiter},
+                                return_when=asyncio.FIRST_COMPLETED,
+                            )
+                            if queue_waiter in done:
+                                yield {
+                                    "status": "memory_graph",
+                                    "phase": "activity",
+                                    "project_id": project_id,
+                                    "event": queue_waiter.result(),
+                                }
+                        finally:
+                            if not queue_waiter.done():
+                                queue_waiter.cancel()
+                                await asyncio.gather(queue_waiter, return_exceptions=True)
 
-                context_res = await context_task
+                    context_res = await context_task
+                except asyncio.CancelledError:
+                    context_task.cancel()
+                    await asyncio.gather(context_task, return_exceptions=True)
+                    raise
                 memory_context_str = context_res.get("compiled_memory_context", "")
                 active_memory_ids = context_res.get("active_node_ids", [])
                 yield {
