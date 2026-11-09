@@ -40,33 +40,43 @@ async def get_graph_status(
     user_id: str = Depends(require_authenticated_user),
     graph_service: GraphMemoryService = Depends(get_graph_memory_service)
 ):
-    """Return up to 300 real SQLite nodes, prioritizing active matches and their neighbors."""
+    """Return a real project-scoped SQLite graph snapshot (up to 300 nodes / 1200 edges)."""
     conn = graph_service.graph_repo.db.get_connection()
     requested_ids = list(dict.fromkeys(str(value) for value in (active_node_ids or []) if value))[:30]
-    base_limit = max(1, 300 - len(requested_ids))
-    graph = graph_service.graph_repo.query_subgraph(project_id, user_id, limit=base_limit)
-    raw_nodes = list(graph.get("nodes", [])[:base_limit])
-    included_ids = {str(node.get("id")) for node in raw_nodes if node.get("id")}
 
-    # Fetch exact matched nodes even when they fall outside the normal top-N snapshot.
+    # Read the graph tables directly. Do not use the context-retrieval subgraph here:
+    # that method is optimized for prompt context and may return only a tiny ranked subset.
+    raw_nodes = conn.execute(
+        """
+        SELECT * FROM graph_nodes
+        WHERE project_id=? AND user_id=?
+        ORDER BY usage_count DESC, last_used_at DESC, created_at DESC
+        LIMIT 300
+        """,
+        (project_id, user_id),
+    ).fetchall()
+    raw_nodes = [dict(row) for row in raw_nodes]
+    included_ids = {str(node["id"]) for node in raw_nodes if node.get("id")}
+
+    # Always include exact nodes matched by the live memory query, even if outside top 300.
     missing_ids = [value for value in requested_ids if value not in included_ids]
     if missing_ids:
         placeholders = ",".join("?" for _ in missing_ids)
-        matched_rows = conn.execute(
+        rows = conn.execute(
             f"""
             SELECT * FROM graph_nodes
             WHERE project_id=? AND user_id=? AND id IN ({placeholders})
             """,
             (project_id, user_id, *missing_ids),
         ).fetchall()
-        raw_nodes.extend(dict(row) for row in matched_rows)
-        included_ids.update(str(row["id"]) for row in matched_rows)
+        raw_nodes.extend(dict(row) for row in rows)
+        included_ids.update(str(row["id"]) for row in rows)
 
-    # Pull one-hop neighbors of active matches so their real relationships can be drawn.
-    active_ids_found = [value for value in requested_ids if value in included_ids]
-    if active_ids_found and len(raw_nodes) < 300:
-        placeholders = ",".join("?" for _ in active_ids_found)
-        incident_edges = conn.execute(
+    # Add real one-hop neighbors for active matches, while keeping the snapshot bounded.
+    active_found = [value for value in requested_ids if value in included_ids]
+    if active_found and len(raw_nodes) < 300:
+        placeholders = ",".join("?" for _ in active_found)
+        incident = conn.execute(
             f"""
             SELECT edge.source_id, edge.target_id
             FROM graph_edges AS edge
@@ -77,31 +87,31 @@ async def get_graph_status(
               AND (edge.source_id IN ({placeholders}) OR edge.target_id IN ({placeholders}))
             LIMIT 600
             """,
-            (project_id, user_id, project_id, user_id, *active_ids_found, *active_ids_found),
+            (project_id, user_id, project_id, user_id, *active_found, *active_found),
         ).fetchall()
-        neighbor_ids = list(dict.fromkeys(
-            str(row["target_id"] if str(row["source_id"]) in active_ids_found else row["source_id"])
-            for row in incident_edges
+        neighbors = list(dict.fromkeys(
+            str(row["target_id"] if str(row["source_id"]) in active_found else row["source_id"])
+            for row in incident
         ))
-        neighbor_ids = [value for value in neighbor_ids if value not in included_ids]
-        neighbor_ids = neighbor_ids[: max(0, 300 - len(raw_nodes))]
-        if neighbor_ids:
-            placeholders = ",".join("?" for _ in neighbor_ids)
-            neighbor_rows = conn.execute(
+        neighbors = [node_id for node_id in neighbors if node_id not in included_ids]
+        neighbors = neighbors[:max(0, 300 - len(raw_nodes))]
+        if neighbors:
+            placeholders = ",".join("?" for _ in neighbors)
+            rows = conn.execute(
                 f"""
                 SELECT * FROM graph_nodes
                 WHERE project_id=? AND user_id=? AND id IN ({placeholders})
                 """,
-                (project_id, user_id, *neighbor_ids),
+                (project_id, user_id, *neighbors),
             ).fetchall()
-            raw_nodes.extend(dict(row) for row in neighbor_rows)
-            included_ids.update(str(row["id"]) for row in neighbor_rows)
+            raw_nodes.extend(dict(row) for row in rows)
+            included_ids.update(str(row["id"]) for row in rows)
 
     nodes = [
         {
-            "id": str(node.get("id", "")),
-            "label": str(node.get("label", "")),
-            "type": str(node.get("node_type", "memory")),
+            "id": str(node["id"]),
+            "label": str(node.get("label") or ""),
+            "type": str(node.get("node_type") or "memory"),
             "usage_count": int(node.get("usage_count") or 0),
         }
         for node in raw_nodes[:300]
@@ -111,7 +121,7 @@ async def get_graph_status(
     edges = []
     if node_ids:
         placeholders = ",".join("?" for _ in node_ids)
-        edge_rows = conn.execute(
+        rows = conn.execute(
             f"""
             SELECT edge.id, edge.source_id, edge.target_id, edge.relation_type, edge.weight
             FROM graph_edges AS edge
@@ -121,6 +131,7 @@ async def get_graph_status(
               AND target.project_id=? AND target.user_id=?
               AND edge.source_id IN ({placeholders})
               AND edge.target_id IN ({placeholders})
+            ORDER BY edge.weight DESC, edge.created_at DESC
             LIMIT 1200
             """,
             (project_id, user_id, project_id, user_id, *node_ids, *node_ids),
@@ -133,7 +144,7 @@ async def get_graph_status(
                 "relation": str(edge["relation_type"] or "RELATED_TO"),
                 "weight": float(edge["weight"] or 1.0),
             }
-            for edge in edge_rows
+            for edge in rows
         ]
 
     total_nodes = conn.execute(
