@@ -305,9 +305,9 @@ if (typeof window !== "undefined" && !window.__rfResolutionUpdatesStarted) {
             const token = (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
             const clientInstanceId = localStorage.getItem("rf_client_instance_id");
             if (!clientInstanceId) return;
-            const response = await fetch("/api/v1/bug-reports/updates?client_instance_id=" + encodeURIComponent(clientInstanceId), {
+            const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports/updates?client_instance_id=" + encodeURIComponent(clientInstanceId), {
                 headers: token ? { Authorization: "Bearer " + token } : {},
-                credentials: "same-origin",
+                credentials: "include",
                 cache: "no-store"
             });
             if (!response.ok) return;
@@ -315,9 +315,9 @@ if (typeof window !== "undefined" && !window.__rfResolutionUpdatesStarted) {
             for (const update of (Array.isArray(updates) ? updates : [])) {
                 const seenKey = "rf_resolution_notice_" + update.id;
                 if (localStorage.getItem(seenKey) === "1") {
-                    fetch("/api/v1/bug-reports/" + update.id + "/ack", {
+                    fetch("https://runtimeforce.dev/api/v1/bug-reports/" + update.id + "/ack", {
                         method: "POST", headers: token ? { Authorization: "Bearer " + token } : {},
-                        credentials: "same-origin"
+                        credentials: "include"
                     }).catch(() => {});
                     continue;
                 }
@@ -328,7 +328,7 @@ if (typeof window !== "undefined" && !window.__rfResolutionUpdatesStarted) {
                     12000
                 );
                 localStorage.setItem(seenKey, "1");
-                fetch("/api/v1/bug-reports/" + update.id + "/ack", {
+                fetch("https://runtimeforce.dev/api/v1/bug-reports/" + update.id + "/ack", {
                     method: "POST", headers: token ? { Authorization: "Bearer " + token } : {},
                     credentials: "same-origin"
                 }).catch(() => {});
