@@ -36,7 +36,9 @@ import { eventBus } from "../core/event_bus.js";
     let nodes = [];
     let edges = [];
     let activeIds = new Set();
+    const everActiveIds = new Set();
     let activeEdgeIds = new Set();
+    let generationActive = false;
     let graphSignature = "";
     let lastProject = "";
     let requestVersion = 0;
@@ -163,22 +165,22 @@ import { eventBus } from "../core/event_bus.js";
             uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) }, uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) } },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aSize, aActive;
+                attribute float aSize, aActive, aMarked;
                 uniform float uScale, uTime;
                 varying vec3 vColor;
-                varying float vActive, vDepth;
+                varying float vActive, vMarked, vDepth;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
                     float pulse = 1.0 + aActive * 0.18 * sin(uTime * 0.009 + position.x * 5.0);
                     gl_Position = projectionMatrix * mv;
                     gl_PointSize = max(3.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z);
-                    vColor = aColor; vActive = aActive; vDepth = depth;
+                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth;
                 }`,
             fragmentShader: `
                 uniform vec3 uHot, uIdleColor;
                 varying vec3 vColor;
-                varying float vActive, vDepth;
+                varying float vActive, vMarked, vDepth;
                 void main() {
                     vec2 p = (gl_PointCoord - 0.5) * 2.0;
                     p.y = -p.y;
@@ -189,7 +191,7 @@ import { eventBus } from "../core/event_bus.js";
                     float diff = max(dot(n, L), 0.0);
                     float rim = pow(1.0 - n.z, 2.5);
                     float spec = pow(max(dot(n, normalize(L + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
-                    vec3 base = mix(uIdleColor, vColor, vActive);
+                    vec3 base = mix(uIdleColor, vColor, vMarked);
                     vec3 col = base * (0.30 + 0.85 * diff) + base * rim * 0.35;
                     col += vec3(1.0) * spec * (0.55 + 0.4 * vActive);
                     col += vColor * vActive * 0.18;
@@ -416,6 +418,7 @@ import { eventBus } from "../core/event_bus.js";
             const colors = new Float32Array(count * 3);
             const sizes = new Float32Array(count);
             const active = new Float32Array(count);
+            const marked = new Float32Array(count);
             const colorById = new Map();
             nodes.forEach((node, i) => {
                 const id = String(node.id);
@@ -426,6 +429,7 @@ import { eventBus } from "../core/event_bus.js";
                 const deg = degree.get(id) || 0;
                 sizes[i] = 0.075 + 0.085 * Math.min(1, Math.log1p(deg) / Math.log(14));
                 active[i] = carryNodes.get(id) || 0;
+                marked[i] = everActiveIds.has(id) ? 1 : 0;
                 positionById.set(id, pos);
                 indexById.set(id, i);
                 colorById.set(id, color);
@@ -435,6 +439,7 @@ import { eventBus } from "../core/event_bus.js";
             geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
             geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
             geometry.setAttribute("aActive", new THREE.BufferAttribute(active, 1));
+            geometry.setAttribute("aMarked", new THREE.BufferAttribute(marked, 1));
 
             // Real SQLite edges only: both endpoints must exist in the loaded node set.
             const rows = edges.filter(edge => positionById.has(String(edge.source)) && positionById.has(String(edge.target)));
@@ -763,6 +768,7 @@ import { eventBus } from "../core/event_bus.js";
     // ---- Memory events ---------------------------------------------------
     function endRun() {
         endRunTimer = 0;
+        if (generationActive) return;
         processActive = false;
         activeIds.clear();
         activeEdgeIds.clear();
@@ -800,10 +806,29 @@ import { eventBus } from "../core/event_bus.js";
         }
     }
 
+    function rememberActiveNodes() {
+        activeIds.forEach(id => {
+            if (!indexById.has(id)) return;
+            everActiveIds.add(id);
+            const attribute = nodePoints?.geometry.attributes.aMarked;
+            const index = indexById.get(id);
+            if (attribute && attribute.array[index] !== 1) {
+                attribute.array[index] = 1;
+                attribute.needsUpdate = true;
+            }
+        });
+    }
+
     function addActive(item) {
         if (Array.isArray(item.active_node_ids)) item.active_node_ids.forEach(id => activeIds.add(String(id)));
         if (Array.isArray(item.active_edge_ids)) item.active_edge_ids.forEach(id => activeEdgeIds.add(String(id)));
         addContextActive(item);
+        const toolName = String(item.tool_name || item.tool || "").trim();
+        if (toolName) {
+            const toolId = "agent-tool:" + toolName;
+            if (indexById.has(toolId)) activeIds.add(toolId);
+        }
+        rememberActiveNodes();
     }
 
     const hasUnknown = () => [...activeIds].some(id => !indexById.has(id));
@@ -820,6 +845,7 @@ import { eventBus } from "../core/event_bus.js";
             activeIds.clear();
             activeEdgeIds.clear();
             addContextActive(detail);
+            rememberActiveNodes();
             applyActive();
             setStatus("Runtime operation running · tracing active graph objects");
             activity({ label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "orchestrator") });
@@ -847,10 +873,12 @@ import { eventBus } from "../core/event_bus.js";
             activity({ label: "Memory context ready", detail: "SQLite graph updated" });
             if (hasUnknown()) loadGraph(eventProject || lastProject);
             else applyActive();
-            // The memory pipeline takes milliseconds: keep the real activity visible, then fade it.
-            const remaining = Math.max(1200, MIN_ACTIVE_MS - (performance.now() - runStartedAt));
-            if (endRunTimer) clearTimeout(endRunTimer);
-            endRunTimer = setTimeout(endRun, remaining);
+            // Keep the graph alive for the full assistant generation, not just the memory event.
+            if (!generationActive) {
+                const remaining = Math.max(1200, MIN_ACTIVE_MS - (performance.now() - runStartedAt));
+                if (endRunTimer) clearTimeout(endRunTimer);
+                endRunTimer = setTimeout(endRun, remaining);
+            }
             return;
         }
 
@@ -966,6 +994,30 @@ import { eventBus } from "../core/event_bus.js";
 
     window.addEventListener("rf:memory-graph", event => {
         if (event.detail?.status === "memory_graph") handleMemoryEvent(event.detail);
+    });
+
+    eventBus.on("generation:state", state => {
+        generationActive = Boolean(state?.active);
+        if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
+        if (generationActive) {
+            processActive = true;
+            const strategy = document.getElementById("strategy-select")?.value || "auto";
+            addActive({ mode: strategy });
+            setStatus("Assistant generating · runtime graph active");
+            applyActive();
+        } else {
+            endRun();
+        }
+    });
+
+    eventBus.on("agent:graph_event", event => {
+        if (!event || !generationActive) return;
+        processActive = true;
+        addActive(event);
+        const phaseLabel = event.label || event.tool_name || event.model || event.status;
+        if (phaseLabel) setStatus("LIVE · " + String(phaseLabel).slice(0, 72));
+        if (hasUnknown()) loadGraph(lastProject);
+        else applyActive();
     });
 
     eventBus.on("project.activated", project => {
