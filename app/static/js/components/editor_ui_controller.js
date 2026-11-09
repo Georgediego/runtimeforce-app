@@ -8,8 +8,25 @@ import { eventBus } from "../core/event_bus.js";
 let editor = null;
 let currentPath = null;
 let isDirty = false;
+let monacoLoadPromise = null;
 
 export const editorUIController = {
+    async ensureMonaco() {
+        if (window.monaco?.editor) return window.monaco;
+        if (!window.require) return null;
+        if (!monacoLoadPromise) {
+            monacoLoadPromise = new Promise((resolve) => {
+                try {
+                    window.require(["vs/editor/editor.main"], () => resolve(window.monaco?.editor ? window.monaco : null), () => resolve(null));
+                } catch (error) {
+                    console.warn("Monaco loader failed:", error);
+                    resolve(null);
+                }
+            });
+        }
+        return monacoLoadPromise;
+    },
+
     init() {
         document.getElementById("editor-save-btn")?.addEventListener("click", () => this.save());
         document.getElementById("editor-close-btn")?.addEventListener("click", () => this.closeWithConfirmation());
@@ -44,10 +61,11 @@ export const editorUIController = {
         try {
             const activeProjectId = localStorage.getItem("rf_active_project_id");
             const data = await workspacesApi.file(path, activeProjectId);
+            const monacoApi = await this.ensureMonaco();
             container.innerHTML = "";
-            if (window.monaco) {
+            if (monacoApi?.editor) {
                 if (editor) editor.dispose();
-                editor = monaco.editor.create(container, {
+                editor = monacoApi.editor.create(container, {
                     value: data.content || "",
                     language: this.detectLanguage(path),
                     theme: document.documentElement.classList.contains("light") ? "vs" : "vs-dark",
