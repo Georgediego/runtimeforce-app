@@ -44,6 +44,10 @@ export const traceUIController = {
         const modelEl = document.getElementById("rf-graph-model");
         if (status === "phase") {
             const phase = label.toLowerCase();
+            if (/retriev|context|starting|new task/.test(phase)) {
+                const sidebar = document.getElementById("right-sidebar-col");
+                if (sidebar) sidebar.scrollTo({ top: 0, behavior: "smooth" });
+            }
             if (/context|memory|retriev/.test(phase)) this._setStage("context");
             else if (/rout|plan|architect|analyz|decompos/.test(phase)) this._setStage("plan");
             else if (/test|lint|audit|verif|check/.test(phase)) this._setStage("verify");
