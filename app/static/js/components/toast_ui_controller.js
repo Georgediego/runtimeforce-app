@@ -190,12 +190,15 @@ export function showCommandApprovalModal(command, reason = "", options = {}) {
         const close = (choice) => {
             if (settled) return;
             settled = true;
+            window.removeEventListener("rf:cancel-command-approval", cancelApproval);
             if (modal) {
                 modal.classList.add("hidden");
                 modal.style.display = "none";
             }
             resolve(choice);
         };
+        const cancelApproval = () => close("cancelled");
+        window.addEventListener("rf:cancel-command-approval", cancelApproval, { once: true });
         if (allowBtn) allowBtn.onclick = () => close(decisionSelect?.value || "once");
         if (denyBtn) denyBtn.onclick = () => close("deny");
     });
