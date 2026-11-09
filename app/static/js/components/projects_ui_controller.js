@@ -233,7 +233,7 @@ export const projectsUIController = {
             if (res && res.id) {
                 localStorage.setItem("rf_active_project_id", res.id);
                 eventBus.emit("project.activated", res.id);
-                eventBus.emit("workspace:changed");
+                // A new project has no workspace yet. Do not reconnect the previously active Local/SSH workspace.
             }
             showToast(`Project "${name}" created`, "success");
             this.loadProjectsList();
