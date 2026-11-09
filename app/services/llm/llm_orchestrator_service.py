@@ -192,6 +192,10 @@ class LLMOrchestratorService:
         # Cloud Models via LiteLLM: Full untouched context
         is_local_model = provider in ("lm_studio", "local") or model_id.startswith("local/")
         active_timeout = STREAM_LOCAL_TIMEOUT if is_local_model else STREAM_CLOUD_TIMEOUT
+        logger.info(
+            "[Orchestrator] STREAM START provider=%s model=%s strategy=%s timeout=%ss user=%s",
+            provider, model_id, strategy, active_timeout, user_id
+        )
 
         effective_max_tokens = max_tokens
         if provider == "openrouter" and ":free" not in model_id.lower():
@@ -305,7 +309,7 @@ class LLMOrchestratorService:
                 error_str = str(e)
 
                 if _is_midstream_error(error_str):
-                    logger.info(f"[Orchestrator] Stream dropped on {model_id} — triggering safe fallback")
+                    logger.warning(f"[Orchestrator] STREAM DROPPED provider={provider} model={model_id}: {error_str[:500]}")
                     if self.rotation_service:
                         self.rotation_service.report_failure(model_id, provider, error_str)
                     yield {
