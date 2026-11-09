@@ -153,7 +153,25 @@ export function showCommandApprovalModal(command, reason = "", options = {}) {
         const denyBtn = document.getElementById("approval-deny-btn");
 
         if (cmdBox) cmdBox.textContent = command || "";
-        if (contextBox) contextBox.textContent = reason || "Команда ожидает подтверждения. До вашего решения она не будет запущена.";
+        if (contextBox) {
+            contextBox.replaceChildren();
+            const contextText = reason || "Команда ожидает подтверждения. До вашего решения она не будет запущена.";
+            contextText.split(" · ").forEach((part, index) => {
+                if (index) contextBox.appendChild(document.createTextNode(" · "));
+                const separator = part.indexOf(":");
+                if (separator < 0) {
+                    contextBox.appendChild(document.createTextNode(part));
+                    return;
+                }
+                const label = document.createElement("span");
+                label.className = "rf-approval-context-label";
+                label.textContent = part.slice(0, separator + 1) + " ";
+                const value = document.createElement("strong");
+                value.className = "rf-approval-context-value";
+                value.textContent = part.slice(separator + 1).trim();
+                contextBox.append(label, value);
+            });
+        }
         if (decisionSelect) {
             decisionSelect.value = "once";
             const sessionOption = decisionSelect.querySelector('option[value="session"]');
