@@ -481,6 +481,10 @@ class AgentLoopCoordinator:
                 else:
                     current_step_role = "Agent"
 
+                logger.info(
+                    "[AgentCoordinator] MODEL TRY session=%s iteration=%s model=%s provider=%s strategy=%s",
+                    session_id, iteration, model_id, provider, strategy_upper
+                )
                 yield {
                     "status": "model_try",
                     "model": model_id,
@@ -519,6 +523,10 @@ class AgentLoopCoordinator:
                     elif status == "error":
                         has_chunk_error = True
                         error_details = chunk.get("error", "Unknown")
+                        logger.warning(
+                            "[AgentCoordinator] MODEL ERROR session=%s model=%s provider=%s code=%s error=%s",
+                            session_id, model_id, provider, chunk.get("error_code", "unknown"), str(error_details)[:500]
+                        )
                         partial_output_failure = bool(iteration_text or tool_calls)
                         if chunk.get("error_code") in ("STREAM_DROPPED", "TIMEOUT", "LOCAL_TIMEOUT", "LOCAL_UNREACHABLE"):
                             is_stream_dropped = True
@@ -569,6 +577,10 @@ class AgentLoopCoordinator:
 
             if not iteration_success:
                 err_msg = f"All candidate models failed: {error_details or 'No model returned a response.'}"
+                logger.error(
+                    "[AgentCoordinator] ALL MODELS FAILED session=%s strategy=%s candidates=%s error=%s",
+                    session_id, strategy_upper, len(active_candidates), str(error_details)[:1000]
+                )
                 if self._conversation_repo:
                     self._conversation_repo.append_trace(session_id, "ERROR", err_msg)
                 yield {"status": "error", "error": err_msg}
