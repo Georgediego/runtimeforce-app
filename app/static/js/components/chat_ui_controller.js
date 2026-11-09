@@ -291,6 +291,7 @@ export const chatUIController = {
     abortGeneration() {
         userAbortedGeneration = true;
         generationFinalized = true;
+        window.dispatchEvent(new Event("rf:cancel-command-approval"));
         if (wsClient) {
             const activeClient = wsClient;
             activeClient.abort();
