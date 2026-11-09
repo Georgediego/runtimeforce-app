@@ -245,6 +245,15 @@ class AgentLoopCoordinator:
         memory_context_str = ""
         if self._context_builder:
             try:
+                # Memory retrieval precedes model routing: independent of provider and orchestrator mode.
+                yield {
+                    "status": "memory_graph",
+                    "phase": "started",
+                    "project_id": project_id,
+                    "mode": strategy_upper,
+                    "model": model_lock or "orchestrator",
+                    "query_active": True,
+                }
                 context_res = await self._context_builder.build_optimal_context(
                     user_prompt=user_prompt, session_id=session_id,
                     user_id=user_id, project_id=project_id, max_context_tokens=8000,
@@ -253,11 +262,21 @@ class AgentLoopCoordinator:
                 active_memory_ids = context_res.get("active_node_ids", [])
                 yield {
                     "status": "memory_graph",
+                    "phase": "completed",
                     "active_node_ids": active_memory_ids,
                     "project_id": project_id,
-                    "query_active": bool(active_memory_ids),
+                    "query_active": False,
+                    "trace": context_res.get("trace", []),
+                    "graph_stats": context_res.get("graph_stats", {}),
                 }
             except Exception as e:
+                yield {
+                    "status": "memory_graph",
+                    "phase": "failed",
+                    "project_id": project_id,
+                    "error": str(e)[:180],
+                    "query_active": False,
+                }
                 logger.warning(f"[AgentCoordinator] Context build failed: {e}")
 
         proj_context, proj_rules = "", ""
