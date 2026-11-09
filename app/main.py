@@ -50,6 +50,9 @@ logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# Uvicorn may configure handlers before importing this module; set the root
+# logger level explicitly so RF_LOG_LEVEL still takes effect in that case.
+logging.getLogger().setLevel(LOG_LEVEL)
 
 logger = logging.getLogger("runtimeforce.main")
 
