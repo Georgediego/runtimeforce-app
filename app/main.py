@@ -5,6 +5,7 @@ import os
 import re
 import base64
 import logging
+import time
 from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
@@ -43,8 +44,10 @@ try:
 except Exception:
     pass
 
+LOG_LEVEL_NAME = os.getenv("RF_LOG_LEVEL", "INFO").upper()
+LOG_LEVEL = getattr(logging, LOG_LEVEL_NAME, logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=LOG_LEVEL,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
@@ -52,7 +55,7 @@ logger = logging.getLogger("runtimeforce.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🚀 RuntimeForce IDE starting...")
+    logger.info("🚀 RuntimeForce IDE starting... (log level: %s)", LOG_LEVEL_NAME)
     yield
     logger.info("🛑 RuntimeForce IDE shutting down...")
     try:
@@ -79,6 +82,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def diagnostics_http_middleware(request: Request, call_next):
+    """Log API request lifecycle without exposing request bodies, prompts, or credentials."""
+    started = time.perf_counter()
+    path = request.url.path
+    is_api = path.startswith("/api/")
+    if is_api:
+        logger.debug("[HTTP] START %s %s", request.method, path)
+    try:
+        response = await call_next(request)
+    except Exception:
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        logger.exception("[HTTP] EXCEPTION %s %s after %.1fms", request.method, path, elapsed_ms)
+        raise
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    if is_api or response.status_code >= 400:
+        logger.info("[HTTP] %s %s -> %s (%.1fms)", request.method, path, response.status_code, elapsed_ms)
+    return response
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
