@@ -309,6 +309,7 @@ class AgentLoopCoordinator:
                     "status": "memory_graph",
                     "phase": "completed",
                     "active_node_ids": active_memory_ids,
+                    "active_edge_ids": context_res.get("active_edge_ids", []),
                     "project_id": project_id,
                     "query_active": False,
                     "graph_stats": context_res.get("graph_stats", {}),
