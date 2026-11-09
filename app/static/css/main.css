@@ -1950,3 +1950,21 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
     .rf-memory-activity-row{min-height:17px}
 }
 @media(max-width:900px){#rf-memory-widget.rf-memory-widget{min-height:170px}}
+
+
+/* Memory graph collapse control and always-visible 3D empty-state scaffold. */
+#rf-memory-widget .rf-memory-widget-heading{width:100%;min-height:22px}
+#rf-memory-widget .rf-memory-widget-toggle{
+    width:22px;height:20px;min-width:22px;display:flex;align-items:center;justify-content:center;
+    padding:0;border:1px solid var(--ide-border-subtle);border-radius:5px;
+    background:rgba(120,180,160,.07);color:var(--ide-text-muted);cursor:pointer;
+    transition:background .18s,border-color .18s,transform .18s;
+}
+#rf-memory-widget .rf-memory-widget-toggle:hover{border-color:var(--ide-accent);color:var(--ide-accent);background:rgba(7,247,122,.10)}
+#rf-memory-widget-body{display:flex;flex:1;min-height:0;flex-direction:column;gap:5px;overflow:hidden}
+#rf-memory-widget.is-collapsed{flex:0 0 40px;min-height:40px;max-height:40px;padding-top:7px;padding-bottom:6px}
+#rf-memory-widget.is-collapsed #rf-memory-widget-body{display:none}
+#rf-memory-widget.is-collapsed .rf-memory-widget-toggle i{transform:rotate(180deg)}
+#rf-memory-widget .rf-memory-widget-toggle i{transition:transform .18s}
+#rf-memory-sphere{min-height:110px!important;height:clamp(110px,15vh,158px)!important;flex:1 1 auto!important}
+@media(max-height:760px){#rf-memory-sphere{min-height:96px!important;height:96px!important;flex:0 0 96px!important}}
