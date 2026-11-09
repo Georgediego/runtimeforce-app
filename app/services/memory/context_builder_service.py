@@ -76,6 +76,62 @@ class ContextBuilderService(IContextBuilder):
         logger.info(f"Pipeline start: Building context for session={session_id}, project={project_id}")
         budget = self.calculate_token_budget(max_token_budget)
 
+        # Persist a compact, real project/session footprint so every active project
+        # develops a graph even before file/decision indexers have populated it.
+        # Stable IDs keep storage bounded to one project and one rolling node per session.
+        persist_started = await begin(
+            "graph_persist", "Persisting project memory graph",
+            "Updating the project node and current conversation node",
+        )
+        graph_persisted = False
+        project_node_id = ""
+        session_node_id = ""
+        try:
+            project_key = hashlib.sha256(f"{user_id}:{project_id}".encode("utf-8")).hexdigest()[:24]
+            session_key = hashlib.sha256(f"{user_id}:{project_id}:{session_id}".encode("utf-8")).hexdigest()[:24]
+            project_node_id = f"project-{project_key}"
+            session_node_id = f"session-{session_key}"
+            self.graph_memory.record_entity(
+                node_id=project_node_id,
+                user_id=user_id,
+                project_id=project_id,
+                node_type="Project",
+                label="Project memory",
+                attributes={"source": "orchestrator_context"},
+            )
+            self.graph_memory.record_entity(
+                node_id=session_node_id,
+                user_id=user_id,
+                project_id=project_id,
+                node_type="Conversation",
+                label=(user_prompt or "Conversation context")[:120],
+                attributes={
+                    "source": "orchestrator_context",
+                    "session_id": session_id,
+                    "last_prompt": (user_prompt or "")[:2000],
+                    "selected_memory_nodes": 0,
+                },
+            )
+            edge_key = hashlib.sha256(f"{project_node_id}:{session_node_id}".encode("utf-8")).hexdigest()[:24]
+            self.graph_memory.graph_repo.add_edge(
+                edge_id=f"edge-{edge_key}",
+                source_id=project_node_id,
+                target_id=session_node_id,
+                relation_type="CONTAINS",
+                weight=1.0,
+            )
+            graph_persisted = True
+        except Exception:
+            logger.exception("Failed to persist project/session graph footprint")
+        await record(
+            "graph_persist", "Persisting project memory graph",
+            "Project and conversation nodes saved" if graph_persisted else "Graph persistence failed; see local service log",
+            persist_started,
+            active_node_ids=[project_node_id, session_node_id] if graph_persisted else [],
+            node_count=2 if graph_persisted else 0,
+            edge_count=1 if graph_persisted else 0,
+        )
+
         stage_started = await begin("intent", "Intent analysis", "Extracting search terms from the prompt")
         intent = IntentAnalyzerService.analyze(user_prompt)
         await record("intent", "Intent analysis", f"{len(intent.get('keywords', []))} search terms extracted", stage_started)
@@ -183,62 +239,6 @@ class ContextBuilderService(IContextBuilder):
 
         active_node_ids = [str(node.get("id")) for node in selected_nodes[:12] if node.get("id")]
         self.context_cache.update_cache(session_id, user_prompt, selected_nodes[:12])
-
-        # Persist a compact, real project/session footprint so every active project
-        # develops a graph even before file/decision indexers have populated it.
-        # Stable IDs keep storage bounded to one project and one rolling node per session.
-        persist_started = await begin(
-            "graph_persist", "Persisting project memory graph",
-            "Updating the project node and current conversation node",
-        )
-        graph_persisted = False
-        project_node_id = ""
-        session_node_id = ""
-        try:
-            project_key = hashlib.sha256(f"{user_id}:{project_id}".encode("utf-8")).hexdigest()[:24]
-            session_key = hashlib.sha256(f"{user_id}:{project_id}:{session_id}".encode("utf-8")).hexdigest()[:24]
-            project_node_id = f"project-{project_key}"
-            session_node_id = f"session-{session_key}"
-            self.graph_memory.record_entity(
-                node_id=project_node_id,
-                user_id=user_id,
-                project_id=project_id,
-                node_type="Project",
-                label="Project memory",
-                attributes={"source": "orchestrator_context"},
-            )
-            self.graph_memory.record_entity(
-                node_id=session_node_id,
-                user_id=user_id,
-                project_id=project_id,
-                node_type="Conversation",
-                label=(user_prompt or "Conversation context")[:120],
-                attributes={
-                    "source": "orchestrator_context",
-                    "session_id": session_id,
-                    "last_prompt": (user_prompt or "")[:2000],
-                    "selected_memory_nodes": len(active_node_ids),
-                },
-            )
-            edge_key = hashlib.sha256(f"{project_node_id}:{session_node_id}".encode("utf-8")).hexdigest()[:24]
-            self.graph_memory.graph_repo.add_edge(
-                edge_id=f"edge-{edge_key}",
-                source_id=project_node_id,
-                target_id=session_node_id,
-                relation_type="CONTAINS",
-                weight=1.0,
-            )
-            graph_persisted = True
-        except Exception:
-            logger.exception("Failed to persist project/session graph footprint")
-        await record(
-            "graph_persist", "Persisting project memory graph",
-            "Project and conversation nodes saved" if graph_persisted else "Graph persistence failed; see local service log",
-            persist_started,
-            active_node_ids=[project_node_id, session_node_id] if graph_persisted else [],
-            node_count=2 if graph_persisted else 0,
-            edge_count=1 if graph_persisted else 0,
-        )
         await record(
             "context_ready", "Memory context assembled",
             f"{len(active_node_ids)} nodes selected · {initial_tokens} estimated tokens",
