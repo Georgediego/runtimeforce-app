@@ -17,6 +17,7 @@ active_tasks: Dict[str, asyncio.Task] = {}
 
 @router.websocket("/ws/chat/{session_id}")
 async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
+    logger.info("[WS] CONNECT session=%s client=%s", session_id, websocket.client.host if websocket.client else "unknown")
     await websocket.accept()
     try:
         auth_message = json.loads(await websocket.receive_text())
@@ -29,11 +30,13 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
     token = str(auth_message.get("token") or "")
     user = await JWTAuthService.verify_token(token)
     if not user:
+        logger.warning("[WS] AUTH FAILED session=%s reason=invalid_token", session_id)
         await websocket.close(code=1008, reason="Authentication required")
         return
     user_id = JWTAuthService.get_local_user_id(user)
     entitlements = await container.license_service.get_entitlements(token)
     if not entitlements.get("valid"):
+        logger.warning("[WS] AUTH FAILED session=%s reason=invalid_entitlements", session_id)
         await websocket.close(code=1008, reason="Subscription status could not be verified")
         return
     plan = str(entitlements.get("plan") or "free")
@@ -42,6 +45,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
     coordinator = container.agent_loop_coordinator
     conv_repo = container.conversation_repo
     if conv_repo.get_session_owner(session_id) != user_id:
+        logger.warning("[WS] AUTH FAILED session=%s reason=session_owner_mismatch user=%s", session_id, user_id)
         await websocket.close(code=1008, reason="Session access denied")
         return
 
@@ -68,7 +72,12 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
 
             prompt = data.get("prompt") or data.get("text") or ""
             if not prompt and not data.get("messages"):
+                logger.debug("[WS] IGNORE empty send session=%s", session_id)
                 continue
+            logger.info(
+                "[WS] GENERATION REQUEST session=%s user=%s action=%s prompt_chars=%s",
+                session_id, user_id, action, len(str(prompt))
+            )
 
             existing_message_id = data.get("existing_message_id")
             if existing_message_id is not None:
@@ -98,6 +107,11 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             strategy = data.get("strategy") or "auto"
             model_lock = data.get("model_lock")
             enabled_models = data.get("enabled_models")
+            logger.info(
+                "[WS] ROUTE session=%s project=%s strategy=%s model_lock=%s enabled_model_count=%s",
+                session_id, project_id, strategy, model_lock or "auto",
+                len(enabled_models) if isinstance(enabled_models, list) else "server-selected"
+            )
 
             # If frontend omitted enabled_models, strictly pull from SQLite
             if enabled_models is None:
@@ -123,6 +137,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     logger.warning(f"Proactive model discovery failed: {disc_err}")
 
             async def run_task():
+                logger.info("[WS] AGENT TASK START session=%s project=%s strategy=%s", session_id, project_id, strategy)
                 agent_stream = coordinator.run_agent_loop(
                     session_id=session_id,
                     messages=messages,
@@ -146,6 +161,11 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                         await websocket.send_json(event)
 
                         status = event.get("status")
+                        if status in ("model_try", "error", "done", "memory_graph", "phase"):
+                            logger.info(
+                                "[WS] EVENT session=%s status=%s model=%s error=%s",
+                                session_id, status, event.get("model", ""), str(event.get("error", ""))[:350]
+                            )
                         if status in ["model_try", "tool_start", "tool_end", "error", "failed"]:
                             try:
                                 if status in ["tool_start", "tool_end"]:
@@ -164,6 +184,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                                 )
                             except Exception as db_err:
                                 logger.warning(f"Failed to persist trace/tool event: {db_err}")
+                logger.info("[WS] AGENT TASK FINISHED session=%s", session_id)
 
             task = asyncio.create_task(run_task())
             active_tasks[session_id] = task
@@ -210,12 +231,12 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 active_tasks.pop(session_id, None)
 
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for session: {session_id}")
+        logger.info(f"[WS] DISCONNECTED session={session_id}")
         if session_id in active_tasks and not active_tasks[session_id].done():
             active_tasks[session_id].cancel()
             del active_tasks[session_id]
     except Exception as e:
-        logger.error(f"WebSocket error in session {session_id}: {e}", exc_info=True)
+        logger.error(f"[WS] ERROR session={session_id}: {e}", exc_info=True)
         try:
             await websocket.send_json({"status": "error", "error": str(e)})
             await websocket.close()
