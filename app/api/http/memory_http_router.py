@@ -30,6 +30,28 @@ async def get_subgraph(
     subgraph = graph_service.get_working_memory_context(project_id, user_id)
     return {"project_id": project_id, "subgraph": subgraph}
 
+@router.get("/graph-status/{project_id}")
+async def get_graph_status(
+    project_id: str,
+    user_id: str = Depends(require_authenticated_user),
+    graph_service: GraphMemoryService = Depends(get_graph_memory_service)
+):
+    """Return a compact, user/project-scoped graph snapshot for the local memory visualizer."""
+    graph = graph_service.graph_repo.query_subgraph(project_id, user_id, limit=120)
+    nodes = [
+        {"id": str(node.get("id", "")), "label": str(node.get("label", "")), "type": str(node.get("node_type", "memory"))}
+        for node in graph.get("nodes", [])
+        if node.get("id")
+    ]
+    node_ids = {node["id"] for node in nodes}
+    edges = [
+        {"source": str(edge.get("source_id", "")), "target": str(edge.get("target_id", ""))}
+        for edge in graph.get("edges", [])
+        if str(edge.get("source_id", "")) in node_ids and str(edge.get("target_id", "")) in node_ids
+    ][:240]
+    return {"project_id": project_id, "nodes": nodes, "edges": edges}
+
+
 @router.get("/decisions/{project_id}")
 async def get_decisions(
     project_id: str,
