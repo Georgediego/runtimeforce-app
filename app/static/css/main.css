@@ -1855,8 +1855,8 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 .rf-monitor-network-values b{color:var(--ide-text-primary);font-weight:700}
 .rf-approval-context-label{color:var(--ide-text-muted);font-weight:500}
 .rf-approval-context-value{color:var(--ide-text-primary);font-weight:800}
-@media(max-width:900px){.rf-system-monitor{gap:4px}.rf-system-monitor .rf-monitor-card{flex-basis:2.75rem;width:2.75rem;min-width:2.75rem;height:2.75rem}}
-@media(max-width:680px){.rf-system-monitor{position:static;transform:none;margin-left:auto;margin-right:8px;gap:3px}.rf-system-monitor .rf-monitor-card{flex-basis:2.5rem;width:2.5rem;min-width:2.5rem;height:2.5rem}.rf-system-monitor .rf-monitor-network{display:none}}
+@media(max-width:900px){.rf-system-monitor{gap:4px}}
+@media(max-width:680px){.rf-system-monitor{position:static;transform:none;margin-left:auto;margin-right:8px;gap:3px}.rf-system-monitor .rf-monitor-network{display:none}}
 @media(prefers-reduced-motion:reduce){.rf-monitor-live{animation:none}}
 
 /* Workflow stage cards: 20% lower without changing their five-column layout. */
