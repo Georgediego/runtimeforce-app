@@ -30,7 +30,7 @@ import { eventBus } from "../core/event_bus.js";
     let activeIds = new Set();
     let lastProject = "";
     let requestVersion = 0;
-    let renderer, scene, camera, graphGroup, globe;
+    let renderer, scene, camera, graphGroup;
     let raf = 0, refreshTimer = 0, resizeObserver = null;
     let lastFrame = 0, pulseClock = 0, rotationSpeed = 0.00032;
     let pointerDown = false, pointerX = 0;
@@ -84,17 +84,8 @@ import { eventBus } from "../core/event_bus.js";
         camera.position.set(0, 0, 5.8);
         graphGroup = new THREE.Group();
         scene.add(graphGroup);
-
-        globe = new THREE.Mesh(
-            new THREE.SphereGeometry(1.72, 24, 18),
-            new THREE.MeshBasicMaterial({
-                color: 0x147b68, wireframe: true,
-                transparent: true, opacity: 0.075,
-                depthWrite: false
-            })
-        );
-        globe.userData.staticGlobe = true;
-        graphGroup.add(globe);
+ 
+        // No decorative sphere: the memory nodes and their real edges form the sphere.
         resize();
     }
 
@@ -116,10 +107,8 @@ import { eventBus } from "../core/event_bus.js";
         else object.material?.dispose?.();
     }
 
-    function clearGraphObjects() {
-        [...graphGroup.children].forEach(child => {
-            if (!child.userData.staticGlobe) disposeObject(child);
-        });
+    function clearGraphObjects() { 
+        [...graphGroup.children].forEach(disposeObject);
         activeMesh = null;
         activeLines = null;
         activeInstanceCount = 0;
@@ -205,9 +194,9 @@ import { eventBus } from "../core/event_bus.js";
             return lines;
         };
 
-        makeLines(normalEdgePositions, 0x168b68, 0.34);
+        makeLines(normalEdgePositions, 0x35c9a0, 0.68);
         activeLines = makeLines(hotEdgePositions, 0x62eaff, 0.96);
-        makeNodeMesh(normalNodes, 0.043, 0.94);
+        makeNodeMesh(normalNodes, 0.052, 0.98);
         activeMesh = makeNodeMesh(hotNodes, 0.068, 1);
         activeInstanceCount = hotNodes.length;
 
@@ -421,8 +410,6 @@ import { eventBus } from "../core/event_bus.js";
         if (refreshTimer) clearInterval(refreshTimer);
         resizeObserver?.disconnect();
         clearGraphObjects();
-        globe?.geometry?.dispose();
-        globe?.material?.dispose();
         renderer?.dispose();
     }, { once: true });
 
