@@ -24,11 +24,12 @@ import { eventBus } from "../core/event_bus.js";
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
 
     // ---- Scene constants -------------------------------------------------
-    const FOV = 38, CAM_Z = 5.8, RADIUS = 1.72, SHELL = 0.42;
-    const SHELL3 = SHELL ** 3;
-    const NODE_WORLD_SIZE = 0.15;
-    const MIN_ACTIVE_MS = 2500;      // real activity stays on screen long enough to be seen
+    const FOV = 38, CAM_Z = 5.8, RADIUS = 1.72;
+    const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
+    const EDGE_IDLE_ALPHA = 0.16;      // faint always-on web of real edges (0 = show edges only while active)
+    const MAX_ACTIVE_LABELS = 5, IDLE_LABELS = 3;
     const rotationSpeed = 0.00032;
+    const HOT = 0xff3fa4;
 
     // ---- State -----------------------------------------------------------
     let nodes = [];
@@ -44,11 +45,15 @@ import { eventBus } from "../core/event_bus.js";
     let processActive = false, runStartedAt = 0;
     let pointerDown = false, pointerX = 0;
 
-    let points = null, pointMaterial = null;
-    let edgeLines = null, edgeMaterial = null, edgeTarget = 0;
-    let positionById = new Map();
-    let indexById = new Map();
-    let activeTarget = new Float32Array(0);
+    let nodePoints = null, glowPoints = null, edgeLines = null;
+    let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
+    let positionById = new Map();      // id -> [x, y, z]
+    let indexById = new Map();         // node id -> buffer index
+    let edgeIndexById = new Map();     // edge id -> segment index
+    let nodeTarget = new Float32Array(0);
+    let edgeTarget = new Float32Array(0);
+    let hubIndexes = [];
+    const layoutCache = new Map();     // id -> [x, y, z], survives data refreshes
 
     const setStatus = value => { if (statusEl) statusEl.textContent = value; };
 
@@ -73,8 +78,8 @@ import { eventBus } from "../core/event_bus.js";
         while (feedEl.children.length > 5) feedEl.lastElementChild.remove();
     }
 
-    // ---- Stable placement ------------------------------------------------
-    // Position depends only on the node id: adding, removing or reordering other nodes never moves it.
+    // ---- Stable clustered layout (pure functions) ------------------------
+    // LAYOUT-BEGIN
     function hash01(value, salt) {
         let h = (2166136261 ^ salt) >>> 0;
         for (let i = 0; i < value.length; i++) {
@@ -87,69 +92,168 @@ import { eventBus } from "../core/event_bus.js";
         return (h >>> 0) / 4294967296;
     }
 
-    function stableSpherePosition(id) {
-        const key = String(id);
-        const y = 1 - 2 * hash01(key, 0x1b873593);
-        const theta = 2 * Math.PI * hash01(key, 0x85ebca6b);
+    function unitVector(key, salt) {
+        const y = 1 - 2 * hash01(key, salt);
+        const theta = 2 * Math.PI * hash01(key, salt + 1);
         const ring = Math.sqrt(Math.max(0, 1 - y * y));
-        // Volume-uniform shell: points sit on the surface and inside it, which gives depth.
-        const r = RADIUS * Math.cbrt(SHELL3 + hash01(key, 0xc2b2ae35) * (1 - SHELL3));
-        return [Math.cos(theta) * ring * r, y * r, Math.sin(theta) * ring * r];
+        return [Math.cos(theta) * ring, y, Math.sin(theta) * ring];
     }
 
-    // sRGB values are written as-is (the custom shaders do no colour-space conversion).
+    const KNOWN_ANCHORS = {
+        project: [0, 1, 0.1], conversation: [-0.9, 0.2, 0.4], memoryquery: [0.85, -0.15, 0.5],
+        decision: [0.1, -0.95, -0.3], file: [0.65, 0.5, -0.7], code: [0.65, 0.5, -0.7],
+        symbol: [-0.55, -0.6, -0.65], memory: [-0.2, 0.15, 0.95]
+    };
+
+    function typeAnchor(type, radius) {
+        const key = String(type || "memory").toLowerCase();
+        const raw = KNOWN_ANCHORS[key] || unitVector(key, 0x51ed27);
+        const len = Math.hypot(raw[0], raw[1], raw[2]) || 1;
+        return raw.map(v => (v / len) * radius * 0.55);
+    }
+
+    // Deterministic seed: type cluster centre + id-hashed offset inside a blob.
+    function seedPosition(node, radius) {
+        const id = String(node.id);
+        const anchor = typeAnchor(node.type, radius);
+        const dir = unitVector(id, 0x1b873593);
+        const blob = radius * 0.78 * Math.cbrt(hash01(id, 0xc2b2ae35));
+        return [anchor[0] + dir[0] * blob, anchor[1] + dir[1] * blob, anchor[2] + dir[2] * blob];
+    }
+
+    // Relax ONLY nodes without a cached position; cached nodes are pinned, so existing points never move.
+    function layoutGraph(nodeList, edgeList, cache, radius) {
+        const fresh = new Set();
+        nodeList.forEach(node => {
+            const id = String(node.id);
+            if (!cache.has(id)) { cache.set(id, seedPosition(node, radius)); fresh.add(id); }
+        });
+        if (!fresh.size) return;
+
+        const ids = nodeList.map(node => String(node.id)).sort();
+        const index = new Map(ids.map((id, i) => [id, i]));
+        const pos = ids.map(id => cache.get(id));
+        const free = ids.map(id => fresh.has(id));
+        const links = [];
+        edgeList.forEach(edge => {
+            const a = index.get(String(edge.source)), b = index.get(String(edge.target));
+            if (a !== undefined && b !== undefined && a !== b && (free[a] || free[b])) links.push([a, b]);
+        });
+        const iterations = ids.length <= 400 ? 40 : ids.length <= 1200 ? 12 : 0;
+        const REP = 0.32, REST = 0.42;
+        for (let it = 0; it < iterations; it++) {
+            const force = ids.map(() => [0, 0, 0]);
+            for (let i = 0; i < ids.length; i++) {
+                for (let j = i + 1; j < ids.length; j++) {
+                    if (!free[i] && !free[j]) continue;
+                    const dx = pos[i][0] - pos[j][0], dy = pos[i][1] - pos[j][1], dz = pos[i][2] - pos[j][2];
+                    const d2 = dx * dx + dy * dy + dz * dz;
+                    if (d2 >= REP * REP || d2 === 0) continue;
+                    const d = Math.sqrt(d2), f = (REP - d) / REP * 0.03 / d;
+                    force[i][0] += dx * f; force[i][1] += dy * f; force[i][2] += dz * f;
+                    force[j][0] -= dx * f; force[j][1] -= dy * f; force[j][2] -= dz * f;
+                }
+            }
+            links.forEach(([a, b]) => {
+                const dx = pos[b][0] - pos[a][0], dy = pos[b][1] - pos[a][1], dz = pos[b][2] - pos[a][2];
+                const d = Math.hypot(dx, dy, dz) || 1, f = (d - REST) * 0.012 / d;
+                force[a][0] += dx * f; force[a][1] += dy * f; force[a][2] += dz * f;
+                force[b][0] -= dx * f; force[b][1] -= dy * f; force[b][2] -= dz * f;
+            });
+            for (let i = 0; i < ids.length; i++) {
+                if (!free[i]) continue;
+                const p = pos[i], f = force[i];
+                const step = Math.min(0.06, Math.hypot(f[0], f[1], f[2])) / (Math.hypot(f[0], f[1], f[2]) || 1);
+                p[0] += f[0] * step; p[1] += f[1] * step; p[2] += f[2] * step;
+                const len = Math.hypot(p[0], p[1], p[2]);
+                if (len > radius) { p[0] *= radius / len; p[1] *= radius / len; p[2] *= radius / len; }
+            }
+        }
+    }
+    // LAYOUT-END
+
+    // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
     const PALETTE = {
-        project: 0x4cc2ff, conversation: 0x2ee6b6, decision: 0xf0bd55, file: 0xa99cff,
-        code: 0xa99cff, symbol: 0x7fbfef, memory: 0x5fd1a4, memoryquery: 0x7f9a93
+        project: 0xbfe9ff, conversation: 0x8f6bff, memoryquery: 0x9b94c9, decision: 0xf0bd55,
+        file: 0x4fe0c0, code: 0x4fe0c0, symbol: 0x6aa8ff, memory: 0x9a74ff
     };
-    const nodeColor = (node, index) => {
-        const type = String(node.type || "memory").toLowerCase();
-        return rawColor(PALETTE[type] || PALETTE.memory);
-    };
+    const nodeColor = node => rawColor(PALETTE[String(node.type || "memory").toLowerCase()] || PALETTE.memory);
 
     // ---- Shaders ---------------------------------------------------------
     const DEPTH_GLSL = "float depth = clamp((-mv.z - 4.0) / 3.6, 0.0, 1.0);";
 
-    function createPointMaterial() {
+    function createNodeMaterial() {
+        // Point-sprite impostor: each point is shaded as a lit 3D ball.
         return new THREE.ShaderMaterial({
-            transparent: true, depthWrite: false, depthTest: false,
-            uniforms: {
-                uScale: { value: 300 },
-                uSize: { value: NODE_WORLD_SIZE },
-                uTime: { value: 0 },
-                uHot1: { value: rawColor(0x20e8ff) },
-                uHot2: { value: rawColor(0xc56bff) }
-            },
+            transparent: true, depthWrite: true, depthTest: true,
+            uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) } },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aActive;
-                uniform float uScale, uSize, uTime;
+                attribute float aSize, aActive;
+                uniform float uScale, uTime;
                 varying vec3 vColor;
-                varying float vActive, vDepth, vSeed;
+                varying float vActive, vDepth;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
-                    float pulse = 1.0 + aActive * 0.22 * sin(uTime * 0.008 + position.x * 5.0);
+                    float pulse = 1.0 + aActive * 0.18 * sin(uTime * 0.009 + position.x * 5.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(2.0, uSize * (1.0 + aActive * 1.1) * pulse * uScale / -mv.z * (1.2 - 0.45 * depth));
+                    gl_PointSize = max(3.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z);
                     vColor = aColor; vActive = aActive; vDepth = depth;
-                    vSeed = fract(position.y * 3.7 + position.z * 1.9);
                 }`,
             fragmentShader: `
-                uniform vec3 uHot1, uHot2;
+                uniform vec3 uHot;
                 varying vec3 vColor;
-                varying float vActive, vDepth, vSeed;
+                varying float vActive, vDepth;
                 void main() {
-                    float d = length(gl_PointCoord - 0.5) * 2.0;
+                    vec2 p = (gl_PointCoord - 0.5) * 2.0;
+                    p.y = -p.y;
+                    float r2 = dot(p, p);
+                    if (r2 > 1.0) discard;
+                    vec3 n = vec3(p, sqrt(1.0 - r2));
+                    vec3 L = normalize(vec3(-0.45, 0.55, 0.7));
+                    float diff = max(dot(n, L), 0.0);
+                    float rim = pow(1.0 - n.z, 2.5);
+                    float spec = pow(max(dot(n, normalize(L + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
+                    vec3 base = mix(vColor, uHot, vActive);
+                    vec3 col = base * (0.30 + 0.85 * diff) + base * rim * 0.35;
+                    col += vec3(1.0) * spec * (0.55 + 0.4 * vActive);
+                    col += uHot * vActive * 0.45;
+                    col *= mix(1.0, 0.42, vDepth);
+                    gl_FragColor = vec4(col, 1.0);
+                }`
+        });
+    }
+
+    function createGlowMaterial() {
+        // Bloom + star rays, drawn only for nodes with aActive > 0.
+        return new THREE.ShaderMaterial({
+            transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+            uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) } },
+            vertexShader: `
+                attribute float aSize, aActive;
+                uniform float uScale;
+                varying float vActive;
+                void main() {
+                    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                    gl_Position = projectionMatrix * mv;
+                    gl_PointSize = aSize * (3.2 + aActive * 4.8) * uScale / -mv.z;
+                    if (aActive < 0.02) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; }
+                    vActive = aActive;
+                }`,
+            fragmentShader: `
+                uniform vec3 uHot;
+                varying float vActive;
+                void main() {
+                    vec2 p = (gl_PointCoord - 0.5) * 2.0;
+                    float d = length(p);
                     if (d > 1.0) discard;
-                    float core = 1.0 - smoothstep(0.0, 0.5, d);
-                    float halo = pow(1.0 - d, 3.0) * 0.6;
-                    vec3 hot = mix(uHot1, uHot2, step(0.5, vSeed));
-                    vec3 base = mix(vColor, hot, vActive);
-                    vec3 col = mix(base, vec3(1.0), core * (0.35 + 0.35 * vActive));
-                    float a = clamp(core + halo * (1.0 + vActive), 0.0, 1.0) * mix(1.0, 0.4, vDepth);
-                    gl_FragColor = vec4(col, a);
+                    float glow = exp(-d * d * 5.0);
+                    float star = exp(-abs(p.x) * 14.0) * exp(-abs(p.y) * 3.0)
+                               + exp(-abs(p.y) * 14.0) * exp(-abs(p.x) * 3.0);
+                    float a = clamp(glow * 0.85 + star * 0.6, 0.0, 1.0) * vActive;
+                    gl_FragColor = vec4(mix(uHot, vec3(1.0), glow * 0.35), a);
                 }`
         });
     }
@@ -157,29 +261,98 @@ import { eventBus } from "../core/event_bus.js";
     function createEdgeMaterial() {
         return new THREE.ShaderMaterial({
             transparent: true, depthWrite: false, depthTest: false,
-            uniforms: {
-                uTime: { value: 0 }, uOpacity: { value: 0 }, uColor: { value: rawColor(0x62eaff) }
-            },
+            uniforms: { uTime: { value: 0 }, uIdle: { value: EDGE_IDLE_ALPHA }, uHot: { value: rawColor(HOT) } },
             vertexShader: `
-                attribute float aAlong;
-                varying float vAlong, vDepth;
+                attribute vec3 aColor;
+                attribute float aAlong, aAct;
+                varying vec3 vColor;
+                varying float vAlong, vAct, vDepth;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
-                    vAlong = aAlong; vDepth = depth;
+                    vColor = aColor; vAlong = aAlong; vAct = aAct; vDepth = depth;
                     gl_Position = projectionMatrix * mv;
                 }`,
             fragmentShader: `
-                uniform float uTime, uOpacity;
-                uniform vec3 uColor;
-                varying float vAlong, vDepth;
+                uniform float uTime, uIdle;
+                uniform vec3 uHot;
+                varying vec3 vColor;
+                varying float vAlong, vAct, vDepth;
                 void main() {
-                    float flow = fract(vAlong * 1.5 - uTime * 0.0009);
-                    float spark = smoothstep(0.0, 0.18, flow) * (1.0 - smoothstep(0.18, 0.5, flow));
-                    float a = (0.38 + 0.62 * spark) * uOpacity * mix(1.0, 0.45, vDepth);
-                    gl_FragColor = vec4(uColor, a);
+                    float flow = fract(vAlong * 1.5 - uTime * 0.0011);
+                    float spark = smoothstep(0.0, 0.15, flow) * (1.0 - smoothstep(0.15, 0.45, flow));
+                    float a = mix(uIdle, 0.45 + 0.55 * spark, vAct) * mix(1.0, 0.4, vDepth);
+                    vec3 col = mix(vColor * 1.1 + 0.15, uHot, vAct);
+                    gl_FragColor = vec4(col, a);
                 }`
         });
+    }
+
+    // ---- Labels (DOM overlay over the canvas) ----------------------------
+    const labelLayer = document.createElement("div");
+    labelLayer.className = "rf-memory-labels";
+    labelLayer.style.cssText = "position:absolute;pointer-events:none;overflow:hidden;z-index:3";
+    const labelStyle = document.createElement("style");
+    labelStyle.textContent =
+        ".rf-memory-label{position:absolute;left:0;top:0;white-space:nowrap;font:600 8px 'JetBrains Mono',monospace;" +
+        "padding:1px 5px;border-radius:3px;color:#e9e4ff;background:rgba(10,8,22,.72);border:1px solid rgba(160,140,255,.25);" +
+        "transition:opacity .15s;will-change:transform}" +
+        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff;background:#ff3fa4;border-color:#ff8fcb;" +
+        "box-shadow:0 0 12px rgba(255,63,164,.65)}";
+    document.head.appendChild(labelStyle);
+    const labelPool = [];
+    const labelVec = new THREE.Vector3();
+
+    function placeLabelLayer() {
+        const parent = canvas.parentElement;
+        if (!parent) return;
+        if (getComputedStyle(parent).position === "static") parent.style.position = "relative";
+        if (labelLayer.parentElement !== parent) parent.appendChild(labelLayer);
+        labelLayer.style.left = canvas.offsetLeft + "px";
+        labelLayer.style.top = canvas.offsetTop + "px";
+        labelLayer.style.width = canvas.clientWidth + "px";
+        labelLayer.style.height = canvas.clientHeight + "px";
+    }
+
+    function updateLabels() {
+        const picks = [];
+        if (processActive) {
+            for (const id of activeIds) {
+                const i = indexById.get(id);
+                if (i !== undefined) picks.push({ i, hot: true });
+                if (picks.length >= MAX_ACTIVE_LABELS) break;
+            }
+        }
+        for (const i of hubIndexes) {
+            if (picks.length >= MAX_ACTIVE_LABELS + IDLE_LABELS) break;
+            if (!picks.some(p => p.i === i)) picks.push({ i, hot: false });
+        }
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        graphGroup.updateMatrixWorld(true);
+        let used = 0;
+        picks.forEach(({ i, hot }) => {
+            const node = nodes[i];
+            const pos = positionById.get(String(node.id));
+            if (!node || !pos) return;
+            labelVec.set(pos[0], pos[1], pos[2]).applyMatrix4(graphGroup.matrixWorld);
+            if (labelVec.z < -0.15 * RADIUS) return;                       // far half of the sphere
+            labelVec.project(camera);
+            const x = (labelVec.x * 0.5 + 0.5) * w, y = (-labelVec.y * 0.5 + 0.5) * h;
+            if (x < 0 || y < 0 || x > w || y > h) return;
+            let el = labelPool[used];
+            if (!el) {
+                el = document.createElement("div");
+                labelPool.push(el);
+                labelLayer.appendChild(el);
+            }
+            el.className = "rf-memory-label" + (hot ? " hot" : "");
+            const text = String(node.label || node.type || "").trim().slice(0, hot ? 30 : 22);
+            if (el.textContent !== text) el.textContent = text;
+            el.style.opacity = "1";
+            el.style.transform = "translate(" + Math.round(x + 7) + "px," + Math.round(y - 8) + "px)";
+            used++;
+        });
+        for (let k = used; k < labelPool.length; k++) labelPool[k].style.opacity = "0";
     }
 
     // ---- Three.js setup --------------------------------------------------
@@ -195,7 +368,8 @@ import { eventBus } from "../core/event_bus.js";
         camera.position.set(0, 0, CAM_Z);
         graphGroup = new THREE.Group();
         scene.add(graphGroup);
-        pointMaterial = createPointMaterial();
+        nodeMaterial = createNodeMaterial();
+        glowMaterial = createGlowMaterial();
         edgeMaterial = createEdgeMaterial();
         resize();
     }
@@ -208,111 +382,157 @@ import { eventBus } from "../core/event_bus.js";
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
-        // World-size -> pixel-size factor for gl_PointSize.
         const bufferHeight = renderer.domElement.height || height;
-        pointMaterial.uniforms.uScale.value = bufferHeight / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+        const scale = bufferHeight / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+        nodeMaterial.uniforms.uScale.value = scale;
+        glowMaterial.uniforms.uScale.value = scale;
+        placeLabelLayer();
     }
 
-    function disposeLayer(object) {
-        if (!object) return;
-        graphGroup.remove(object);
-        object.geometry?.dispose?.();
-    }
-
-    function disposeEdges() {
-        disposeLayer(edgeLines);
-        edgeLines = null;
+    function disposeLayers() {
+        [nodePoints, glowPoints, edgeLines].forEach(object => { if (object) graphGroup.remove(object); });
+        nodePoints?.geometry.dispose();          // glowPoints shares this geometry
+        edgeLines?.geometry.dispose();
+        nodePoints = glowPoints = edgeLines = null;
     }
 
     function resetScene() {
-        disposeLayer(points);
-        points = null;
-        disposeEdges();
+        disposeLayers();
+        layoutCache.clear();
         positionById = new Map();
         indexById = new Map();
-        activeTarget = new Float32Array(0);
+        edgeIndexById = new Map();
+        nodeTarget = new Float32Array(0);
+        edgeTarget = new Float32Array(0);
+        hubIndexes = [];
     }
 
-    // ---- Graph layers ----------------------------------------------------
-    function buildNodes() {
+    // ---- Graph build -----------------------------------------------------
+    function buildGraph() {
         if (!graphGroup) return;
 
-        // Keep the current glow of existing nodes so a data refresh never makes highlights jump.
-        const carry = new Map();
-        if (points) {
-            const old = points.geometry.attributes.aActive.array;
-            indexById.forEach((i, id) => { if (old[i] > 0.01) carry.set(id, old[i]); });
+        // Keep current glow so a data refresh never makes highlights jump.
+        const carryNodes = new Map(), carryEdges = new Map();
+        if (nodePoints) {
+            const arr = nodePoints.geometry.attributes.aActive.array;
+            indexById.forEach((i, id) => { if (arr[i] > 0.01) carryNodes.set(id, arr[i]); });
         }
-        disposeLayer(points);
-        points = null;
+        if (edgeLines) {
+            const arr = edgeLines.geometry.attributes.aAct.array;
+            edgeIndexById.forEach((i, id) => { if (arr[i * 2] > 0.01) carryEdges.set(id, arr[i * 2]); });
+        }
+        disposeLayers();
+
+        // Drop cached positions of nodes that no longer exist.
+        const present = new Set(nodes.map(node => String(node.id)));
+        [...layoutCache.keys()].forEach(id => { if (!present.has(id)) layoutCache.delete(id); });
+        layoutGraph(nodes, edges, layoutCache, RADIUS);
 
         positionById = new Map();
         indexById = new Map();
+        edgeIndexById = new Map();
         const count = nodes.length;
-        activeTarget = new Float32Array(count);
+        nodeTarget = new Float32Array(count);
+
+        const degree = new Map();
+        edges.forEach(edge => {
+            degree.set(String(edge.source), (degree.get(String(edge.source)) || 0) + 1);
+            degree.set(String(edge.target), (degree.get(String(edge.target)) || 0) + 1);
+        });
 
         if (count) {
             const positions = new Float32Array(count * 3);
             const colors = new Float32Array(count * 3);
+            const sizes = new Float32Array(count);
             const active = new Float32Array(count);
+            const colorById = new Map();
             nodes.forEach((node, i) => {
                 const id = String(node.id);
-                const pos = stableSpherePosition(id);
-                const color = nodeColor(node, i);
+                const pos = layoutCache.get(id);
+                const color = nodeColor(node);
                 positions.set(pos, i * 3);
                 colors.set([color.r, color.g, color.b], i * 3);
-                active[i] = carry.get(id) || 0;
+                const deg = degree.get(id) || 0;
+                sizes[i] = 0.10 + 0.12 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                active[i] = carryNodes.get(id) || 0;
                 positionById.set(id, pos);
                 indexById.set(id, i);
+                colorById.set(id, color);
             });
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
             geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
             geometry.setAttribute("aActive", new THREE.BufferAttribute(active, 1));
-            points = new THREE.Points(geometry, pointMaterial);
-            points.frustumCulled = false;
-            graphGroup.add(points);
+
+            // Real SQLite edges only: both endpoints must exist in the loaded node set.
+            const rows = edges.filter(edge => positionById.has(String(edge.source)) && positionById.has(String(edge.target)));
+            const ePos = new Float32Array(rows.length * 6);
+            const eColor = new Float32Array(rows.length * 6);
+            const eAlong = new Float32Array(rows.length * 2);
+            const eAct = new Float32Array(rows.length * 2);
+            rows.forEach((edge, k) => {
+                const a = String(edge.source), b = String(edge.target);
+                ePos.set(positionById.get(a), k * 6);
+                ePos.set(positionById.get(b), k * 6 + 3);
+                const ca = colorById.get(a), cb = colorById.get(b);
+                eColor.set([ca.r, ca.g, ca.b, cb.r, cb.g, cb.b], k * 6);
+                eAlong[k * 2] = 0; eAlong[k * 2 + 1] = 1;
+                const carry = carryEdges.get(String(edge.id)) || 0;
+                eAct[k * 2] = carry; eAct[k * 2 + 1] = carry;
+                edgeIndexById.set(String(edge.id), k);
+            });
+            edgeTarget = new Float32Array(rows.length);
+            if (rows.length) {
+                const edgeGeometry = new THREE.BufferGeometry();
+                edgeGeometry.setAttribute("position", new THREE.BufferAttribute(ePos, 3));
+                edgeGeometry.setAttribute("aColor", new THREE.BufferAttribute(eColor, 3));
+                edgeGeometry.setAttribute("aAlong", new THREE.BufferAttribute(eAlong, 1));
+                edgeGeometry.setAttribute("aAct", new THREE.BufferAttribute(eAct, 1));
+                edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                edgeLines.frustumCulled = false;
+                edgeLines.renderOrder = 1;
+                graphGroup.add(edgeLines);
+            }
+
+            nodePoints = new THREE.Points(geometry, nodeMaterial);
+            nodePoints.frustumCulled = false;
+            nodePoints.renderOrder = 2;
+            glowPoints = new THREE.Points(geometry, glowMaterial);
+            glowPoints.frustumCulled = false;
+            glowPoints.renderOrder = 3;
+            graphGroup.add(nodePoints, glowPoints);
+
+            hubIndexes = nodes
+                .map((node, i) => ({ i, deg: degree.get(String(node.id)) || 0, id: String(node.id) }))
+                .filter(item => item.deg > 0)
+                .sort((a, b) => b.deg - a.deg || (a.id < b.id ? -1 : 1))
+                .slice(0, IDLE_LABELS).map(item => item.i);
+        } else {
+            edgeTarget = new Float32Array(0);
+            hubIndexes = [];
         }
 
-        applyActive(true);
+        applyActive();
         if (countEl) countEl.textContent = count + " NODES";
         if (edgeCountEl) edgeCountEl.textContent = edges.length + " EDGES";
         const activeText = processActive && activeIds.size ? " · " + activeIds.size + " ACTIVE" : "";
         setStatus("LIVE SQLITE GRAPH · " + count + " NODES · " + edges.length + " EDGES" + activeText);
     }
 
-    // Only ids reported by the memory pipeline AND present in the loaded SQLite rows are shown.
-    function applyActive(rebuildEdges) {
-        activeTarget.fill(0);
-        if (processActive) {
-            activeIds.forEach(id => {
-                const i = indexById.get(id);
-                if (i !== undefined) activeTarget[i] = 1;
-            });
-        }
-        edgeTarget = processActive ? 1 : 0;
-        if (rebuildEdges && processActive) rebuildActiveEdges();
-    }
-
-    function rebuildActiveEdges() {
-        disposeEdges();
-        if (!activeEdgeIds.size) return;
-        const pos = [], along = [];
-        edges.forEach(edge => {
-            if (!activeEdgeIds.has(String(edge.id))) return;
-            const a = positionById.get(String(edge.source));
-            const b = positionById.get(String(edge.target));
-            if (!a || !b) return;
-            pos.push(a[0], a[1], a[2], b[0], b[1], b[2]);
-            along.push(0, 1);
+    // Targets come only from ids reported by the memory pipeline that exist in the loaded SQLite rows.
+    function applyActive() {
+        nodeTarget.fill(0);
+        edgeTarget.fill(0);
+        if (!processActive) return;
+        activeIds.forEach(id => {
+            const i = indexById.get(id);
+            if (i !== undefined) nodeTarget[i] = 1;
         });
-        if (!along.length) return;
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-        geometry.setAttribute("aAlong", new THREE.Float32BufferAttribute(along, 1));
-        edgeLines = new THREE.LineSegments(geometry, edgeMaterial);
-        edgeLines.frustumCulled = false;
-        graphGroup.add(edgeLines);
+        activeEdgeIds.forEach(id => {
+            const k = edgeIndexById.get(id);
+            if (k !== undefined) edgeTarget[k] = 1;
+        });
     }
 
     // ---- Data loading ----------------------------------------------------
@@ -326,7 +546,7 @@ import { eventBus } from "../core/event_bus.js";
             activeIds.clear();
             activeEdgeIds.clear();
             resetScene();
-            buildNodes();
+            buildGraph();
             setStatus("Select a project to inspect its SQLite memory");
             return;
         }
@@ -355,7 +575,7 @@ import { eventBus } from "../core/event_bus.js";
             if (signature !== graphSignature) {
                 graphSignature = signature;
                 if (projectChanged) resetScene();
-                buildNodes();
+                buildGraph();
             }
 
             if (!nodes.length) {
@@ -379,7 +599,7 @@ import { eventBus } from "../core/event_bus.js";
         processActive = false;
         activeIds.clear();
         activeEdgeIds.clear();
-        applyActive(false);   // targets fall to 0 -> smooth fade; nodes stay visible
+        applyActive();     // targets fall to 0 -> smooth fade; every node and edge stays on screen
         if (nodes.length) setStatus("LIVE SQLITE GRAPH · " + nodes.length + " NODES · " + edges.length + " EDGES");
     }
 
@@ -387,6 +607,8 @@ import { eventBus } from "../core/event_bus.js";
         if (Array.isArray(item.active_node_ids)) item.active_node_ids.forEach(id => activeIds.add(String(id)));
         if (Array.isArray(item.active_edge_ids)) item.active_edge_ids.forEach(id => activeEdgeIds.add(String(id)));
     }
+
+    const hasUnknown = () => [...activeIds].some(id => !indexById.has(id));
 
     function handleMemoryEvent(detail) {
         if (!detail) return;
@@ -399,7 +621,7 @@ import { eventBus } from "../core/event_bus.js";
             runStartedAt = performance.now();
             activeIds.clear();
             activeEdgeIds.clear();
-            applyActive(false);
+            applyActive();
             setStatus("Memory query running · reading SQLite graph");
             activity({ label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "orchestrator") });
             loadGraph(eventProject || lastProject);
@@ -415,9 +637,8 @@ import { eventBus } from "../core/event_bus.js";
                 label: (item.phase === "started" ? "Running · " : "Completed · ") + (item.label || item.operation || "Memory operation"),
                 detail: item.detail || "", duration_ms: item.duration_ms
             });
-            const unknown = [...activeIds].some(id => !indexById.has(id));
-            if (unknown) loadGraph(lastProject);   // buildNodes() re-applies the active state after loading
-            else applyActive(true);
+            if (hasUnknown()) loadGraph(lastProject);   // buildGraph() re-applies the active state after loading
+            else applyActive();
             return;
         }
 
@@ -425,8 +646,8 @@ import { eventBus } from "../core/event_bus.js";
             processActive = true;
             addActive(detail);
             activity({ label: "Memory context ready", detail: "SQLite graph updated" });
-            if ([...activeIds].some(id => !indexById.has(id))) loadGraph(eventProject || lastProject);
-            else applyActive(true);
+            if (hasUnknown()) loadGraph(eventProject || lastProject);
+            else applyActive();
             // The memory pipeline takes milliseconds: keep the real activity visible, then fade it.
             const remaining = Math.max(1200, MIN_ACTIVE_MS - (performance.now() - runStartedAt));
             if (endRunTimer) clearTimeout(endRunTimer);
@@ -443,6 +664,20 @@ import { eventBus } from "../core/event_bus.js";
     }
 
     // ---- Render loop -----------------------------------------------------
+    function easeBuffer(attribute, target, factor, perItem) {
+        const arr = attribute.array;
+        let dirty = false;
+        for (let i = 0; i < target.length; i++) {
+            const current = arr[i * perItem];
+            const diff = target[i] - current;
+            if (diff === 0) continue;
+            const next = Math.abs(diff) < 0.004 ? target[i] : current + diff * factor;
+            for (let v = 0; v < perItem; v++) arr[i * perItem + v] = next;
+            dirty = true;
+        }
+        if (dirty) attribute.needsUpdate = true;
+    }
+
     function animate(now) {
         raf = 0;
         if (document.hidden || root.style.display === "none") return;
@@ -455,28 +690,12 @@ import { eventBus } from "../core/event_bus.js";
         graphGroup.rotation.y += rotationSpeed * delta;
         graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
 
-        pointMaterial.uniforms.uTime.value = pulseClock;
-        if (points) {
-            const attr = points.geometry.attributes.aActive;
-            const arr = attr.array;
-            const k = 1 - Math.exp(-delta / 150);
-            let dirty = false;
-            for (let i = 0; i < arr.length; i++) {
-                const diff = activeTarget[i] - arr[i];
-                if (diff === 0) continue;
-                arr[i] = Math.abs(diff) < 0.004 ? activeTarget[i] : arr[i] + diff * k;
-                dirty = true;
-            }
-            if (dirty) attr.needsUpdate = true;
-        }
+        nodeMaterial.uniforms.uTime.value = pulseClock;
+        edgeMaterial.uniforms.uTime.value = pulseClock;
+        if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
+        if (edgeLines) easeBuffer(edgeLines.geometry.attributes.aAct, edgeTarget, 1 - Math.exp(-delta / 220), 2);
 
-        if (edgeLines) {
-            const u = edgeMaterial.uniforms;
-            u.uTime.value = pulseClock;
-            u.uOpacity.value += (edgeTarget - u.uOpacity.value) * (1 - Math.exp(-delta / 260));
-            if (edgeTarget === 0 && u.uOpacity.value < 0.02) { u.uOpacity.value = 0; disposeEdges(); }
-        }
-
+        updateLabels();
         renderer.render(scene, camera);
         raf = requestAnimationFrame(animate);
     }
@@ -495,6 +714,7 @@ import { eventBus } from "../core/event_bus.js";
     function setCollapsed(value) {
         root.style.display = value ? "none" : "";
         restoreButton.style.display = value ? "flex" : "none";
+        labelLayer.style.display = value ? "none" : "";
         if (toggle) {
             toggle.setAttribute("aria-expanded", String(!value));
             toggle.setAttribute("aria-label", value ? "Show memory graph" : "Hide memory graph");
@@ -540,9 +760,7 @@ import { eventBus } from "../core/event_bus.js";
     });
     canvas.addEventListener("webglcontextrestored", () => { resize(); start(); });
 
-    resizeObserver = typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => { resize(); })
-        : null;
+    resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => resize()) : null;
     resizeObserver?.observe(canvas);
 
     window.addEventListener("rf:memory-graph", event => {
@@ -558,7 +776,7 @@ import { eventBus } from "../core/event_bus.js";
         activeIds.clear();
         activeEdgeIds.clear();
         resetScene();
-        buildNodes();
+        buildGraph();
         loadGraph(lastProject);
     });
 
@@ -576,19 +794,22 @@ import { eventBus } from "../core/event_bus.js";
         if (endRunTimer) clearTimeout(endRunTimer);
         resizeObserver?.disconnect();
         resetScene();
-        pointMaterial?.dispose();
+        nodeMaterial?.dispose();
+        glowMaterial?.dispose();
         edgeMaterial?.dispose();
+        labelLayer.remove();
         renderer?.dispose();
     }, { once: true });
 
     // Debug hook: localStorage.rf_debug_graph = "1" -> window.__rfMemoryGraphDebug()
     if (localStorage.getItem("rf_debug_graph") === "1") {
         window.__rfMemoryGraphDebug = () => ({
-            points: points ? points.geometry.attributes.position.count : 0,
+            points: nodePoints ? nodePoints.geometry.attributes.position.count : 0,
             apiNodes: nodes.length,
             apiEdges: edges.length,
-            activeNodes: points ? [...points.geometry.attributes.aActive.array].filter(v => v > 0.5).length : 0,
-            activeEdges: edgeLines ? edgeLines.geometry.attributes.position.count / 2 : 0,
+            drawnEdges: edgeLines ? edgeLines.geometry.attributes.position.count / 2 : 0,
+            activeNodes: nodePoints ? [...nodePoints.geometry.attributes.aActive.array].filter(v => v > 0.5).length : 0,
+            activeEdges: edgeLines ? [...edgeLines.geometry.attributes.aAct.array].filter(v => v > 0.5).length / 2 : 0,
             rotationY: graphGroup.rotation.y,
             positions: Object.fromEntries([...positionById].map(([id, p]) => [id, p.map(v => +v.toFixed(5))]))
         });
