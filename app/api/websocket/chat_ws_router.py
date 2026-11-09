@@ -167,12 +167,46 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
 
             task = asyncio.create_task(run_task())
             active_tasks[session_id] = task
+            reader_task = asyncio.create_task(websocket.receive_text())
             try:
-                await task
-            except asyncio.CancelledError:
-                logger.info(f"Agent loop task cancelled for session {session_id}")
-                await websocket.send_json({"status": "aborted", "session_id": session_id})
+                # Keep reading the socket while the agent streams. Otherwise Stop cannot
+                # reach this handler until the awaited agent task has already completed.
+                while not task.done():
+                    done, _ = await asyncio.wait(
+                        {task, reader_task},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if task in done:
+                        break
+                    if reader_task in done:
+                        try:
+                            incoming = json.loads(reader_task.result())
+                        except WebSocketDisconnect:
+                            task.cancel()
+                            await asyncio.gather(task, return_exceptions=True)
+                            raise
+                        incoming_action = incoming.get("action") or incoming.get("type") or ""
+                        if incoming_action in ("abort", "abort_request"):
+                            logger.info("Stop received during active generation for session %s", session_id)
+                            task.cancel()
+                            await asyncio.gather(task, return_exceptions=True)
+                            await websocket.send_json({"status": "aborted", "session_id": session_id})
+                            break
+                        await websocket.send_json({
+                            "status": "busy",
+                            "error": "An agent task is already running. Press Stop before sending another message.",
+                        })
+                        reader_task = asyncio.create_task(websocket.receive_text())
+
+                if not task.cancelled():
+                    await task
             finally:
+                if not reader_task.done():
+                    reader_task.cancel()
+                    await asyncio.gather(reader_task, return_exceptions=True)
+                if not task.done():
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
                 active_tasks.pop(session_id, None)
 
     except WebSocketDisconnect:
