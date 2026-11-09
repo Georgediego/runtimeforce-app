@@ -108,6 +108,9 @@ import { eventBus } from "../core/event_bus.js";
                 }
                 pulseStartedAt = performance.now();
                 pulseUntil = pulseStartedAt + (item.operation === "graph_traversal" ? 4200 : 2400);
+                if (item.operation === "graph_persist" && item.phase === "completed") {
+                    loadGraph(detail.project_id || lastProjectId);
+                }
             }
             startAnimation();
             return;
