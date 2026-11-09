@@ -1825,7 +1825,7 @@ html.light [id$="-modal"]:not(.hidden)>div,html.light [role="dialog"]>div{backgr
 .rf-system-monitor{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:15px;padding:6px 11px;border:1px solid var(--ide-border-subtle);border-radius:10px;background:rgba(8,24,16,.48);color:var(--ide-text-secondary);font:9px 'JetBrains Mono',monospace;white-space:nowrap;backdrop-filter:blur(12px)}
 .rf-system-monitor .rf-monitor-metric{display:flex;align-items:center;gap:5px;min-width:0}
 .rf-system-monitor b{color:var(--ide-text-primary);font-weight:600}
-.rf-monitor-gauge{width:10px;height:10px;flex:0 0 10px;border-radius:50%;background:conic-gradient(var(--rf-monitor-color,#07f77a) 0 35%,rgba(120,140,130,.2) 35%);box-shadow:0 0 7px var(--rf-monitor-color,#07f77a)}
+.rf-monitor-gauge{width:10px;height:10px;flex:0 0 10px;border-radius:50%;background:conic-gradient(var(--rf-monitor-color,#07f77a) 0 var(--rf-cpu-progress,0%),rgba(120,140,130,.2) var(--rf-cpu-progress,0%) 100%);box-shadow:0 0 7px var(--rf-monitor-color,#07f77a)}
 .rf-monitor-gauge[data-level="medium"]{--rf-monitor-color:#facc15}
 .rf-monitor-gauge[data-level="high"]{--rf-monitor-color:#f87171}
 .rf-monitor-bar{width:35px;height:3px;border-radius:9px;background:rgba(130,150,140,.22);overflow:hidden}
