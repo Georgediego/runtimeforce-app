@@ -125,6 +125,7 @@ export const terminalUIController = {
                             workspaceAvailable: !!item.workspace_id,
                             projectAvailable: !!item.project_id,
                         });
+                        if (choice === "cancelled") return;
                         await approvalsApi.decide(item.pending_id, choice || "deny");
                         if (choice === "deny") showToast("Command denied. It was not executed.", "warning");
                     } catch (error) {
