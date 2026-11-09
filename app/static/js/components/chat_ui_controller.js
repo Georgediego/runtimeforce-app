@@ -267,6 +267,7 @@ export const chatUIController = {
 
     setGeneratingState(active) {
         isGenerating = active;
+        eventBus.emit("generation:state", { active: Boolean(active) });
         const sendBtn = document.getElementById("send-btn");
         const stopBtn = document.getElementById("stop-gen-btn");
         const statusBadge = document.getElementById("orchestrator-status-badge");
