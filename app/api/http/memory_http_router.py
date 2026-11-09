@@ -40,73 +40,21 @@ async def get_graph_status(
     user_id: str = Depends(require_authenticated_user),
     graph_service: GraphMemoryService = Depends(get_graph_memory_service)
 ):
-    """Return a real project-scoped SQLite graph snapshot (up to 300 nodes / 1200 edges)."""
+    """Return every real node and relationship stored for this project in SQLite."""
     conn = graph_service.graph_repo.db.get_connection()
     requested_ids = list(dict.fromkeys(str(value) for value in (active_node_ids or []) if value))[:30]
 
-    # Read the graph tables directly. Do not use the context-retrieval subgraph here:
-    # that method is optimized for prompt context and may return only a tiny ranked subset.
-    base_limit = max(1, 300 - len(requested_ids))
+    # Return the complete project graph, not the small ranked subgraph used for prompt context.
     raw_nodes = conn.execute(
         """
         SELECT * FROM graph_nodes
         WHERE project_id=? AND user_id=?
         ORDER BY usage_count DESC, last_used_at DESC, created_at DESC
-        LIMIT ?
         """,
-        (project_id, user_id, base_limit),
+        (project_id, user_id),
     ).fetchall()
     raw_nodes = [dict(row) for row in raw_nodes]
     included_ids = {str(node["id"]) for node in raw_nodes if node.get("id")}
-
-    # Always include exact nodes matched by the live memory query, even if outside top 300.
-    missing_ids = [value for value in requested_ids if value not in included_ids]
-    if missing_ids:
-        placeholders = ",".join("?" for _ in missing_ids)
-        rows = conn.execute(
-            f"""
-            SELECT * FROM graph_nodes
-            WHERE project_id=? AND user_id=? AND id IN ({placeholders})
-            """,
-            (project_id, user_id, *missing_ids),
-        ).fetchall()
-        raw_nodes.extend(dict(row) for row in rows)
-        included_ids.update(str(row["id"]) for row in rows)
-
-    # Add real one-hop neighbors for active matches, while keeping the snapshot bounded.
-    active_found = [value for value in requested_ids if value in included_ids]
-    if active_found and len(raw_nodes) < 300:
-        placeholders = ",".join("?" for _ in active_found)
-        incident = conn.execute(
-            f"""
-            SELECT edge.source_id, edge.target_id
-            FROM graph_edges AS edge
-            JOIN graph_nodes AS source ON source.id=edge.source_id
-            JOIN graph_nodes AS target ON target.id=edge.target_id
-            WHERE source.project_id=? AND source.user_id=?
-              AND target.project_id=? AND target.user_id=?
-              AND (edge.source_id IN ({placeholders}) OR edge.target_id IN ({placeholders}))
-            LIMIT 600
-            """,
-            (project_id, user_id, project_id, user_id, *active_found, *active_found),
-        ).fetchall()
-        neighbors = list(dict.fromkeys(
-            str(row["target_id"] if str(row["source_id"]) in active_found else row["source_id"])
-            for row in incident
-        ))
-        neighbors = [node_id for node_id in neighbors if node_id not in included_ids]
-        neighbors = neighbors[:max(0, 300 - len(raw_nodes))]
-        if neighbors:
-            placeholders = ",".join("?" for _ in neighbors)
-            rows = conn.execute(
-                f"""
-                SELECT * FROM graph_nodes
-                WHERE project_id=? AND user_id=? AND id IN ({placeholders})
-                """,
-                (project_id, user_id, *neighbors),
-            ).fetchall()
-            raw_nodes.extend(dict(row) for row in rows)
-            included_ids.update(str(row["id"]) for row in rows)
 
     nodes = [
         {
@@ -115,7 +63,7 @@ async def get_graph_status(
             "type": str(node.get("node_type") or "memory"),
             "usage_count": int(node.get("usage_count") or 0),
         }
-        for node in raw_nodes[:300]
+        for node in raw_nodes
         if node.get("id")
     ]
     node_ids = [node["id"] for node in nodes]
@@ -133,7 +81,6 @@ async def get_graph_status(
               AND edge.source_id IN ({placeholders})
               AND edge.target_id IN ({placeholders})
             ORDER BY edge.weight DESC, edge.created_at DESC
-            LIMIT 1200
             """,
             (project_id, user_id, project_id, user_id, *node_ids, *node_ids),
         ).fetchall()
@@ -170,8 +117,8 @@ async def get_graph_status(
         "edges": edges,
         "total_nodes": int(total_nodes),
         "total_edges": int(total_edges),
-        "truncated": int(total_nodes) > len(nodes),
-        "active_node_ids": [node_id for node_id in requested_ids if node_id in included_ids],
+        "truncated": False,
+        "active_node_ids": [node_id for node_id in requested_ids if node_id in {node["id"] for node in nodes}],
     }
 
 @router.get("/decisions/{project_id}")
