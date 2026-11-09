@@ -24,10 +24,9 @@ import { eventBus } from "../core/event_bus.js";
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
 
     // ---- Scene constants -------------------------------------------------
-    const FOV = 38, CAM_Z = 4.85, RADIUS = 1.82;
-    const AMBIENT_SHELL_POINTS = 100;
+    const FOV = 38, CAM_Z = 4.85, RADIUS = 1.42;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
-    const EDGE_IDLE_ALPHA = 0.16;      // faint always-on web of real edges (0 = show edges only while active)
+    const EDGE_IDLE_ALPHA = 0;           // real edges are visible only during actual memory activity
     const MAX_ACTIVE_LABELS = 5, IDLE_LABELS = 3;
     const rotationSpeed = 0.00032;
     const HOT = 0xff3fa4;
@@ -113,65 +112,24 @@ import { eventBus } from "../core/event_bus.js";
         return raw.map(v => (v / len) * radius * 0.55);
     }
 
-    // Deterministic seed: type cluster centre + id-hashed offset inside a blob.
-    function seedPosition(node, radius) {
-        const id = String(node.id);
-        const anchor = typeAnchor(node.type, radius);
-        const dir = unitVector(id, 0x1b873593);
-        const blob = radius * 0.78 * Math.cbrt(hash01(id, 0xc2b2ae35));
-        return [anchor[0] + dir[0] * blob, anchor[1] + dir[1] * blob, anchor[2] + dir[2] * blob];
-    }
-
-    // Relax ONLY nodes without a cached position; cached nodes are pinned, so existing points never move.
+    // All real SQLite nodes share one spherical surface.
+    // Fibonacci distribution spreads the existing points evenly over the globe.
     function layoutGraph(nodeList, edgeList, cache, radius) {
-        const fresh = new Set();
-        nodeList.forEach(node => {
-            const id = String(node.id);
-            if (!cache.has(id)) { cache.set(id, seedPosition(node, radius)); fresh.add(id); }
+        const ordered = nodeList.map(node => String(node.id)).sort();
+        const total = ordered.length;
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+        ordered.forEach((id, i) => {
+            const y = total <= 1 ? 0 : 1 - 2 * (i + 0.5) / total;
+            const ring = Math.sqrt(Math.max(0, 1 - y * y));
+            const theta = goldenAngle * i;
+            cache.set(id, [
+                Math.cos(theta) * ring * radius,
+                y * radius,
+                Math.sin(theta) * ring * radius
+            ]);
         });
-        if (!fresh.size) return;
-
-        const ids = nodeList.map(node => String(node.id)).sort();
-        const index = new Map(ids.map((id, i) => [id, i]));
-        const pos = ids.map(id => cache.get(id));
-        const free = ids.map(id => fresh.has(id));
-        const links = [];
-        edgeList.forEach(edge => {
-            const a = index.get(String(edge.source)), b = index.get(String(edge.target));
-            if (a !== undefined && b !== undefined && a !== b && (free[a] || free[b])) links.push([a, b]);
-        });
-        const iterations = ids.length <= 400 ? 40 : ids.length <= 1200 ? 12 : 0;
-        const REP = 0.32, REST = 0.42;
-        for (let it = 0; it < iterations; it++) {
-            const force = ids.map(() => [0, 0, 0]);
-            for (let i = 0; i < ids.length; i++) {
-                for (let j = i + 1; j < ids.length; j++) {
-                    if (!free[i] && !free[j]) continue;
-                    const dx = pos[i][0] - pos[j][0], dy = pos[i][1] - pos[j][1], dz = pos[i][2] - pos[j][2];
-                    const d2 = dx * dx + dy * dy + dz * dz;
-                    if (d2 >= REP * REP || d2 === 0) continue;
-                    const d = Math.sqrt(d2), f = (REP - d) / REP * 0.03 / d;
-                    force[i][0] += dx * f; force[i][1] += dy * f; force[i][2] += dz * f;
-                    force[j][0] -= dx * f; force[j][1] -= dy * f; force[j][2] -= dz * f;
-                }
-            }
-            links.forEach(([a, b]) => {
-                const dx = pos[b][0] - pos[a][0], dy = pos[b][1] - pos[a][1], dz = pos[b][2] - pos[a][2];
-                const d = Math.hypot(dx, dy, dz) || 1, f = (d - REST) * 0.012 / d;
-                force[a][0] += dx * f; force[a][1] += dy * f; force[a][2] += dz * f;
-                force[b][0] -= dx * f; force[b][1] -= dy * f; force[b][2] -= dz * f;
-            });
-            for (let i = 0; i < ids.length; i++) {
-                if (!free[i]) continue;
-                const p = pos[i], f = force[i];
-                const step = Math.min(0.06, Math.hypot(f[0], f[1], f[2])) / (Math.hypot(f[0], f[1], f[2]) || 1);
-                p[0] += f[0] * step; p[1] += f[1] * step; p[2] += f[2] * step;
-                const len = Math.hypot(p[0], p[1], p[2]);
-                if (len > radius) { p[0] *= radius / len; p[1] *= radius / len; p[2] *= radius / len; }
-            }
-        }
     }
-    // LAYOUT-END
+        // LAYOUT-END
 
     // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
@@ -370,67 +328,6 @@ import { eventBus } from "../core/event_bus.js";
         graphGroup = new THREE.Group();
         scene.add(graphGroup);
 
-        // 100 ambient shell particles form the outer globe. Visual only:
-        // they are not SQLite nodes and are never connected by graph edges.
-        const shellPositions = new Float32Array(AMBIENT_SHELL_POINTS * 3);
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-        for (let i = 0; i < AMBIENT_SHELL_POINTS; i++) {
-            const y = 1 - (i / (AMBIENT_SHELL_POINTS - 1)) * 2;
-            const ring = Math.sqrt(Math.max(0, 1 - y * y));
-            const theta = goldenAngle * i;
-            const radius = RADIUS * 1.035;
-            shellPositions.set([
-                Math.cos(theta) * ring * radius,
-                y * radius,
-                Math.sin(theta) * ring * radius
-            ], i * 3);
-        }
-        // Build a spherical lattice: each surface point joins its three
-        // nearest neighbours. These struts are shell geometry, not memory edges.
-        const shellLinks = [];
-        const linked = new Set();
-        for (let i = 0; i < AMBIENT_SHELL_POINTS; i++) {
-            const nearest = [];
-            for (let j = 0; j < AMBIENT_SHELL_POINTS; j++) {
-                if (i === j) continue;
-                const dx = shellPositions[i * 3] - shellPositions[j * 3];
-                const dy = shellPositions[i * 3 + 1] - shellPositions[j * 3 + 1];
-                const dz = shellPositions[i * 3 + 2] - shellPositions[j * 3 + 2];
-                nearest.push({ j, d: dx * dx + dy * dy + dz * dz });
-            }
-            nearest.sort((a, b) => a.d - b.d);
-            for (const item of nearest.slice(0, 3)) {
-                const lo = Math.min(i, item.j), hi = Math.max(i, item.j);
-                const key = lo + ":" + hi;
-                if (linked.has(key)) continue;
-                linked.add(key);
-                shellLinks.push(
-                    shellPositions[lo * 3], shellPositions[lo * 3 + 1], shellPositions[lo * 3 + 2],
-                    shellPositions[hi * 3], shellPositions[hi * 3 + 1], shellPositions[hi * 3 + 2]
-                );
-            }
-        }
-        const shellLineGeometry = new THREE.BufferGeometry();
-        shellLineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(shellLinks, 3));
-        const shellLineMaterial = new THREE.LineBasicMaterial({
-            color: 0x6685a8, transparent: true, opacity: 0.28,
-            depthTest: true, depthWrite: true
-        });
-        shellMesh = new THREE.LineSegments(shellLineGeometry, shellLineMaterial);
-        shellMesh.frustumCulled = false;
-        shellMesh.renderOrder = 0;
-        graphGroup.add(shellMesh);
-
-        const shellGeometry = new THREE.BufferGeometry();
-        shellGeometry.setAttribute("position", new THREE.BufferAttribute(shellPositions, 3));
-        const shellMaterial = new THREE.PointsMaterial({
-            color: 0xb5c9e6, size: 0.052, sizeAttenuation: true,
-            transparent: true, opacity: 0.96, depthTest: true, depthWrite: true
-        });
-        ambientPoints = new THREE.Points(shellGeometry, shellMaterial);
-        ambientPoints.frustumCulled = false;
-        ambientPoints.renderOrder = 1;
-        graphGroup.add(ambientPoints);
         nodeMaterial = createNodeMaterial();
         glowMaterial = createGlowMaterial();
         edgeMaterial = createEdgeMaterial();
@@ -857,9 +754,6 @@ import { eventBus } from "../core/event_bus.js";
         if (endRunTimer) clearTimeout(endRunTimer);
         resizeObserver?.disconnect();
         resetScene();
-        ambientPoints?.geometry.dispose();
-        ambientPoints?.material.dispose();
-        if (shellMesh) { graphGroup.remove(shellMesh); shellMesh.geometry.dispose(); shellMesh.material.dispose(); shellMesh = null; }
         nodeMaterial?.dispose();
         glowMaterial?.dispose();
         edgeMaterial?.dispose();
