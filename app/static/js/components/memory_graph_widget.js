@@ -26,6 +26,8 @@ import { eventBus } from "../core/event_bus.js";
     let nodes = [];
     let edges = [];
     let activeIds = new Set();
+    let activeEdgeIds = new Set();
+    let graphSignature = "";
     let lastProject = "";
     let requestVersion = 0;
     let renderer, scene, camera, graphGroup;
@@ -59,17 +61,25 @@ import { eventBus } from "../core/event_bus.js";
         while (feedEl.children.length > 5) feedEl.lastElementChild.remove();
     }
 
-    function fibonacciSphere(count, radius) {
-        if (!count) return [];
-        const points = [];
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-        for (let i = 0; i < count; i++) {
-            const y = count === 1 ? 0 : 1 - (i / (count - 1)) * 2;
-            const ring = Math.sqrt(Math.max(0, 1 - y * y));
-            const theta = goldenAngle * i;
-            points.push(new THREE.Vector3(Math.cos(theta) * ring * radius, y * radius, Math.sin(theta) * ring * radius));
+    // Stable ID-based spherical coordinates: adding/reordering nodes never moves existing nodes.
+    function stableSpherePosition(id, radius) {
+        let hash = 2166136261;
+        const value = String(id);
+        for (let i = 0; i < value.length; i++) {
+            hash ^= value.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
         }
-        return points;
+        const seedA = (hash >>> 0) / 4294967296;
+        hash = Math.imul(hash ^ 0x9e3779b9, 2246822519);
+        const seedB = (hash >>> 0) / 4294967296;
+        const y = 1 - 2 * seedA;
+        const ring = Math.sqrt(Math.max(0, 1 - y * y));
+        const theta = 2 * Math.PI * seedB;
+        return new THREE.Vector3(
+            Math.cos(theta) * ring * radius,
+            y * radius,
+            Math.sin(theta) * ring * radius
+        );
     }
 
     function initThree() {
@@ -135,7 +145,6 @@ import { eventBus } from "../core/event_bus.js";
 
         const visibleNodes = nodes;
         const visibleEdges = edges;
-        const positions = fibonacciSphere(visibleNodes.length, 1.72);
         const positionById = new Map();
         const normalNodes = [];
         const hotNodes = [];
@@ -143,7 +152,7 @@ import { eventBus } from "../core/event_bus.js";
 
         visibleNodes.forEach((node, index) => {
             const id = String(node.id);
-            const position = positions[index];
+            const position = stableSpherePosition(id, 1.72);
             positionById.set(id, position);
             const isActive = processActive && activeIds.has(id);
             const record = { position, color: nodeColor(node, isActive, index) };
@@ -155,8 +164,8 @@ import { eventBus } from "../core/event_bus.js";
             const source = positionById.get(String(edge.source));
             const target = positionById.get(String(edge.target));
             if (!source || !target) return;
-            // Reveal only persisted SQLite relationships participating in the live memory operation.
-            if (processActive && (activeIds.has(String(edge.source)) || activeIds.has(String(edge.target))) ) {
+            // Reveal only exact persisted SQLite edge IDs reported by the active memory operation.
+            if (processActive && activeEdgeIds.has(String(edge.id))) {
                 hotEdgePositions.push(source.x, source.y, source.z, target.x, target.y, target.z);
             }
         });
@@ -234,10 +243,20 @@ import { eventBus } from "../core/event_bus.js";
             const payload = await response.json();
             if (version !== requestVersion) return;
 
-            nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
-            edges = Array.isArray(payload.edges) ? payload.edges : [];
+            const nextNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+            const nextEdges = Array.isArray(payload.edges) ? payload.edges : [];
+            const signature = JSON.stringify([
+                nextNodes.map(node => [node.id, node.type, node.label]),
+                nextEdges.map(edge => edge.id)
+            ]);
+            const changed = signature !== graphSignature;
+            nodes = nextNodes;
+            edges = nextEdges;
             lastProject = pid;
-            buildGraph();
+            if (changed) {
+                graphSignature = signature;
+                buildGraph();
+            }
 
             if (!nodes.length) {
                 setStatus("No saved SQLite memory nodes in this project yet");
@@ -260,6 +279,8 @@ import { eventBus } from "../core/event_bus.js";
 
         if (detail.phase === "started") {
             processActive = true;
+            activeIds.clear();
+            activeEdgeIds.clear();
             setStatus("Memory query running · reading SQLite graph");
             activity({ label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "orchestrator") });
             loadGraph(eventProject || lastProject);
@@ -268,8 +289,9 @@ import { eventBus } from "../core/event_bus.js";
 
         if (detail.phase === "activity" && detail.event) {
             const item = detail.event;
-            processActive = item.phase !== "completed" && item.phase !== "failed";
-            activeIds = new Set((Array.isArray(item.active_node_ids) ? item.active_node_ids : []).map(String));
+            processActive = true;
+            if (Array.isArray(item.active_node_ids)) activeIds = new Set(item.active_node_ids.map(String));
+            if (Array.isArray(item.active_edge_ids)) activeEdgeIds = new Set(item.active_edge_ids.map(String));
             activity({
                 label: (item.phase === "started" ? "Running · " : "Completed · ") + (item.label || item.operation || "Memory operation"),
                 detail: item.detail || "", duration_ms: item.duration_ms
@@ -281,9 +303,11 @@ import { eventBus } from "../core/event_bus.js";
         }
 
         if (detail.phase === "completed") {
-            activeIds = new Set((Array.isArray(detail.active_node_ids) ? detail.active_node_ids : []).map(String));
+            if (Array.isArray(detail.active_node_ids)) activeIds = new Set(detail.active_node_ids.map(String));
+            if (Array.isArray(detail.active_edge_ids)) activeEdgeIds = new Set(detail.active_edge_ids.map(String));
             processActive = false;
             activeIds.clear();
+            activeEdgeIds.clear();
             activity({ label: "Memory context ready", detail: "SQLite graph updated" });
             buildGraph();
             loadGraph(eventProject || lastProject);
@@ -293,6 +317,7 @@ import { eventBus } from "../core/event_bus.js";
         if (detail.phase === "failed") {
             processActive = false;
             activeIds.clear();
+            activeEdgeIds.clear();
             buildGraph();
             setStatus("Memory query failed");
             activity({ label: "Memory query failed", detail: detail.error || "See Agent Trace" });
@@ -400,6 +425,8 @@ import { eventBus } from "../core/event_bus.js";
         nodes = [];
         edges = [];
         activeIds.clear();
+        activeEdgeIds.clear();
+        graphSignature = "";
         buildGraph();
         loadGraph(lastProject);
     });
