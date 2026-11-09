@@ -1962,7 +1962,7 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 }
 #rf-memory-widget .rf-memory-widget-toggle:hover{border-color:var(--ide-accent);color:var(--ide-accent);background:rgba(7,247,122,.10)}
 #rf-memory-widget-body{display:flex;flex:1;min-height:0;flex-direction:column;gap:5px;overflow:hidden}
-#rf-memory-widget.is-collapsed{flex:0 0 40px;min-height:40px;max-height:40px;padding-top:7px;padding-bottom:6px}
+#rf-memory-widget.is-collapsed{flex:0 0 28px;height:28px;min-height:28px;max-height:28px;padding:3px 8px;margin-top:auto;border-top:0;background:transparent;box-shadow:none}
 #rf-memory-widget.is-collapsed #rf-memory-widget-body{display:none}
 #rf-memory-widget.is-collapsed .rf-memory-widget-toggle i{transform:rotate(180deg)}
 #rf-memory-widget .rf-memory-widget-toggle i{transition:transform .18s}
