@@ -137,17 +137,6 @@
             <div id="rf-menu-settings-btn" class="mt-auto sidebar-icon w-9 h-9 flex items-center justify-center text-[var(--ide-text-muted)] hover:text-[var(--ide-text-primary)] cursor-pointer">
                 <i data-lucide="settings" class="w-5 h-5"></i>
             </div>
-            <div id="rf-memory-widget" class="rf-memory-widget">
-                <button id="rf-memory-widget-toggle" class="rf-memory-widget-toggle" type="button" aria-label="Open memory graph" aria-expanded="false" title="Project memory graph">
-                    <canvas id="rf-memory-sphere-mini" width="96" height="96"></canvas>
-                    <span>MEM</span>
-                </button>
-                <div id="rf-memory-widget-popover" class="rf-memory-widget-popover hidden" role="dialog" aria-label="3D project memory graph">
-                    <div class="rf-memory-widget-heading"><span>PROJECT MEMORY</span><span id="rf-memory-widget-count">0 NODES</span></div>
-                    <canvas id="rf-memory-sphere-large" width="360" height="360"></canvas>
-                    <div id="rf-memory-widget-status">Idle · local SQLite</div>
-                </div>
-            </div>
         </div>
     </aside>
 
@@ -229,6 +218,22 @@
                     </div>
                 </div>
             </div>
+
+            <section id="rf-memory-widget" class="rf-memory-widget" aria-label="Live SQLite memory graph">
+                <div class="rf-memory-widget-heading">
+                    <div class="rf-memory-heading-title"><span class="rf-memory-live-dot"></span><span>MEMORY GRAPH</span></div>
+                    <span id="rf-memory-widget-count">0 NODES</span>
+                </div>
+                <canvas id="rf-memory-sphere" aria-label="Live project knowledge graph"></canvas>
+                <div class="rf-memory-widget-stats">
+                    <span id="rf-memory-widget-status">Loading local SQLite graph…</span>
+                    <span id="rf-memory-widget-edges">0 EDGES</span>
+                </div>
+                <div class="rf-memory-activity-heading">LIVE MEMORY OPERATIONS</div>
+                <div id="rf-memory-activity" class="rf-memory-activity" aria-live="polite">
+                    <div class="rf-memory-activity-empty">Waiting for orchestrator query</div>
+                </div>
+            </section>
         </section>
 
         <!-- CENTER PANEL -->
