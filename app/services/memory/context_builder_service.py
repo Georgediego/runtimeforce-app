@@ -142,7 +142,7 @@ class ContextBuilderService(IContextBuilder):
             traversal_node_count = len(traversed_nodes)
             traversal_edge_count = len(traversed_edges)
             selected_nodes = MemoryRankingService.rank_nodes(traversed_nodes, user_prompt)
-            record(
+            await record(
                 "graph_traversal", "SQLite graph traversal (BFS)",
                 f"{len(start_node_ids)} seeds · {traversal_node_count} nodes · {traversal_edge_count} edges",
                 stage_started, seed_count=len(start_node_ids), matched_keywords=keyword_matches,
