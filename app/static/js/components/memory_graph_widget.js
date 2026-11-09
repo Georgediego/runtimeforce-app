@@ -1,145 +1,180 @@
 /**
- * Local-first interactive 3D memory sphere.
- * Perspective-projected particles; no CDN, remote assets or heavy runtime dependency.
+ * Persistent live SQLite knowledge-graph visualizer.
+ * Every displayed node, edge and activity row comes from the real memory pipeline.
  */
-const root = document.getElementById("rf-memory-widget");
-if (root) {
-    const toggle = document.getElementById("rf-memory-widget-toggle");
-    const popover = document.getElementById("rf-memory-widget-popover");
+(() => {
+    const root = document.getElementById("rf-memory-widget");
+    if (!root) return;
+    const canvas = document.getElementById("rf-memory-sphere");
     const statusEl = document.getElementById("rf-memory-widget-status");
     const countEl = document.getElementById("rf-memory-widget-count");
-    const canvases = [document.getElementById("rf-memory-sphere-mini"), document.getElementById("rf-memory-sphere-large")].filter(Boolean);
-    const PARTICLE_COUNT = 1120;
-    const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-    const particles = Array.from({ length: PARTICLE_COUNT }, (_, index) => {
-        const y = 1 - (index / (PARTICLE_COUNT - 1)) * 2;
-        const radius = Math.sqrt(1 - y * y);
-        const theta = GOLDEN_ANGLE * index;
-        return { x: Math.cos(theta) * radius, y, z: Math.sin(theta) * radius };
-    });
-    const nodeIndex = new Map();
-    let edges = [];
-    let activeIds = new Set();
-    let rotation = 0;
-    let lastFrame = 0;
-    let activeUntil = 0;
-    let raf = 0;
-    let lastProjectId = "";
-    let refreshTimer = null;
+    const edgeCountEl = document.getElementById("rf-memory-widget-edges");
+    const feedEl = document.getElementById("rf-memory-activity");
+    if (!canvas) return;
 
-    const hash = (value) => {
-        let h = 2166136261;
-        for (let i = 0; i < value.length; i++) { h ^= value.charCodeAt(i); h = Math.imul(h, 16777619); }
-        return (h >>> 0) % PARTICLE_COUNT;
-    };
+    let graphNodes = [], graphEdges = [], activeIds = new Set();
+    let rotation = 0, lastFrame = 0, raf = 0, lastProjectId = "";
+    let refreshTimer = null, eventTimer = null;
     const token = () => (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
+    const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 
     function setGraph(data) {
-        nodeIndex.clear();
-        (data.nodes || []).forEach((node) => { if (node.id) nodeIndex.set(String(node.id), hash(String(node.id))); });
-        edges = (data.edges || []).map((edge) => ({ source: nodeIndex.get(String(edge.source)), target: nodeIndex.get(String(edge.target)) }))
-            .filter((edge) => Number.isInteger(edge.source) && Number.isInteger(edge.target));
-        if (countEl) countEl.textContent = (data.nodes || []).length + " NODES";
-        if (statusEl) statusEl.textContent = "Idle · local SQLite";
+        graphNodes = Array.isArray(data.nodes) ? data.nodes : [];
+        graphEdges = Array.isArray(data.edges) ? data.edges : [];
+        if (countEl) countEl.textContent = graphNodes.length + " NODES";
+        if (edgeCountEl) edgeCountEl.textContent = graphEdges.length + " EDGES";
+        if (statusEl && !root.classList.contains("is-querying")) statusEl.textContent = "SQLite graph · " + graphNodes.length + " nodes";
     }
     async function loadGraph() {
         const currentProject = projectId();
-        if (!currentProject) { setGraph({ nodes: [], edges: [] }); if (statusEl) statusEl.textContent = "No active project"; return; }
+        if (!currentProject) {
+            setGraph({nodes: [], edges: []});
+            if (statusEl) statusEl.textContent = "Select a project to inspect memory";
+            lastProjectId = "";
+            return;
+        }
         try {
             const response = await fetch("/api/v1/memory/graph-status/" + encodeURIComponent(currentProject), {
-                headers: token() ? { Authorization: "Bearer " + token() } : {}, cache: "no-store",
+                headers: token() ? {Authorization: "Bearer " + token()} : {}, cache: "no-store"
             });
             if (!response.ok) throw new Error("HTTP " + response.status);
             setGraph(await response.json());
             lastProjectId = currentProject;
-        } catch (error) { if (statusEl) statusEl.textContent = "Memory graph unavailable"; }
+        } catch (error) {
+            if (statusEl) statusEl.textContent = "Memory graph unavailable";
+        }
     }
-    function activateMemory(ids = []) {
-        activeIds = new Set((ids || []).map(String));
-        activeUntil = performance.now() + 5200;
-        root.classList.add("is-active");
-        if (statusEl) statusEl.textContent = activeIds.size ? "Query active · " + activeIds.size + " memory nodes" : "Query active · retrieving memory";
+    function appendActivity(item) {
+        if (!feedEl) return;
+        feedEl.querySelector(".rf-memory-activity-empty")?.remove();
+        const row = document.createElement("div");
+        row.className = "rf-memory-activity-row";
+        const label = esc(item.label || item.operation || "Memory operation");
+        const detail = esc(item.detail || "");
+        const duration = Number.isFinite(Number(item.duration_ms)) ? Math.max(0, Math.round(Number(item.duration_ms))) + " ms" : "";
+        row.innerHTML = '<span class="rf-memory-activity-pulse"></span><div class="rf-memory-activity-copy"><b>' + label + '</b><small>' + detail + '</small></div><time>' + duration + '</time>';
+        feedEl.prepend(row);
+        while (feedEl.children.length > 5) feedEl.lastElementChild.remove();
     }
-    function drawCanvas(canvas, now) {
-        const context = canvas.getContext("2d", { alpha: true });
-        if (!context) return;
+    function playTrace(events) {
+        if (!Array.isArray(events) || !events.length) return;
+        if (eventTimer) clearTimeout(eventTimer);
+        root.classList.add("is-querying");
+        let index = 0;
+        const next = () => {
+            if (index >= events.length) {
+                eventTimer = null;
+                root.classList.remove("is-querying");
+                if (statusEl) statusEl.textContent = "Query complete · " + activeIds.size + " nodes used";
+                return;
+            }
+            const item = events[index++];
+            appendActivity(item);
+            if (item.active_node_ids?.length) activeIds = new Set(item.active_node_ids.map(String));
+            eventTimer = setTimeout(next, 230);
+        };
+        next();
+    }
+    function handleMemoryEvent(detail) {
+        if (detail.project_id && detail.project_id !== projectId()) return;
+        if (detail.phase === "started") {
+            root.classList.add("is-querying");
+            if (statusEl) statusEl.textContent = "Memory query running · " + (detail.model || "orchestrator");
+            appendActivity({label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "model")});
+            return;
+        }
+        if (detail.phase === "failed") {
+            root.classList.remove("is-querying");
+            if (statusEl) statusEl.textContent = "Memory query failed";
+            appendActivity({label: "Memory query failed", detail: detail.error || "See agent trace"});
+            return;
+        }
+        if (detail.active_node_ids) activeIds = new Set(detail.active_node_ids.map(String));
+        if (Array.isArray(detail.trace)) playTrace(detail.trace);
+        else {
+            root.classList.remove("is-querying");
+            if (statusEl) statusEl.textContent = "Memory context retrieved";
+        }
+        startAnimation();
+    }
+    function makePositions() {
+        const positions = new Map(), count = graphNodes.length;
+        if (!count) return positions;
+        const golden = Math.PI * (3 - Math.sqrt(5));
+        graphNodes.forEach((node, index) => {
+            const y = 1 - (index / Math.max(1, count - 1)) * 2;
+            const radius = Math.sqrt(Math.max(0, 1 - y * y));
+            const theta = golden * index;
+            positions.set(String(node.id), {x: Math.cos(theta) * radius, y, z: Math.sin(theta) * radius});
+        });
+        return positions;
+    }
+    function draw() {
+        const ctx = canvas.getContext("2d", {alpha: true});
+        if (!ctx) return;
         const rect = canvas.getBoundingClientRect();
-        const size = Math.max(24, Math.min(rect.width || canvas.width, rect.height || canvas.height));
+        const width = Math.max(80, rect.width || 190), height = Math.max(80, rect.height || 150);
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const pixels = Math.round(size * dpr);
-        if (canvas.width !== pixels || canvas.height !== pixels) { canvas.width = pixels; canvas.height = pixels; }
-        context.setTransform(dpr, 0, 0, dpr, 0, 0);
-        context.clearRect(0, 0, size, size);
-        const center = size / 2, radius = size * 0.405;
-        const active = now < activeUntil, cos = Math.cos(rotation), sin = Math.sin(rotation);
-        const ct = Math.cos(.22), st = Math.sin(.22);
-        const projected = new Array(PARTICLE_COUNT);
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            const p = particles[i], x = p.x * cos - p.z * sin, z0 = p.x * sin + p.z * cos;
-            const y = p.y * ct - z0 * st, z = p.y * st + z0 * ct, perspective = 1.55 / (1.55 - z * .30);
-            projected[i] = { x: center + x * radius * perspective, y: center + y * radius * perspective, z };
+        const w = Math.round(width * dpr), h = Math.round(height * dpr);
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+        const cx = width / 2, cy = height / 2, radius = Math.min(width, height) * .39;
+        const cos = Math.cos(rotation), sin = Math.sin(rotation), ct = Math.cos(.28), st = Math.sin(.28);
+        const projected = new Map();
+        ctx.save(); ctx.translate(cx, cy); ctx.strokeStyle = "rgba(75,205,190,.10)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(0, 0, radius, radius * .34, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(0, 0, radius * .58, radius, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        for (const [id, p] of makePositions()) {
+            const x = p.x * cos - p.z * sin, z0 = p.x * sin + p.z * cos;
+            const y = p.y * ct - z0 * st, z = p.y * st + z0 * ct;
+            const perspective = 1.35 / (1.35 - z * .20);
+            projected.set(id, {x: cx + x * radius * perspective, y: cy + y * radius * perspective, z});
         }
-        context.lineWidth = Math.max(.45, size / 280);
-        for (const edge of edges) {
-            const a = projected[edge.source], b = projected[edge.target];
-            if (!a || !b || a.z + b.z < -.55) continue;
-            const highlight = active && activeIds.size > 0 && [...activeIds].some((id) => nodeIndex.get(id) === edge.source || nodeIndex.get(id) === edge.target);
-            context.strokeStyle = highlight ? "rgba(74,230,255,.42)" : "rgba(48,170,190,.075)";
-            context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke();
+        ctx.lineWidth = 1;
+        for (const edge of graphEdges) {
+            const a = projected.get(String(edge.source)), b = projected.get(String(edge.target));
+            if (!a || !b || a.z + b.z < -.7) continue;
+            const active = activeIds.has(String(edge.source)) || activeIds.has(String(edge.target));
+            ctx.strokeStyle = active ? "rgba(75,231,255,.78)" : "rgba(54,190,170,.20)";
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         }
-        const activeIndices = active ? new Set([...activeIds].map((id) => nodeIndex.get(id)).filter(Number.isInteger)) : new Set();
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            const p = projected[i], selected = activeIndices.has(i), depth = (p.z + 1) / 2;
-            const dot = (.45 + depth) * (size / 90);
-            context.beginPath(); context.arc(p.x, p.y, selected ? dot * 2 : dot, 0, Math.PI * 2);
-            context.fillStyle = selected ? "rgba(115,245,255,.98)" : `rgba(58,${145 + Math.round(depth * 75)},${190 + Math.round(depth * 55)},${.10 + depth * .58})`;
-            context.shadowColor = selected ? "#36dcff" : "transparent";
-            context.shadowBlur = selected ? size * .10 : 0;
-            context.fill();
+        for (const [id, p] of projected) {
+            const depth = (p.z + 1) / 2, active = activeIds.has(id), size = (active ? 3.1 : 1.4) + depth * 1.7;
+            ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+            ctx.fillStyle = active ? "#71efff" : "rgba(74,220,185," + (.35 + depth * .58) + ")";
+            ctx.shadowColor = active ? "#43eaff" : "rgba(35,220,170,.25)";
+            ctx.shadowBlur = active ? 15 : 4; ctx.fill();
         }
-        context.shadowBlur = 0;
+        ctx.shadowBlur = 0; ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(220,255,245,.88)"; ctx.font = "600 10px Inter, sans-serif";
+        ctx.fillText(String(graphNodes.length), cx, cy + 3);
+        ctx.fillStyle = "rgba(135,185,170,.75)"; ctx.font = "7px JetBrains Mono, monospace";
+        ctx.fillText("MEMORY NODES", cx, cy + 15);
     }
     function animate(now) {
         raf = 0;
         if (document.hidden) return;
         if (now - lastFrame >= 33) {
             const delta = lastFrame ? Math.min(50, now - lastFrame) : 33;
-            lastFrame = now; rotation += (now < activeUntil ? .010 : .00085) * (delta / 33);
-            canvases.forEach((canvas) => {
-                if (canvas.id === "rf-memory-sphere-large" && popover?.classList.contains("hidden")) return;
-                drawCanvas(canvas, now);
-            });
-            if (now >= activeUntil && root.classList.contains("is-active")) {
-                root.classList.remove("is-active"); if (statusEl) statusEl.textContent = "Idle · local SQLite";
-            }
+            lastFrame = now;
+            rotation += (root.classList.contains("is-querying") ? .009 : .0012) * (delta / 33);
+            draw();
         }
         raf = requestAnimationFrame(animate);
     }
     function startAnimation() { if (!raf && !document.hidden) raf = requestAnimationFrame(animate); }
     function stopAnimation() { if (raf) cancelAnimationFrame(raf); raf = 0; }
 
-    toggle?.addEventListener("click", () => {
-        const open = popover?.classList.toggle("hidden") === false;
-        root.classList.toggle("is-open", open); toggle.setAttribute("aria-expanded", String(open));
-        if (open) { loadGraph(); startAnimation(); }
-    });
-    document.addEventListener("click", (event) => {
-        if (!root.contains(event.target) && !popover?.classList.contains("hidden")) {
-            popover.classList.add("hidden"); root.classList.remove("is-open"); toggle?.setAttribute("aria-expanded", "false");
-        }
-    });
-    window.addEventListener("rf:memory-graph", (event) => {
-        const detail = event.detail || {};
-        if (detail.project_id && detail.project_id !== projectId()) return;
-        activateMemory(detail.active_node_ids || []); startAnimation();
-    });
-    window.addEventListener("storage", (event) => { if (event.key === "rf_active_project_id") loadGraph(); });
+    window.addEventListener("rf:memory-graph", event => handleMemoryEvent(event.detail || {}));
+    window.addEventListener("storage", event => { if (event.key === "rf_active_project_id") loadGraph(); });
     document.addEventListener("visibilitychange", () => { if (document.hidden) stopAnimation(); else startAnimation(); });
-    window.addEventListener("beforeunload", () => { stopAnimation(); if (refreshTimer) clearInterval(refreshTimer); });
+    window.addEventListener("beforeunload", () => {
+        stopAnimation();
+        if (refreshTimer) clearInterval(refreshTimer);
+        if (eventTimer) clearTimeout(eventTimer);
+    });
     loadGraph(); startAnimation();
-    refreshTimer = setInterval(() => {
-        const currentProject = projectId();
-        if (currentProject !== lastProjectId || !popover?.classList.contains("hidden")) loadGraph();
-    }, 15000);
-}
+    refreshTimer = setInterval(loadGraph, 12000);
+})();
