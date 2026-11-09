@@ -1,3 +1,5 @@
+import { eventBus } from "../core/event_bus.js";
+
 /**
  * Persistent live SQLite knowledge-graph visualizer.
  * Every displayed node, edge and activity row comes from the real memory pipeline.
@@ -84,7 +86,7 @@
                         + (item.label || "Memory operation");
                 }
                 pulseStartedAt = performance.now();
-                pulseUntil = pulseStartedAt + 1550;
+                pulseUntil = pulseStartedAt + (item.operation === "graph_traversal" ? 4200 : 2400);
             }
             startAnimation();
             return;
@@ -99,7 +101,7 @@
             if (detail.active_node_ids) activeIds = new Set(detail.active_node_ids.map(String));
             const stats = detail.graph_stats || {};
             pulseStartedAt = performance.now();
-            pulseUntil = pulseStartedAt + 1550;
+            pulseUntil = pulseStartedAt + 3200;
             loadGraph().finally(() => {
                 root.classList.remove("is-querying");
                 if (statusEl) statusEl.textContent = "Used " + activeIds.size + " nodes · " + (stats.context_tokens || 0) + " tokens";
@@ -196,14 +198,15 @@
                 ctx.stroke();
             }
             // Packets travel only over real SQLite graph edges touching active nodes.
-            for (const edge of graphEdges) {
+            graphEdges.forEach((edge, index) => {
                 const a = projected.get(String(edge.source)), b = projected.get(String(edge.target));
-                if (!a || !b || (!activeIds.has(String(edge.source)) && !activeIds.has(String(edge.target)))) continue;
-                const t = pulseProgress;
+                if (!a || !b || (!activeIds.has(String(edge.source)) && !activeIds.has(String(edge.target)))) return;
+                // Stagger packets across actual graph edges for a continuous data-flow effect.
+                const t = (pulseProgress * 2.2 + (index % 7) / 7) % 1;
                 const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
-                ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2);
-                ctx.fillStyle = "#b8fbff"; ctx.shadowColor = "#43eaff"; ctx.shadowBlur = 9; ctx.fill();
-            }
+                ctx.beginPath(); ctx.arc(x, y, 1.8 + (1 - t) * .8, 0, Math.PI * 2);
+                ctx.fillStyle = "#c9fbff"; ctx.shadowColor = "#43eaff"; ctx.shadowBlur = 11; ctx.fill();
+            });
         }
         for (const [id, p] of projected) {
             const depth = (p.z + 1) / 2, active = hasData && activeIds.has(id);
@@ -261,7 +264,11 @@
     canvas.addEventListener("pointerup", () => { pointerDown = false; });
     canvas.addEventListener("pointercancel", () => { pointerDown = false; });
     if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => draw()).observe(canvas);
-    window.addEventListener("rf:memory-graph", event => handleMemoryEvent(event.detail || {}));
+    // Chat stream events are published on the shared EventBus. Listen to that exact channel;
+    // a window CustomEvent listener would never receive these module EventBus messages.
+    eventBus.on("agent:graph_event", event => {
+        if (event?.status === "memory_graph") handleMemoryEvent(event);
+    });
     window.addEventListener("storage", event => { if (event.key === "rf_active_project_id") loadGraph(); });
     document.addEventListener("visibilitychange", () => { if (document.hidden) stopAnimation(); else startAnimation(); });
     window.addEventListener("beforeunload", () => {
