@@ -19,7 +19,7 @@ let currentAgentRole = "Agent";
 let currentAgentModel = "";
 let attachedFiles = [];
 let lastUserPrompt = "";
-let isGenerating = false;
+let isGenerating = false;\nlet isStopping = false;
 let isFirstMessageOfSession = true;
 let executionTimer = null;
 let elapsedSeconds = 0;
@@ -78,7 +78,11 @@ export const chatUIController = {
 
         sendBtn?.addEventListener("click", () => {
             if (isGenerating) this.abortGeneration();
-            else this.sendMessage();
+            else if (!isStopping) this.sendMessage();
+        });
+        window.addEventListener("rf:agent-stop-ack", () => {
+            isStopping = false;
+            this.setGeneratingState(false);
         });
 
         document.getElementById("stop-gen-btn")?.addEventListener("click", () => this.abortGeneration());
@@ -268,6 +272,7 @@ export const chatUIController = {
 
         if (active) {
             if (sendBtn) {
+                sendBtn.disabled = false;
                 sendBtn.className = "bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer shadow-lg";
                 sendBtn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i>`;
                 sendBtn.title = "Stop Generation";
@@ -281,6 +286,7 @@ export const chatUIController = {
                 sendBtn.innerHTML = `<i data-lucide="arrow-up" class="w-4 h-4"></i>`;
                 sendBtn.title = "Send Message";
             }
+            if (sendBtn) sendBtn.disabled = isStopping;
             if (stopBtn) stopBtn.classList.add("hidden");
             if (statusBadge) statusBadge.classList.add("hidden");
             setTimeout(() => this.setOrchestratorProgress(0), 1000);
@@ -289,6 +295,8 @@ export const chatUIController = {
     },
 
     abortGeneration() {
+        if (isStopping) return;
+        isStopping = true;
         userAbortedGeneration = true;
         generationFinalized = true;
         window.dispatchEvent(new Event("rf:cancel-command-approval"));
@@ -296,8 +304,14 @@ export const chatUIController = {
             const activeClient = wsClient;
             activeClient.abort();
             wsClient = null;
-            // Give the abort frame time to reach the backend before closing the socket.
-            setTimeout(() => activeClient.close(), 2500);
+            // The backend closes the socket after cancelling the agent and its processes.
+            setTimeout(() => {
+                activeClient.close();
+                if (isStopping) {
+                    isStopping = false;
+                    this.setGeneratingState(false);
+                }
+            }, 2500);
         }
         this.stopExecutionTimer();
         showToast("Generation aborted", "info");
@@ -502,7 +516,7 @@ export const chatUIController = {
     },
 
     async sendMessage(overrideText = null, isEditing = false, existingMessageId = null) {
-        if (isGenerating && overrideText === null) return;
+        if (isStopping || (isGenerating && overrideText === null)) return;
         const input = document.getElementById("prompt-input");
         const rawUserPrompt = overrideText !== null ? overrideText : input?.value.trim() || "";
         if (!rawUserPrompt && !attachedFiles.length) return;
