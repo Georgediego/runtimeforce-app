@@ -301,19 +301,18 @@ export const chatUIController = {
         userAbortedGeneration = true;
         generationFinalized = true;
         window.dispatchEvent(new Event("rf:cancel-command-approval"));
-        if (wsClient) {
-            const activeClient = wsClient;
+        const activeClient = wsClient;
+        if (activeClient) {
             activeClient.abort();
             wsClient = null;
-            // The backend closes the socket after cancelling the agent and its processes.
-            setTimeout(() => {
-                activeClient.close();
-                if (isStopping) {
-                    isStopping = false;
-                    this.setGeneratingState(false);
-                }
-            }, 2500);
         }
+        // Fallback for a lost acknowledgement; normally the backend closes after cancellation.
+        setTimeout(() => {
+            if (!isStopping) return;
+            activeClient?.close();
+            isStopping = false;
+            this.setGeneratingState(false);
+        }, 2500);
         this.stopExecutionTimer();
         showToast("Generation aborted", "info");
         this.setGeneratingState(false);
