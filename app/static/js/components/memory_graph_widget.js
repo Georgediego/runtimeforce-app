@@ -496,10 +496,10 @@ import { eventBus } from "../core/event_bus.js";
             if (k !== undefined) edgeTarget[k] = 1;
         });
         // Real relationships connected to an active object light up during its operation.
-        edges.forEach((edge, k) => {
-            if (activeIds.has(String(edge.source)) || activeIds.has(String(edge.target))) {
-                if (k < edgeTarget.length) edgeTarget[k] = 1;
-            }
+        edges.forEach(edge => {
+            if (!activeIds.has(String(edge.source)) && !activeIds.has(String(edge.target))) return;
+            const k = edgeIndexById.get(String(edge.id));
+            if (k !== undefined) edgeTarget[k] = 1;
         });
     }
 
@@ -780,8 +780,9 @@ import { eventBus } from "../core/event_bus.js";
             );
             if (modelNode) {
                 activeIds.add(String(modelNode.id));
-                const providerId = String(modelNode.id).split(":").slice(0, 2).join(":");
-                if (indexById.has(providerId) || nodes.some(node => String(node.id) === providerId)) activeIds.add(providerId);
+                const providerName = String(modelNode.id).split(":")[1];
+                const providerId = "provider:" + providerName;
+                if (nodes.some(node => String(node.id) === providerId)) activeIds.add(providerId);
             }
         }
     }
