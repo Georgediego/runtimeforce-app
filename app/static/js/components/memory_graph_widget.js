@@ -12,8 +12,6 @@ import { eventBus } from "../core/event_bus.js";
     const feedEl = document.getElementById("rf-memory-activity");
     const toggle = document.getElementById("rf-memory-widget-toggle");
     const collapsedKey = "rf_memory_graph_collapsed";
-    const MAX_NODES = 300;
-    const MAX_EDGES = 1200;
 
     const restoreButton = document.createElement("button");
     restoreButton.id = "rf-memory-widget-restore";
@@ -32,7 +30,9 @@ import { eventBus } from "../core/event_bus.js";
     let requestVersion = 0;
     let renderer, scene, camera, graphGroup;
     let raf = 0, refreshTimer = 0, resizeObserver = null;
-    let lastFrame = 0, pulseClock = 0, rotationSpeed = 0.00032;
+    let lastFrame = 0, pulseClock = 0;
+    const rotationSpeed = 0.00032;
+    let processActive = false;
     let pointerDown = false, pointerX = 0;
     let activeMesh = null, activeLines = null, activeInstanceCount = 0;
 
@@ -133,21 +133,21 @@ import { eventBus } from "../core/event_bus.js";
         if (!graphGroup) return;
         clearGraphObjects();
 
-        const visibleNodes = nodes.slice(0, MAX_NODES);
-        const visibleEdges = edges.slice(0, MAX_EDGES);
+        const visibleNodes = nodes;
+        const visibleEdges = edges;
         const positions = fibonacciSphere(visibleNodes.length, 1.72);
         const positionById = new Map();
         const normalNodes = [];
         const hotNodes = [];
-        const normalEdgePositions = [];
         const hotEdgePositions = [];
 
         visibleNodes.forEach((node, index) => {
             const id = String(node.id);
             const position = positions[index];
             positionById.set(id, position);
-            const record = { position, color: nodeColor(node, activeIds.has(id), index) };
-            if (activeIds.has(id)) hotNodes.push(record);
+            const isActive = processActive && activeIds.has(id);
+            const record = { position, color: nodeColor(node, isActive, index) };
+            if (isActive) hotNodes.push(record);
             else normalNodes.push(record);
         });
 
@@ -155,9 +155,10 @@ import { eventBus } from "../core/event_bus.js";
             const source = positionById.get(String(edge.source));
             const target = positionById.get(String(edge.target));
             if (!source || !target) return;
-            const targetArray = activeIds.has(String(edge.source)) || activeIds.has(String(edge.target))
-                ? hotEdgePositions : normalEdgePositions;
-            targetArray.push(source.x, source.y, source.z, target.x, target.y, target.z);
+            // Reveal only persisted SQLite relationships participating in the live memory operation.
+            if (processActive && (activeIds.has(String(edge.source)) || activeIds.has(String(edge.target))) ) {
+                hotEdgePositions.push(source.x, source.y, source.z, target.x, target.y, target.z);
+            }
         });
 
         const makeNodeMesh = (records, radius, opacity) => {
@@ -194,7 +195,6 @@ import { eventBus } from "../core/event_bus.js";
             return lines;
         };
 
-        makeLines(normalEdgePositions, 0x35c9a0, 0.68);
         activeLines = makeLines(hotEdgePositions, 0x62eaff, 0.96);
         makeNodeMesh(normalNodes, 0.052, 0.98);
         activeMesh = makeNodeMesh(hotNodes, 0.068, 1);
@@ -234,8 +234,8 @@ import { eventBus } from "../core/event_bus.js";
             const payload = await response.json();
             if (version !== requestVersion) return;
 
-            nodes = Array.isArray(payload.nodes) ? payload.nodes.slice(0, MAX_NODES) : [];
-            edges = Array.isArray(payload.edges) ? payload.edges.slice(0, MAX_EDGES) : [];
+            nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+            edges = Array.isArray(payload.edges) ? payload.edges : [];
             lastProject = pid;
             buildGraph();
 
@@ -259,7 +259,7 @@ import { eventBus } from "../core/event_bus.js";
         if (eventProject) lastProject = eventProject;
 
         if (detail.phase === "started") {
-            rotationSpeed = 0.0015;
+            processActive = true;
             setStatus("Memory query running · reading SQLite graph");
             activity({ label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "orchestrator") });
             loadGraph(eventProject || lastProject);
@@ -268,6 +268,7 @@ import { eventBus } from "../core/event_bus.js";
 
         if (detail.phase === "activity" && detail.event) {
             const item = detail.event;
+            processActive = item.phase !== "completed" && item.phase !== "failed";
             activeIds = new Set((Array.isArray(item.active_node_ids) ? item.active_node_ids : []).map(String));
             activity({
                 label: (item.phase === "started" ? "Running · " : "Completed · ") + (item.label || item.operation || "Memory operation"),
@@ -281,15 +282,18 @@ import { eventBus } from "../core/event_bus.js";
 
         if (detail.phase === "completed") {
             activeIds = new Set((Array.isArray(detail.active_node_ids) ? detail.active_node_ids : []).map(String));
-            rotationSpeed = 0.00032;
-            activity({ label: "Memory context ready", detail: activeIds.size + " matched SQLite nodes" });
+            processActive = false;
+            activeIds.clear();
+            activity({ label: "Memory context ready", detail: "SQLite graph updated" });
             buildGraph();
             loadGraph(eventProject || lastProject);
             return;
         }
 
         if (detail.phase === "failed") {
-            rotationSpeed = 0.00032;
+            processActive = false;
+            activeIds.clear();
+            buildGraph();
             setStatus("Memory query failed");
             activity({ label: "Memory query failed", detail: detail.error || "See Agent Trace" });
         }
@@ -302,10 +306,11 @@ import { eventBus } from "../core/event_bus.js";
         const delta = lastFrame ? Math.min(40, now - lastFrame) : 16;
         lastFrame = now;
         pulseClock += delta;
+        // Rotate the complete node sphere continuously, including while idle.
         graphGroup.rotation.y += rotationSpeed * delta;
         graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
 
-        if (activeMesh && activeInstanceCount) {
+        if (processActive && activeMesh && activeInstanceCount) {
             const scale = 1.12 + (Math.sin(pulseClock * 0.008) + 1) * 0.24;
             const dummy = new THREE.Object3D();
             for (let i = 0; i < activeInstanceCount; i++) {
@@ -318,7 +323,9 @@ import { eventBus } from "../core/event_bus.js";
             activeMesh.instanceMatrix.needsUpdate = true;
             activeMesh.material.opacity = 0.72 + (Math.sin(pulseClock * 0.008) + 1) * 0.14;
         }
-        if (activeLines) activeLines.material.opacity = 0.58 + (Math.sin(pulseClock * 0.007) + 1) * 0.2;
+        if (activeLines) activeLines.material.opacity = processActive
+            ? 0.18 + (Math.sin(pulseClock * 0.007) + 1) * 0.38
+            : 0;
 
         renderer.render(scene, camera);
         raf = requestAnimationFrame(animate);
