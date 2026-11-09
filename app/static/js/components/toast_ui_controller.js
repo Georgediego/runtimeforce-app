@@ -260,3 +260,18 @@ function initRuntimeForceTooltips() {
 }
 
 initRuntimeForceTooltips();
+
+
+// Surface otherwise-unhandled frontend failures in the persistent error center.
+if (typeof window !== "undefined" && !window.__rfGlobalErrorToastsBound) {
+    window.__rfGlobalErrorToastsBound = true;
+    window.addEventListener("unhandledrejection", (event) => {
+        const reason = event.reason;
+        const detail = reason instanceof Error ? reason.message : String(reason ?? "Unknown async error");
+        showToast(`Unhandled application error: ${detail}`, "error", 0);
+    });
+    window.addEventListener("error", (event) => {
+        if (!event.message) return;
+        showToast(`Application error: ${event.message}`, "error", 0);
+    });
+}
