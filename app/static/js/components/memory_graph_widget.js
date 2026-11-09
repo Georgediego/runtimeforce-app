@@ -76,9 +76,9 @@
                 appendActivity({
                     label: (item.phase === "started" ? "▶ " : "✓ ") + (item.label || "Memory operation"),
                     detail: item.detail || "",
-                    duration_ms: item.phase === "started" ? "" : item.duration_ms,
+                    duration_ms: item.phase === "started" ? undefined : item.duration_ms,
                 });
-                if (Array.isArray(item.active_node_ids)) activeIds = new Set(item.active_node_ids.map(String));
+                activeIds = new Set((Array.isArray(item.active_node_ids) ? item.active_node_ids : []).map(String));
                 if (statusEl) {
                     statusEl.textContent = (item.phase === "started" ? "Running: " : "Completed: ")
                         + (item.label || "Memory operation");
