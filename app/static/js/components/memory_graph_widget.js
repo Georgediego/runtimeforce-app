@@ -654,33 +654,41 @@ import { eventBus } from "../core/event_bus.js";
         return { nodes: outNodes, edges: outEdges };
     }
 
+    let topologyLoadPromise = null;
     async function loadRuntimeTopology(pid, force = false) {
         const now = Date.now();
         if (!force && now - topologyLoadedAt < 60000 && topologyNodes.length) {
             const models = await loadModelTopology(false).catch(() => ({ nodes: [], edges: [] }));
             const cachedBase = topologyNodes.filter(node => node.source !== "models");
             const cachedBaseEdges = topologyEdges.filter(edge => edge.sourceType !== "models");
-            return {
-                nodes: cachedBase.concat(models.nodes),
-                edges: cachedBaseEdges.concat(models.edges)
-            };
+            return { nodes: cachedBase.concat(models.nodes), edges: cachedBaseEdges.concat(models.edges) };
         }
-
-        const [workspace, models] = await Promise.all([
-            loadWorkspaceTopology(pid).catch(error => {
-                console.warn("[MemoryGraph] Workspace topology unavailable", error);
-                return { nodes: [], edges: [] };
-            }),
-            loadModelTopology(force).catch(error => {
-                console.warn("[MemoryGraph] Model topology unavailable", error);
-                return { nodes: topologyNodes.filter(n => n.source === "models"), edges: topologyEdges.filter(e => e.sourceType === "models") };
-            })
-        ]);
-        const staticGraph = buildStaticTopology();
-        topologyNodes = workspace.nodes.concat(models.nodes, staticGraph.nodes);
-        topologyEdges = workspace.edges.concat(models.edges, staticGraph.edges);
-        topologyLoadedAt = now;
-        return { nodes: topologyNodes, edges: topologyEdges };
+        if (topologyLoadPromise) return topologyLoadPromise;
+        topologyLoadPromise = (async () => {
+            const [workspace, models] = await Promise.all([
+                loadWorkspaceTopology(pid).catch(error => {
+                    console.warn("[MemoryGraph] Workspace topology unavailable", error);
+                    return { nodes: [], edges: [] };
+                }),
+                loadModelTopology(force).catch(error => {
+                    console.warn("[MemoryGraph] Model topology unavailable", error);
+                    return {
+                        nodes: topologyNodes.filter(n => n.source === "models"),
+                        edges: topologyEdges.filter(e => e.sourceType === "models")
+                    };
+                })
+            ]);
+            const staticGraph = buildStaticTopology();
+            topologyNodes = workspace.nodes.concat(models.nodes, staticGraph.nodes);
+            topologyEdges = workspace.edges.concat(models.edges, staticGraph.edges);
+            topologyLoadedAt = Date.now();
+            return { nodes: topologyNodes, edges: topologyEdges };
+        })();
+        try {
+            return await topologyLoadPromise;
+        } finally {
+            topologyLoadPromise = null;
+        }
     }
 
     // ---- Data loading ----------------------------------------------------
