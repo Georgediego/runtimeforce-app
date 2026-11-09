@@ -37,7 +37,7 @@ async def get_graph_status(
     graph_service: GraphMemoryService = Depends(get_graph_memory_service)
 ):
     """Return a compact, user/project-scoped graph snapshot for the local memory visualizer."""
-    graph = graph_service.graph_repo.query_subgraph(project_id, user_id, limit=120)
+    graph = graph_service.graph_repo.query_subgraph(project_id, user_id, limit=300)
     nodes = [
         {"id": str(node.get("id", "")), "label": str(node.get("label", "")), "type": str(node.get("node_type", "memory"))}
         for node in graph.get("nodes", [])
@@ -48,7 +48,7 @@ async def get_graph_status(
         {"source": str(edge.get("source_id", "")), "target": str(edge.get("target_id", ""))}
         for edge in graph.get("edges", [])
         if str(edge.get("source_id", "")) in node_ids and str(edge.get("target_id", "")) in node_ids
-    ][:240]
+    ][:900]
     return {"project_id": project_id, "nodes": nodes, "edges": edges}
 
 
