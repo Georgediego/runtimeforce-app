@@ -54,9 +54,15 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             
             if action in ("abort", "abort_request"):
                 logger.info(f"Received abort request for session {session_id}")
-                if session_id in active_tasks and not active_tasks[session_id].done():
-                    active_tasks[session_id].cancel()
-                    del active_tasks[session_id]
+                task = active_tasks.get(session_id)
+                if task and not task.done():
+                    task.cancel()
+                    try:
+                        await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), timeout=2.0)
+                    except asyncio.TimeoutError:
+                        logger.warning("Agent cancellation did not settle within 2s for session %s", session_id)
+                    finally:
+                        active_tasks.pop(session_id, None)
                 await websocket.send_json({"status": "aborted", "session_id": session_id})
                 continue
 
