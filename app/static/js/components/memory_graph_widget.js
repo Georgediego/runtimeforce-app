@@ -27,8 +27,9 @@ import { eventBus } from "../core/event_bus.js";
     const FOV = 38, CAM_Z = 4.85, RADIUS = 1.42;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
     const EDGE_IDLE_ALPHA = 0;           // real edges are visible only during actual memory activity
-    const MAX_ACTIVE_LABELS = 5, IDLE_LABELS = 3;
-    const rotationSpeed = 0.00032;
+    const IDLE_ROTATION_SPEED = 0.00010;
+    const ACTIVE_ROTATION_SPEED = 0.00058;
+    let rotationSpeed = IDLE_ROTATION_SPEED;
     const HOT = 0xff3fa4;
 
     // ---- State -----------------------------------------------------------
@@ -150,7 +151,7 @@ import { eventBus } from "../core/event_bus.js";
     };
     // Inactive objects follow the IDE's green accent; active objects are highlighted HOT by the shader.
     const INACTIVE_NODE_COLOR = 0x42d99a;
-    const nodeColor = () => rawColor(INACTIVE_NODE_COLOR);
+    const nodeColor = node => rawColor(PALETTE[String(node?.type || "memory").toLowerCase()] || PALETTE.memory);
 
     // ---- Shaders ---------------------------------------------------------
     const DEPTH_GLSL = "float depth = clamp((-mv.z - 4.0) / 3.6, 0.0, 1.0);";
@@ -159,7 +160,7 @@ import { eventBus } from "../core/event_bus.js";
         // Point-sprite impostor: each point is shaded as a lit 3D ball.
         return new THREE.ShaderMaterial({
             transparent: true, depthWrite: true, depthTest: true,
-            uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) } },
+            uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) }, uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) } },
             vertexShader: `
                 attribute vec3 aColor;
                 attribute float aSize, aActive;
@@ -175,7 +176,7 @@ import { eventBus } from "../core/event_bus.js";
                     vColor = aColor; vActive = aActive; vDepth = depth;
                 }`,
             fragmentShader: `
-                uniform vec3 uHot;
+                uniform vec3 uHot, uIdleColor;
                 varying vec3 vColor;
                 varying float vActive, vDepth;
                 void main() {
@@ -188,7 +189,7 @@ import { eventBus } from "../core/event_bus.js";
                     float diff = max(dot(n, L), 0.0);
                     float rim = pow(1.0 - n.z, 2.5);
                     float spec = pow(max(dot(n, normalize(L + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
-                    vec3 base = mix(vColor, uHot, vActive);
+                    vec3 base = mix(uIdleColor, vColor, vActive);
                     vec3 col = base * (0.30 + 0.85 * diff) + base * rim * 0.35;
                     col += vec3(1.0) * spec * (0.55 + 0.4 * vActive);
                     col += uHot * vActive * 0.45;
@@ -292,12 +293,7 @@ import { eventBus } from "../core/event_bus.js";
             for (const id of activeIds) {
                 const i = indexById.get(id);
                 if (i !== undefined) picks.push({ i, hot: true });
-                if (picks.length >= MAX_ACTIVE_LABELS) break;
             }
-        }
-        for (const i of hubIndexes) {
-            if (picks.length >= MAX_ACTIVE_LABELS + IDLE_LABELS) break;
-            if (!picks.some(p => p.i === i)) picks.push({ i, hot: false });
         }
         const w = canvas.clientWidth, h = canvas.clientHeight;
         graphGroup.updateMatrixWorld(true);
@@ -318,7 +314,7 @@ import { eventBus } from "../core/event_bus.js";
                 labelLayer.appendChild(el);
             }
             el.className = "rf-memory-label" + (hot ? " hot" : "");
-            const text = String(node.label || node.type || "").trim().slice(0, hot ? 30 : 22);
+            const text = String(node.label || node.id || node.type || "").trim();
             if (el.textContent !== text) el.textContent = text;
             el.style.opacity = "1";
             el.style.transform = "translate(" + Math.round(x + 7) + "px," + Math.round(y - 8) + "px)";
@@ -426,7 +422,7 @@ import { eventBus } from "../core/event_bus.js";
                 positions.set(pos, i * 3);
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
-                sizes[i] = 0.10 + 0.12 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                sizes[i] = 0.075 + 0.085 * Math.min(1, Math.log1p(deg) / Math.log(14));
                 active[i] = carryNodes.get(id) || 0;
                 positionById.set(id, pos);
                 indexById.set(id, i);
@@ -888,6 +884,8 @@ import { eventBus } from "../core/event_bus.js";
         pulseClock += delta;
 
         // Rotation is unconditional: it never depends on AI activity.
+        const targetRotationSpeed = processActive ? ACTIVE_ROTATION_SPEED : IDLE_ROTATION_SPEED;
+        rotationSpeed += (targetRotationSpeed - rotationSpeed) * (1 - Math.exp(-delta / 650));
         graphGroup.rotation.y += rotationSpeed * delta;
         graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
 
