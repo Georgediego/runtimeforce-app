@@ -163,13 +163,45 @@ import { eventBus } from "../core/event_bus.js";
         const cos = Math.cos(rotation), sin = Math.sin(rotation), ct = Math.cos(.28), st = Math.sin(.28);
         const projected = new Map();
         const hasData = graphNodes.length > 0;
-        ctx.save(); ctx.translate(cx, cy);
-        ctx.strokeStyle = hasData ? "rgba(75,205,190,.12)" : "rgba(75,205,190,.25)";
-        ctx.lineWidth = 1;
-        for (let ring = 0; ring < 3; ring++) {
-            const scale = 1 - ring * .23;
-            ctx.beginPath(); ctx.ellipse(0, 0, radius * scale, radius * scale * .34, 0, 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(0, 0, radius * scale * .58, radius * scale, 0, 0, Math.PI * 2); ctx.stroke();
+        // Always render a full rotating wireframe globe; only actual SQLite nodes are plotted on it.
+        ctx.save();
+        ctx.translate(cx, cy);
+        const globeGlow = ctx.createRadialGradient(-radius * .28, -radius * .32, radius * .04, 0, 0, radius * 1.12);
+        globeGlow.addColorStop(0, "rgba(7,247,122,.10)");
+        globeGlow.addColorStop(.72, "rgba(7,247,122,.025)");
+        globeGlow.addColorStop(1, "rgba(7,247,122,0)");
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 1.08, 0, Math.PI * 2);
+        ctx.fillStyle = globeGlow;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(7,247,122,.52)";
+        ctx.lineWidth = 1.15;
+        ctx.shadowColor = "#07f77a";
+        ctx.shadowBlur = 13;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // Curved latitude rings.
+        for (const latitude of [-1.12, -.78, -.42, 0, .42, .78, 1.12]) {
+            const y = Math.sin(latitude) * radius;
+            const rx = Math.cos(latitude) * radius;
+            const ry = Math.max(2, rx * .22);
+            ctx.beginPath();
+            ctx.ellipse(0, y, rx, ry, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = latitude === 0 ? "rgba(7,247,122,.38)" : "rgba(93,255,166,.23)";
+            ctx.lineWidth = latitude === 0 ? .95 : .7;
+            ctx.stroke();
+        }
+        // Rotating longitude meridians create a visible spherical volume even with only a few graph nodes.
+        for (let meridian = 0; meridian < 8; meridian++) {
+            const angle = rotation * .55 + meridian * Math.PI / 8;
+            const rx = Math.abs(Math.cos(angle)) * radius;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, Math.max(1.2, rx), radius, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(93,255,166," + (.16 + Math.abs(Math.cos(angle)) * .17) + ")";
+            ctx.lineWidth = .72;
+            ctx.stroke();
         }
         ctx.restore();
         let positions;
