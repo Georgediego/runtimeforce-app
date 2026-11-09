@@ -125,7 +125,15 @@ export const editorUIController = {
 
     detectLanguage(path) {
         const ext = (path.split(".").pop() || "").toLowerCase();
-        const map = { py: "python", js: "javascript", ts: "typescript", json: "json", html: "html", css: "css", md: "markdown" };
+        const map = {
+            py: "python", pyw: "python", js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+            ts: "typescript", tsx: "typescript", json: "json", jsonc: "json", html: "html", htm: "html",
+            css: "css", scss: "scss", less: "less", md: "markdown", mdx: "markdown",
+            yml: "yaml", yaml: "yaml", xml: "xml", svg: "xml", sh: "shell", bash: "shell",
+            zsh: "shell", sql: "sql", go: "go", rs: "rust", java: "java", kt: "kotlin",
+            c: "c", h: "c", cpp: "cpp", hpp: "cpp", cs: "csharp", php: "php",
+            rb: "ruby", swift: "swift", toml: "ini", ini: "ini", dockerfile: "dockerfile"
+        };
         return map[ext] || "plaintext";
     }
 };
