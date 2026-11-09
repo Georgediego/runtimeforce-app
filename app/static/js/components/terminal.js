@@ -1,7 +1,7 @@
 /**
  * Terminal UI Controller with Real-Time Agent Execution Stream & Persistent Storage.
  */
-import { workspacesApi, sessionsApi, approvalsApi } from "../core/api_http_client.js";
+import { workspacesApi, sessionsApi, approvalsApi, projectsApi } from "../core/api_http_client.js";
 import { showCommandApprovalModal, showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -105,12 +105,20 @@ export const terminalUIController = {
                 approvalDialogOpen = true;
                 (async () => {
                     try {
+                        const [projectData, workspaceData] = await Promise.all([
+                            projectsApi.list().catch(() => ({ projects: [] })),
+                            workspacesApi.list(item.project_id || null).catch(() => ({ workspaces: [] })),
+                        ]);
+                        const projectList = Array.isArray(projectData) ? projectData : (projectData.projects || []);
+                        const workspaceList = Array.isArray(workspaceData) ? workspaceData : (workspaceData.workspaces || []);
+                        const projectName = projectList.find((project) => String(project.id) === String(item.project_id))?.name || (item.project_id ? "Project" : "");
+                        const workspaceName = workspaceList.find((workspace) => String(workspace.id) === String(item.workspace_id))?.name || (item.workspace_id ? "Workspace" : "");
                         const context = [
                             `Target: ${item.target || "local"}`,
+                            workspaceName ? `Workspace: ${workspaceName}` : "",
+                            projectName ? `Project: ${projectName}` : "",
                             item.cwd ? `Working directory: ${item.cwd}` : "",
-                            item.workspace_id ? `Workspace: ${item.workspace_id}` : "",
-                            item.project_id ? `Project: ${item.project_id}` : "",
-                            item.session_id ? `Session: ${item.session_id}` : "",
+                            item.session_id ? "Session: active" : "",
                         ].filter(Boolean).join(" · ");
                         const choice = await showCommandApprovalModal(item.command, context, {
                             sessionAvailable: !!item.session_id,
