@@ -167,7 +167,7 @@ class AgentLoopCoordinator:
         strategy_upper = (strategy or "AUTO").upper()
         workspace_task_requested = bool(re.search(
             r"\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\b|"
-            r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
+            r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|команд(у|ы|ой|ами)?|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
             user_prompt,
             re.IGNORECASE,
         ))
