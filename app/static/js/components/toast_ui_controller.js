@@ -285,8 +285,7 @@ if (typeof window !== "undefined" && !window.__rfGlobalErrorToastsBound) {
     window.__rfGlobalErrorToastsBound = true;
     window.addEventListener("unhandledrejection", (event) => {
         const reason = event.reason;
-        const detail = reason instanceof Error ? reason.message : String(reason ?? "Unknown async error");
-        showToast(`Unhandled application error: ${detail}`, "error", 0);
+        showToast(reason ?? "Unknown async error", "error", 0);
     });
     window.addEventListener("error", (event) => {
         if (!event.message) return;
