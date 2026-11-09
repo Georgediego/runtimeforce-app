@@ -46,14 +46,15 @@ async def get_graph_status(
 
     # Read the graph tables directly. Do not use the context-retrieval subgraph here:
     # that method is optimized for prompt context and may return only a tiny ranked subset.
+    base_limit = max(1, 300 - len(requested_ids))
     raw_nodes = conn.execute(
         """
         SELECT * FROM graph_nodes
         WHERE project_id=? AND user_id=?
         ORDER BY usage_count DESC, last_used_at DESC, created_at DESC
-        LIMIT 300
+        LIMIT ?
         """,
-        (project_id, user_id),
+        (project_id, user_id, base_limit),
     ).fetchall()
     raw_nodes = [dict(row) for row in raw_nodes]
     included_ids = {str(node["id"]) for node in raw_nodes if node.get("id")}
