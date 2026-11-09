@@ -28,7 +28,10 @@ export class ChatWSClient {
                         window.dispatchEvent(new CustomEvent("rf:memory-graph", { detail: data }));
                     }
                     this.onEvent(data);
-                    if (data.status === "aborted" && this.abortRequested) this.close();
+                    if (data.status === "aborted" && this.abortRequested) {
+                        window.dispatchEvent(new Event("rf:agent-stop-ack"));
+                        this.close();
+                    }
                 } catch (e) {
                     console.error("WS JSON parse error:", e);
                 }
