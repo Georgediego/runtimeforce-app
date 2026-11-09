@@ -1864,3 +1864,35 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-agent-graph .rf-graph-stage{gap:4px;padding:6px 2px 5px}
 #rf-agent-graph .rf-stage-icon{width:19px;height:19px;border-radius:6px;font-size:12px}
 #rf-agent-graph .rf-graph-stage:not(:last-child)::after{top:14px}
+
+
+/* Chat composer: no nested focus border or hover ring. */
+.input-focus-ring,.input-focus-ring:hover,.input-focus-ring:focus-within{outline:0!important;border:0!important;box-shadow:none!important}
+#prompt-input,#prompt-input:hover,#prompt-input:focus{outline:0!important;border:0!important;box-shadow:none!important}
+
+/* More transparent glass for dialogs, info popups and toasts. */
+.rf-glass-surface{background:rgba(16,32,24,.76)!important;-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px)}
+[id$="-modal"]:not(.hidden),[role="dialog"]{background:rgba(4,18,11,.48)!important;-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
+[id$="-modal"]:not(.hidden)>div,[role="dialog"]>div{background:rgba(17,25,21,.74)!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+#command-approval-modal{background:rgba(4,18,11,.48)!important;backdrop-filter:blur(7px)!important}
+#command-approval-modal>div{background:rgba(17,25,21,.74)!important;backdrop-filter:blur(10px)!important}
+
+/* Compact workflow and model control blocks. */
+#rf-agent-graph{gap:5px}
+#rf-agent-graph .rf-graph-heading{padding-bottom:4px}
+#rf-agent-graph .rf-graph-stages{margin-top:7px;margin-bottom:5px}
+#rf-agent-graph .rf-graph-stage{gap:3px;padding:5px 1px 4px;font-size:10px}
+#rf-agent-graph .rf-stage-icon{width:17px;height:17px;font-size:11px}
+#rf-agent-graph .rf-graph-stage:not(:last-child)::after{top:12px}
+#rf-agent-graph .rf-orchestrator-controls{margin-top:4px;padding:8px 9px;gap:6px}
+#rf-agent-graph .rf-orchestrator-heading{margin-bottom:3px}
+#rf-agent-graph .rf-orchestrator-model-row{gap:4px;min-height:20px}
+#rf-agent-graph .rf-model-caption{font-size:9px}
+#rf-agent-graph #current-model-display{font-size:10px}
+#rf-agent-graph .rf-orchestrator-progress{height:3px}
+#rf-agent-graph #orchestrator-settings{gap:6px;padding-top:4px}
+
+/* Explorer names and paths can be selected and copied. */
+#file-tree,.tree-folder,.tree-file-item,.tree-node-name{user-select:text!important;-webkit-user-select:text!important}
+.tree-folder-toggle{user-select:text!important;-webkit-user-select:text!important}
+.tree-node-name::selection{background:rgba(7,247,122,.28);color:var(--ide-text-primary)}
