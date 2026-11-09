@@ -57,6 +57,8 @@ export function showToast(message, type = "info", duration = 3000) {
             reportButton.textContent = "Отправка…";
             try {
                 const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+                const clientInstanceId = localStorage.getItem("rf_client_instance_id") || (crypto.randomUUID ? crypto.randomUUID() : "rf-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+                localStorage.setItem("rf_client_instance_id", clientInstanceId);
                 const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports", {
                     method: "POST",
                     credentials: "include",
@@ -72,7 +74,8 @@ export function showToast(message, type = "info", duration = 3000) {
                             app_version: document.documentElement.dataset.appVersion || "unknown",
                             url: location.pathname,
                             user_agent: navigator.userAgent,
-                            occurred_at: new Date().toISOString()
+                            occurred_at: new Date().toISOString(),
+                            client_instance_id: clientInstanceId
                         }
                     })
                 });
@@ -300,7 +303,9 @@ if (typeof window !== "undefined" && !window.__rfResolutionUpdatesStarted) {
     const checkResolutionUpdates = async () => {
         try {
             const token = (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
-            const response = await fetch("/api/v1/bug-reports/updates", {
+            const clientInstanceId = localStorage.getItem("rf_client_instance_id");
+            if (!clientInstanceId) return;
+            const response = await fetch("/api/v1/bug-reports/updates?client_instance_id=" + encodeURIComponent(clientInstanceId), {
                 headers: token ? { Authorization: "Bearer " + token } : {},
                 credentials: "same-origin",
                 cache: "no-store"
