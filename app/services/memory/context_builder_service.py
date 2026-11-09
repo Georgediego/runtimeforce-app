@@ -2,6 +2,7 @@
 Builds the project memory context and records a compact trace of real SQLite operations.
 """
 import asyncio
+import hashlib
 import logging
 import time
 from typing import Dict, Any, List, Optional, Callable
@@ -181,6 +182,46 @@ class ContextBuilderService(IContextBuilder):
             logger.info(f"Context trimmed from {initial_tokens} to {trimmed_tokens} tokens for max_context_tokens={max_context_tokens}")
 
         self.context_cache.update_cache(session_id, user_prompt, selected_nodes[:12])
+
+        # Persist a compact, real project/session footprint so the graph is not
+        # permanently empty when no file/decision indexer has populated it yet.
+        # Stable IDs keep this bounded: one project node and one rolling session node.
+        try:
+            project_key = hashlib.sha256(f"{user_id}:{project_id}".encode("utf-8")).hexdigest()[:24]
+            session_key = hashlib.sha256(f"{user_id}:{project_id}:{session_id}".encode("utf-8")).hexdigest()[:24]
+            project_node_id = f"project-{project_key}"
+            session_node_id = f"session-{session_key}"
+            self.graph_memory.record_entity(
+                node_id=project_node_id,
+                user_id=user_id,
+                project_id=project_id,
+                node_type="Project",
+                label="Project memory",
+                attributes={"source": "orchestrator_context"},
+            )
+            self.graph_memory.record_entity(
+                node_id=session_node_id,
+                user_id=user_id,
+                project_id=project_id,
+                node_type="Conversation",
+                label=(user_prompt or "Conversation context")[:120],
+                attributes={
+                    "source": "orchestrator_context",
+                    "session_id": session_id,
+                    "last_prompt": (user_prompt or "")[:2000],
+                    "selected_memory_nodes": len(active_node_ids),
+                },
+            )
+            edge_key = hashlib.sha256(f"{project_node_id}:{session_node_id}".encode("utf-8")).hexdigest()[:24]
+            self.graph_memory.graph_repo.add_edge(
+                edge_id=f"edge-{edge_key}",
+                source_id=project_node_id,
+                target_id=session_node_id,
+                relation_type="CONTAINS",
+                weight=1.0,
+            )
+        except Exception:
+            logger.exception("Failed to persist project/session graph footprint")
         active_node_ids = [str(node.get("id")) for node in selected_nodes[:12] if node.get("id")]
         await record(
             "context_ready", "Memory context assembled",
