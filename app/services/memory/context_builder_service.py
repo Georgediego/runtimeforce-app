@@ -86,6 +86,8 @@ class ContextBuilderService(IContextBuilder):
         graph_persisted = False
         project_node_id = ""
         session_node_id = ""
+        query_key = None
+        query_node_id = None
         try:
             project_key = hashlib.sha256(f"{user_id}:{project_id}".encode("utf-8")).hexdigest()[:24]
             session_key = hashlib.sha256(f"{user_id}:{project_id}:{session_id}".encode("utf-8")).hexdigest()[:24]
@@ -150,7 +152,7 @@ class ContextBuilderService(IContextBuilder):
             "graph_persist", "Persisting project memory graph",
             "Project and conversation nodes saved" if graph_persisted else "Graph persistence failed; see local service log",
             persist_started,
-            active_node_ids=[project_node_id, session_node_id, query_node_id] if graph_persisted else [],
+            active_node_ids=[value for value in (project_node_id, session_node_id, query_node_id) if value] if graph_persisted else [],
             node_count=3 if graph_persisted else 0,
             edge_count=2 if graph_persisted else 0,
         )
@@ -279,12 +281,24 @@ class ContextBuilderService(IContextBuilder):
             except Exception:
                 logger.exception("Failed to link memory query %s to node %s", query_node_id, matched_id)
 
-        active_node_ids = [query_node_id] + matched_ids
+        active_node_ids = [value for value in (query_node_id,) if value] + matched_ids
+        active_edge_ids = []
+        if active_node_ids:
+            placeholders = ",".join("?" for _ in active_node_ids)
+            try:
+                conn = self.graph_memory.graph_repo.db.get_connection()
+                rows = conn.execute(
+                    f"SELECT id FROM graph_edges WHERE source_id IN ({placeholders}) AND target_id IN ({placeholders})",
+                    (*active_node_ids, *active_node_ids),
+                ).fetchall()
+                active_edge_ids = [str(row["id"]) for row in rows]
+            except Exception:
+                logger.exception("Failed to resolve active SQLite graph edges")
         self.context_cache.update_cache(session_id, user_prompt, selected_nodes[:12])
         await record(
             "context_ready", "Memory context assembled",
             f"{len(active_node_ids)} nodes selected · {initial_tokens} estimated tokens",
-            stage_started, active_node_ids=active_node_ids,
+            stage_started, active_node_ids=active_node_ids, active_edge_ids=active_edge_ids,
         )
         return {
             "session_id": session_id,
@@ -294,6 +308,7 @@ class ContextBuilderService(IContextBuilder):
             "compiled_memory_context": compiled_context,
             "nodes_count": len(active_node_ids),
             "active_node_ids": active_node_ids,
+            "active_edge_ids": active_edge_ids,
             "decisions_count": len(decisions),
             "trace": trace,
             "graph_stats": {
