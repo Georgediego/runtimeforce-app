@@ -10,6 +10,12 @@ import { eventBus } from "../core/event_bus.js";
     const edgeCountEl = document.getElementById("rf-memory-widget-edges");
     const feedEl = document.getElementById("rf-memory-activity");
     const toggle = document.getElementById("rf-memory-widget-toggle");
+    const restoreButton = document.createElement("button");
+    restoreButton.id = "rf-memory-widget-restore";
+    restoreButton.type = "button";
+    restoreButton.className = "rf-memory-widget-restore";
+    restoreButton.innerHTML = '<i data-lucide="brain-circuit" class="w-3 h-3"></i><span>MEMORY GRAPH</span><i data-lucide="chevron-up" class="w-3 h-3"></i>';
+    root.insertAdjacentElement("afterend", restoreButton);
     const token = () => (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
     const collapsedKey = "rf_memory_graph_collapsed";
@@ -245,6 +251,8 @@ import { eventBus } from "../core/event_bus.js";
     const stop = () => { if (raf) cancelAnimationFrame(raf); raf = 0; };
     function setCollapsed(value) {
         root.classList.toggle("is-collapsed", value);
+        root.style.display = value ? "none" : "";
+        restoreButton.style.display = value ? "flex" : "none";
         if (toggle) {
             toggle.setAttribute("aria-expanded", String(!value));
             toggle.setAttribute("aria-label", value ? "Show memory graph" : "Hide memory graph");
@@ -264,7 +272,9 @@ import { eventBus } from "../core/event_bus.js";
         setStatus("3D renderer unavailable");
         return;
     }
-    toggle?.addEventListener("click", () => setCollapsed(!root.classList.contains("is-collapsed")));
+    toggle?.addEventListener("click", () => setCollapsed(true));
+    restoreButton.addEventListener("click", () => setCollapsed(false));
+    if (window.lucide) window.lucide.createIcons({ root: restoreButton });
     canvas.addEventListener("pointerdown", event => { pointerDown = true; pointerX = event.clientX; canvas.setPointerCapture?.(event.pointerId); });
     canvas.addEventListener("pointermove", event => {
         if (!pointerDown) return;
