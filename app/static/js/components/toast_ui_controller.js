@@ -67,7 +67,7 @@ export function showToast(message, type = "info", duration = 3000) {
                     body: JSON.stringify({
                         title: "Ошибка RuntimeForce IDE",
                         message: detail.slice(0, 8000),
-                        component: "IDE notification",
+                        component: "Уведомление IDE",
                         diagnostics: {
                             app_version: document.documentElement.dataset.appVersion || "unknown",
                             url: location.pathname,
