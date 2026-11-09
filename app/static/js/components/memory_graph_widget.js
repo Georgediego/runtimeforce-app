@@ -24,7 +24,8 @@ import { eventBus } from "../core/event_bus.js";
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
 
     // ---- Scene constants -------------------------------------------------
-    const FOV = 38, CAM_Z = 5.8, RADIUS = 1.72;
+    const FOV = 38, CAM_Z = 4.85, RADIUS = 1.82;
+    const AMBIENT_SHELL_POINTS = 100;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
     const EDGE_IDLE_ALPHA = 0.16;      // faint always-on web of real edges (0 = show edges only while active)
     const MAX_ACTIVE_LABELS = 5, IDLE_LABELS = 3;
@@ -45,7 +46,7 @@ import { eventBus } from "../core/event_bus.js";
     let processActive = false, runStartedAt = 0;
     let pointerDown = false, pointerX = 0;
 
-    let nodePoints = null, glowPoints = null, edgeLines = null;
+    let nodePoints = null, glowPoints = null, edgeLines = null, ambientPoints = null;
     let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
     let positionById = new Map();      // id -> [x, y, z]
     let indexById = new Map();         // node id -> buffer index
@@ -368,6 +369,32 @@ import { eventBus } from "../core/event_bus.js";
         camera.position.set(0, 0, CAM_Z);
         graphGroup = new THREE.Group();
         scene.add(graphGroup);
+
+        // 100 ambient shell particles form the outer globe. Visual only:
+        // they are not SQLite nodes and are never connected by graph edges.
+        const shellPositions = new Float32Array(AMBIENT_SHELL_POINTS * 3);
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+        for (let i = 0; i < AMBIENT_SHELL_POINTS; i++) {
+            const y = 1 - (i / (AMBIENT_SHELL_POINTS - 1)) * 2;
+            const ring = Math.sqrt(Math.max(0, 1 - y * y));
+            const theta = goldenAngle * i;
+            const radius = RADIUS * 1.035;
+            shellPositions.set([
+                Math.cos(theta) * ring * radius,
+                y * radius,
+                Math.sin(theta) * ring * radius
+            ], i * 3);
+        }
+        const shellGeometry = new THREE.BufferGeometry();
+        shellGeometry.setAttribute("position", new THREE.BufferAttribute(shellPositions, 3));
+        const shellMaterial = new THREE.PointsMaterial({
+            color: 0x91a8c9, size: 0.038, sizeAttenuation: true,
+            transparent: true, opacity: 0.72, depthWrite: false
+        });
+        ambientPoints = new THREE.Points(shellGeometry, shellMaterial);
+        ambientPoints.frustumCulled = false;
+        ambientPoints.renderOrder = 0;
+        graphGroup.add(ambientPoints);
         nodeMaterial = createNodeMaterial();
         glowMaterial = createGlowMaterial();
         edgeMaterial = createEdgeMaterial();
@@ -794,6 +821,8 @@ import { eventBus } from "../core/event_bus.js";
         if (endRunTimer) clearTimeout(endRunTimer);
         resizeObserver?.disconnect();
         resetScene();
+        ambientPoints?.geometry.dispose();
+        ambientPoints?.material.dispose();
         nodeMaterial?.dispose();
         glowMaterial?.dispose();
         edgeMaterial?.dispose();
