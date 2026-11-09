@@ -56,10 +56,16 @@ class ContextBuilderService(IContextBuilder):
             # Yield control so the WebSocket can forward this operation immediately.
             await asyncio.sleep(0)
 
+        async def begin(operation: str, label: str, detail: str, **extra: Any) -> float:
+            await emit({
+                "phase": "started", "operation": operation, "label": label,
+                "detail": detail, "duration_ms": 0, **extra,
+            })
+            return time.perf_counter()
+
         async def record(operation: str, label: str, detail: str, started: float, **extra: Any) -> None:
             item = {
-                "operation": operation,
-                "label": label,
+                "phase": "completed", "operation": operation, "label": label,
                 "detail": detail,
                 "duration_ms": round((time.perf_counter() - started) * 1000, 1),
             }
@@ -69,24 +75,27 @@ class ContextBuilderService(IContextBuilder):
         logger.info(f"Pipeline start: Building context for session={session_id}, project={project_id}")
         budget = self.calculate_token_budget(max_token_budget)
 
-        stage_started = time.perf_counter()
+        stage_started = await begin("intent", "Intent analysis", "Extracting search terms from the prompt")
         intent = IntentAnalyzerService.analyze(user_prompt)
-        record("intent", "Intent analysis", f"{len(intent.get('keywords', []))} search terms extracted", stage_started)
+        await record("intent", "Intent analysis", f"{len(intent.get('keywords', []))} search terms extracted", stage_started)
 
-        stage_started = time.perf_counter()
+        stage_started = await begin("hybrid_search", "Hybrid memory search", "Querying SQLite and vector index")
         quick_nodes = self.embeddings_repo.hybrid_search(user_prompt, project_id, top_k=5)
+        quick_ids = [str(n.get("node_id") or n.get("id")) for n in quick_nodes if n.get("node_id") or n.get("id")]
         await record(
             "hybrid_search", "Hybrid memory search",
             f"{len(quick_nodes)} candidate nodes · SQLite/vector index",
-            stage_started, candidate_count=len(quick_nodes),
+            stage_started, candidate_count=len(quick_nodes), active_node_ids=quick_ids,
         )
 
-        stage_started = time.perf_counter()
+        stage_started = await begin("context_cache", "Context cache", "Checking reusable memory context")
         cache_hit, candidate_nodes = self.context_cache.get_delta_context(user_prompt, session_id, quick_nodes)
-        record(
+        cached_ids = [str(n.get("node_id") or n.get("id")) for n in candidate_nodes if n.get("node_id") or n.get("id")]
+        await record(
             "context_cache", "Context cache " + ("HIT" if cache_hit else "MISS"),
             f"{len(candidate_nodes)} cached/delta nodes reused" if cache_hit else "Full graph traversal required",
             stage_started, cache_hit=bool(cache_hit), candidate_count=len(candidate_nodes),
+            active_node_ids=cached_ids,
         )
 
         traversal_node_count = 0
@@ -102,7 +111,10 @@ class ContextBuilderService(IContextBuilder):
             })
         else:
             logger.info(f"Context Cache MISS for session={session_id}. Running full BFS Graph Traversal pipeline.")
-            stage_started = time.perf_counter()
+            stage_started = await begin(
+                "graph_traversal", "SQLite graph traversal (BFS)",
+                "Searching connected nodes and relationships", active_node_ids=quick_ids,
+            )
             start_node_ids = set(n["node_id"] for n in quick_nodes if "node_id" in n)
             keyword_matches = 0
             for kw in intent.get("keywords", []):
@@ -135,16 +147,22 @@ class ContextBuilderService(IContextBuilder):
                 f"{len(start_node_ids)} seeds · {traversal_node_count} nodes · {traversal_edge_count} edges",
                 stage_started, seed_count=len(start_node_ids), matched_keywords=keyword_matches,
                 node_count=traversal_node_count, edge_count=traversal_edge_count,
+                active_node_ids=[str(n.get("id")) for n in traversed_nodes if n.get("id")],
             )
 
-        stage_started = time.perf_counter()
+        stage_started = await begin("decision_lookup", "Decision memory lookup", "Loading saved project decisions")
         decisions = self.decision_repo.get_decisions(project_id, user_id, limit=5)
-        record(
+        await record(
             "decision_lookup", "Decision memory lookup",
             f"{len(decisions)} project decisions loaded",
             stage_started, decision_count=len(decisions),
         )
 
+        stage_started = await begin(
+            "context_assembly", "Assembling memory context",
+            "Ranking selected nodes and preparing model context",
+            active_node_ids=[str(n.get("id")) for n in selected_nodes[:12] if n.get("id")],
+        )
         parts = []
         if decisions:
             dec_lines = [f"- [{d['topic']}]: {d['decision']} (Rationale: {d['rationale']})" for d in decisions]
@@ -164,10 +182,10 @@ class ContextBuilderService(IContextBuilder):
 
         self.context_cache.update_cache(session_id, user_prompt, selected_nodes[:12])
         active_node_ids = [str(node.get("id")) for node in selected_nodes[:12] if node.get("id")]
-        record(
+        await record(
             "context_ready", "Memory context assembled",
             f"{len(active_node_ids)} nodes selected · {initial_tokens} estimated tokens",
-            pipeline_started, active_node_ids=active_node_ids,
+            stage_started, active_node_ids=active_node_ids,
         )
         return {
             "session_id": session_id,
