@@ -17,7 +17,7 @@ import { eventBus } from "../core/event_bus.js";
     restoreButton.id = "rf-memory-widget-restore";
     restoreButton.type = "button";
     restoreButton.className = "rf-memory-widget-restore";
-    restoreButton.innerHTML = '<i data-lucide="brain-circuit" class="w-3 h-3"></i><span>MEMORY GRAPH</span><i data-lucide="chevron-up" class="w-3 h-3"></i>';
+    restoreButton.innerHTML = '<i data-lucide="brain-circuit" class="w-3 h-3"></i><span>RUNTIME GRAPH</span><i data-lucide="chevron-up" class="w-3 h-3"></i>';
     root.insertAdjacentElement("afterend", restoreButton);
 
     const token = () => (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
@@ -479,7 +479,7 @@ import { eventBus } from "../core/event_bus.js";
         if (countEl) countEl.textContent = count + " NODES";
         if (edgeCountEl) edgeCountEl.textContent = edges.length + " EDGES";
         const activeText = processActive && activeIds.size ? " · " + activeIds.size + " ACTIVE" : "";
-        setStatus("LIVE SQLITE GRAPH · " + count + " NODES · " + edges.length + " EDGES" + activeText);
+        setStatus("RUNTIME GRAPH · " + count + " OBJECTS · " + edges.length + " LINKS" + activeText);
     }
 
     // Targets come only from ids reported by the memory pipeline that exist in the loaded SQLite rows.
@@ -595,26 +595,40 @@ import { eventBus } from "../core/event_bus.js";
         return { nodes: outNodes, edges: outEdges };
     }
 
+    let modelsLoadPromise = null;
     async function loadModelTopology(force = false) {
-        if (!force && Date.now() - modelsLoadedAt < 180000) return { nodes: topologyNodes.filter(n => n.source === "models"), edges: topologyEdges.filter(e => e.sourceType === "models") };
-        const payload = await authenticatedJson("/api/v1/models");
-        const outNodes = [];
-        const outEdges = [];
-        Object.entries(payload.models || {}).forEach(([provider, models]) => {
-            const providerId = "provider:" + provider;
-            outNodes.push({ id: providerId, label: provider, type: "provider", source: "models" });
-            (Array.isArray(models) ? models : []).forEach(model => {
-                const modelId = "model:" + provider + ":" + String(model.id || model.name);
-                outNodes.push({ id: modelId, label: String(model.name || model.id), type: "model", source: "models" });
-                outEdges.push({
-                    id: "model-edge:" + provider + "->" + modelId,
-                    source: providerId, target: modelId, relation: "provides model", weight: 1,
-                    sourceType: "models"
+        if (!force && Date.now() - modelsLoadedAt < 180000) {
+            return {
+                nodes: topologyNodes.filter(n => n.source === "models"),
+                edges: topologyEdges.filter(e => e.sourceType === "models")
+            };
+        }
+        if (modelsLoadPromise) return modelsLoadPromise;
+        modelsLoadPromise = (async () => {
+            const payload = await authenticatedJson("/api/v1/models");
+            const outNodes = [];
+            const outEdges = [];
+            Object.entries(payload.models || {}).forEach(([provider, models]) => {
+                const providerId = "provider:" + provider;
+                outNodes.push({ id: providerId, label: provider, type: "provider", source: "models" });
+                (Array.isArray(models) ? models : []).forEach(model => {
+                    const modelId = "model:" + provider + ":" + String(model.id || model.name);
+                    outNodes.push({ id: modelId, label: String(model.name || model.id), type: "model", source: "models" });
+                    outEdges.push({
+                        id: "model-edge:" + provider + "->" + modelId,
+                        source: providerId, target: modelId, relation: "provides model", weight: 1,
+                        sourceType: "models"
+                    });
                 });
             });
-        });
-        modelsLoadedAt = Date.now();
-        return { nodes: outNodes, edges: outEdges };
+            modelsLoadedAt = Date.now();
+            return { nodes: outNodes, edges: outEdges };
+        })();
+        try {
+            return await modelsLoadPromise;
+        } finally {
+            modelsLoadPromise = null;
+        }
     }
 
     function buildStaticTopology() {
@@ -726,7 +740,7 @@ import { eventBus } from "../core/event_bus.js";
         activeIds.clear();
         activeEdgeIds.clear();
         applyActive();     // targets fall to 0 -> smooth fade; every node and edge stays on screen
-        if (nodes.length) setStatus("LIVE SQLITE GRAPH · " + nodes.length + " NODES · " + edges.length + " EDGES");
+        if (nodes.length) setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
     }
 
     function addActive(item) {
