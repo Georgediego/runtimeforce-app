@@ -5,7 +5,15 @@ const fmtRate = (value) => {
     if (n >= 1024) return (n / 1024).toFixed(1) + "K";
     return Math.round(n) + "B";
 };
-const level = (value) => value >= 85 ? "high" : value >= 65 ? "medium" : "low";
+const level = (value, medium = 65, high = 85) => value >= high ? "high" : value >= medium ? "medium" : "low";
+const setGauge = (id, value, max = 100, medium = 65, high = 85) => {
+    const gauge = $(id);
+    if (!gauge) return;
+    const numeric = Number(value);
+    const safe = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric / max * 100)) : 0;
+    gauge.dataset.level = level(numeric, medium, high);
+    gauge.style.setProperty("--rf-cpu-progress", safe + "%");
+};
 
 export const systemMonitor = {
     timer: null,
@@ -24,17 +32,10 @@ export const systemMonitor = {
             $("rf-monitor-live")?.classList.remove("is-offline");
             this.setText("rf-monitor-cpu", data.cpu_percent == null ? "—" : Math.round(data.cpu_percent) + "%");
             this.setText("rf-monitor-ram", data.memory_percent == null ? "—" : Math.round(data.memory_percent) + "%");
-            const cpu = $("rf-monitor-cpu-gauge");
-            if (cpu) {
-                cpu.dataset.level = level(data.cpu_percent || 0);
-                cpu.style.setProperty("--rf-cpu-progress", (data.cpu_percent == null ? 0 : data.cpu_percent) + "%");
-            }
-            const ram = $("rf-monitor-ram-bar");
-            if (ram) {
-                ram.style.width = data.memory_percent == null ? "0%" : data.memory_percent + "%";
-                ram.style.background = data.memory_percent >= 85 ? "#f87171" : data.memory_percent >= 65 ? "#facc15" : "#07f77a";
-            }
-            this.setText("rf-monitor-temp", data.temperature_c == null ? "—" : data.temperature_c + "°");
+            this.setText("rf-monitor-temp", data.temperature_c == null ? "—" : Math.round(data.temperature_c) + "°");
+            setGauge("rf-monitor-cpu-gauge", data.cpu_percent, 100, 65, 85);
+            setGauge("rf-monitor-ram-gauge", data.memory_percent, 100, 65, 85);
+            setGauge("rf-monitor-temp-gauge", data.temperature_c, 110, 65, 85);
             this.setText("rf-monitor-up", fmtRate(data.network_up_bps));
             this.setText("rf-monitor-down", fmtRate(data.network_down_bps));
             $("rf-system-monitor")?.classList.remove("is-offline");
