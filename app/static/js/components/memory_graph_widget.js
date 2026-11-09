@@ -489,6 +489,7 @@ import { eventBus } from "../core/event_bus.js";
             hubIndexes = [];
         }
 
+        rememberActiveNodes(); // Include events received before an async graph refresh completed.
         applyActive();
         if (countEl) countEl.textContent = count + " NODES";
         if (edgeCountEl) edgeCountEl.textContent = edges.length + " EDGES";
