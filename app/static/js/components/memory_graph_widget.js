@@ -70,6 +70,9 @@ import { eventBus } from "../core/event_bus.js";
             root.classList.add("is-querying");
             if (statusEl) statusEl.textContent = "Memory query running · " + (detail.model || "orchestrator");
             appendActivity({label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "model")});
+            pulseStartedAt = performance.now();
+            pulseUntil = pulseStartedAt + 900;
+            startAnimation();
             return;
         }
         if (detail.phase === "activity") {
