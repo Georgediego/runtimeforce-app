@@ -18,6 +18,7 @@ import { eventBus } from "../core/event_bus.js";
 
     let graphNodes = [], graphEdges = [], activeIds = new Set();
     let rotation = 0, lastFrame = 0, raf = 0, lastProjectId = "";
+    let flowClock = 0, lastActivityAt = 0, currentOperation = "Idle";
     let pulseStartedAt = 0, pulseUntil = 0;
     let refreshTimer = null, eventTimer = null;
     let pointerDown = false, pointerX = 0;
@@ -65,9 +66,12 @@ import { eventBus } from "../core/event_bus.js";
         while (feedEl.children.length > 5) feedEl.lastElementChild.remove();
     }
     function handleMemoryEvent(detail) {
-        if (detail.project_id && detail.project_id !== projectId()) return;
+        // Do not drop live events while the project selector is still hydrating.
+        if (detail.project_id && projectId() && detail.project_id !== projectId()) return;
         if (detail.phase === "started") {
             root.classList.add("is-querying");
+            currentOperation = "Memory retrieval";
+            lastActivityAt = performance.now();
             if (statusEl) statusEl.textContent = "Memory query running · " + (detail.model || "orchestrator");
             appendActivity({label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "model")});
             pulseStartedAt = performance.now();
@@ -84,6 +88,8 @@ import { eventBus } from "../core/event_bus.js";
                     duration_ms: item.phase === "started" ? undefined : item.duration_ms,
                 });
                 activeIds = new Set((Array.isArray(item.active_node_ids) ? item.active_node_ids : []).map(String));
+                currentOperation = item.label || item.operation || "Memory operation";
+                lastActivityAt = performance.now();
                 if (statusEl) {
                     statusEl.textContent = (item.phase === "started" ? "Running: " : "Completed: ")
                         + (item.label || "Memory operation");
@@ -102,6 +108,7 @@ import { eventBus } from "../core/event_bus.js";
         }
         if (detail.phase === "completed") {
             if (detail.active_node_ids) activeIds = new Set(detail.active_node_ids.map(String));
+            currentOperation = "Memory context ready";
             const stats = detail.graph_stats || {};
             pulseStartedAt = performance.now();
             pulseUntil = pulseStartedAt + 3200;
@@ -125,6 +132,7 @@ import { eventBus } from "../core/event_bus.js";
         });
         return positions;
     }
+    function nowSafe() { return typeof performance !== "undefined" ? performance.now() : Date.now(); }
     function draw() {
         const ctx = canvas.getContext("2d", {alpha: true});
         if (!ctx) return;
@@ -188,27 +196,31 @@ import { eventBus } from "../core/event_bus.js";
         const pulseProgress = pulseUntil > performance.now()
             ? Math.max(0, Math.min(1, (performance.now() - pulseStartedAt) / Math.max(1, pulseUntil - pulseStartedAt)))
             : 1;
-        if (hasData && pulseProgress < 1) {
-            // Expanding rings mark only nodes returned by the live memory operation.
-            for (const id of activeIds) {
+        const operationLive = root.classList.contains("is-querying") || nowSafe() - lastActivityAt < 2600;
+        if (hasData && operationLive) {
+            // Highlight actual touched nodes. Operations without node IDs still animate the
+            // real graph as a whole (intent analysis/cache lookup/context assembly).
+            const ringIds = activeIds.size ? Array.from(activeIds) : Array.from(projected.keys());
+            ringIds.forEach((id, index) => {
                 const p = projected.get(id);
-                if (!p) continue;
-                const wave = (pulseProgress * 2.6) % 1;
+                if (!p) return;
+                const wave = (nowSafe() * .0012 + index * .173) % 1;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 5 + wave * 15, 0, Math.PI * 2);
-                ctx.strokeStyle = "rgba(91,235,255," + (1 - wave) * .75 + ")";
-                ctx.lineWidth = 1.4;
+                ctx.arc(p.x, p.y, 4 + wave * 16, 0, Math.PI * 2);
+                ctx.strokeStyle = "rgba(91,235,255," + (1 - wave) * .72 + ")";
+                ctx.lineWidth = 1.35;
                 ctx.stroke();
-            }
-            // Packets travel only over real SQLite graph edges touching active nodes.
+            });
+            // Packets travel along real SQLite edges while retrieval is active.
             graphEdges.forEach((edge, index) => {
                 const a = projected.get(String(edge.source)), b = projected.get(String(edge.target));
-                if (!a || !b || (!activeIds.has(String(edge.source)) && !activeIds.has(String(edge.target)))) return;
-                // Stagger packets across actual graph edges for a continuous data-flow effect.
-                const t = (pulseProgress * 2.2 + (index % 7) / 7) % 1;
+                if (!a || !b) return;
+                if (activeIds.size && !activeIds.has(String(edge.source)) && !activeIds.has(String(edge.target))) return;
+                const t = (flowClock * .00055 + (index % 11) / 11) % 1;
                 const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
-                ctx.beginPath(); ctx.arc(x, y, 1.8 + (1 - t) * .8, 0, Math.PI * 2);
-                ctx.fillStyle = "#c9fbff"; ctx.shadowColor = "#43eaff"; ctx.shadowBlur = 11; ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x, y, 2.0 + Math.sin(flowClock * .006 + index) * .65, 0, Math.PI * 2);
+                ctx.fillStyle = "#c9fbff"; ctx.shadowColor = "#43eaff"; ctx.shadowBlur = 12; ctx.fill();
             });
         }
         for (const [id, p] of projected) {
@@ -227,22 +239,19 @@ import { eventBus } from "../core/event_bus.js";
     }
     function animate(now) {
         raf = 0;
-        if (document.hidden) return;
-        const querying = root.classList.contains("is-querying");
-        const pulsing = now < pulseUntil;
-        if (!querying && !pulsing) {
-            draw();
-            return;
-        }
-        if (now - lastFrame >= 33) {
-            const delta = lastFrame ? Math.min(50, now - lastFrame) : 33;
+        if (document.hidden || root.classList.contains("is-collapsed")) return;
+        if (now - lastFrame >= 16) {
+            const delta = lastFrame ? Math.min(50, now - lastFrame) : 16;
             lastFrame = now;
-            if (querying) rotation += .003 * (delta / 33);
+            const querying = root.classList.contains("is-querying");
+            // Never freeze: slow idle orbit, visibly faster while the orchestrator accesses memory.
+            rotation += (querying ? .0055 : .00075) * (delta / 16);
+            flowClock += delta;
             draw();
         }
         raf = requestAnimationFrame(animate);
     }
-    function startAnimation() { if (!raf && !document.hidden) raf = requestAnimationFrame(animate); }
+    function startAnimation() { if (!raf && !document.hidden && !root.classList.contains("is-collapsed")) raf = requestAnimationFrame(animate); }
     function stopAnimation() { if (raf) cancelAnimationFrame(raf); raf = 0; }
 
     function setCollapsed(collapsed) {
@@ -266,7 +275,7 @@ import { eventBus } from "../core/event_bus.js";
     });
     canvas.addEventListener("pointerup", () => { pointerDown = false; });
     canvas.addEventListener("pointercancel", () => { pointerDown = false; });
-    if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => draw()).observe(canvas);
+    if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { draw(); startAnimation(); }).observe(canvas);
     // Chat stream events are published on the shared EventBus. Listen to that exact channel;
     // a window CustomEvent listener would never receive these module EventBus messages.
     eventBus.on("agent:graph_event", event => {
@@ -279,6 +288,7 @@ import { eventBus } from "../core/event_bus.js";
         if (refreshTimer) clearInterval(refreshTimer);
         if (eventTimer) clearTimeout(eventTimer);
     });
-    loadGraph().finally(draw);
+    loadGraph().finally(() => { draw(); startAnimation(); });
+    startAnimation();
     refreshTimer = setInterval(loadGraph, 12000);
 })();
