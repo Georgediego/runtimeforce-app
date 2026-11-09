@@ -25,7 +25,10 @@ export const systemMonitor = {
             this.setText("rf-monitor-cpu", data.cpu_percent == null ? "—" : Math.round(data.cpu_percent) + "%");
             this.setText("rf-monitor-ram", data.memory_percent == null ? "—" : Math.round(data.memory_percent) + "%");
             const cpu = $("rf-monitor-cpu-gauge");
-            if (cpu) cpu.dataset.level = level(data.cpu_percent || 0);
+            if (cpu) {
+                cpu.dataset.level = level(data.cpu_percent || 0);
+                cpu.style.setProperty("--rf-cpu-progress", (data.cpu_percent == null ? 0 : data.cpu_percent) + "%");
+            }
             const ram = $("rf-monitor-ram-bar");
             if (ram) {
                 ram.style.width = data.memory_percent == null ? "0%" : data.memory_percent + "%";
