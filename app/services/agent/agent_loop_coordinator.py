@@ -254,10 +254,30 @@ class AgentLoopCoordinator:
                     "model": model_lock or "orchestrator",
                     "query_active": True,
                 }
-                context_res = await self._context_builder.build_optimal_context(
-                    user_prompt=user_prompt, session_id=session_id,
-                    user_id=user_id, project_id=project_id, max_context_tokens=8000,
+                trace_queue: asyncio.Queue = asyncio.Queue()
+
+                def queue_memory_event(item: Dict[str, Any]) -> None:
+                    trace_queue.put_nowait(item)
+
+                context_task = asyncio.create_task(
+                    self._context_builder.build_optimal_context(
+                        user_prompt=user_prompt, session_id=session_id,
+                        user_id=user_id, project_id=project_id, max_context_tokens=8000,
+                        trace_callback=queue_memory_event,
+                    )
                 )
+                while not context_task.done() or not trace_queue.empty():
+                    if trace_queue.empty() and not context_task.done():
+                        await asyncio.wait({context_task}, timeout=0.05)
+                    while not trace_queue.empty():
+                        yield {
+                            "status": "memory_graph",
+                            "phase": "activity",
+                            "project_id": project_id,
+                            "event": trace_queue.get_nowait(),
+                        }
+
+                context_res = await context_task
                 memory_context_str = context_res.get("compiled_memory_context", "")
                 active_memory_ids = context_res.get("active_node_ids", [])
                 yield {
@@ -266,7 +286,6 @@ class AgentLoopCoordinator:
                     "active_node_ids": active_memory_ids,
                     "project_id": project_id,
                     "query_active": False,
-                    "trace": context_res.get("trace", []),
                     "graph_stats": context_res.get("graph_stats", {}),
                 }
             except Exception as e:
