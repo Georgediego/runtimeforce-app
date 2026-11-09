@@ -238,7 +238,24 @@ export const projectsUIController = {
             showToast(`Project "${name}" created`, "success");
             this.loadProjectsList();
         } catch (e) {
-            showToast(`Failed to create project: ${e.message}`, "error");
+            const message = String(e?.message || e);
+            if (/Project limit reached|Project creation is not enabled/i.test(message)) {
+                showToast(message, "warning", 0);
+                const toast = document.querySelector("#rf-toast-container .rf-toast-notification:last-child");
+                const messageEl = toast?.querySelector(".rf-toast-message");
+                if (messageEl) {
+                    messageEl.append(document.createElement("br"));
+                    const link = document.createElement("a");
+                    link.href = "https://runtimeforce.dev/account";
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                    link.textContent = "Upgrade your plan";
+                    link.className = "inline-flex mt-2 font-bold text-[var(--ide-accent)] underline underline-offset-2";
+                    messageEl.append(link);
+                }
+                return;
+            }
+            showToast(`Failed to create project: ${message}`, "error");
         }
     },
 
