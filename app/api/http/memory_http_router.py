@@ -54,8 +54,6 @@ async def get_graph_status(
         (project_id, user_id),
     ).fetchall()
     raw_nodes = [dict(row) for row in raw_nodes]
-    included_ids = {str(node["id"]) for node in raw_nodes if node.get("id")}
-
     nodes = [
         {
             "id": str(node["id"]),
@@ -69,20 +67,19 @@ async def get_graph_status(
     node_ids = [node["id"] for node in nodes]
     edges = []
     if node_ids:
-        placeholders = ",".join("?" for _ in node_ids)
+        # Both endpoints are scoped to this user/project; no giant IN clause
+        # that would exceed SQLite's bind-variable limit on larger graphs.
         rows = conn.execute(
-            f"""
+            """
             SELECT edge.id, edge.source_id, edge.target_id, edge.relation_type, edge.weight
             FROM graph_edges AS edge
             JOIN graph_nodes AS source ON source.id=edge.source_id
             JOIN graph_nodes AS target ON target.id=edge.target_id
             WHERE source.project_id=? AND source.user_id=?
               AND target.project_id=? AND target.user_id=?
-              AND edge.source_id IN ({placeholders})
-              AND edge.target_id IN ({placeholders})
             ORDER BY edge.weight DESC, edge.created_at DESC
             """,
-            (project_id, user_id, project_id, user_id, *node_ids, *node_ids),
+            (project_id, user_id, project_id, user_id),
         ).fetchall()
         edges = [
             {
