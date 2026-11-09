@@ -45,7 +45,7 @@ export function showToast(message, type = "info", duration = 3000) {
 export function showConfirm(title, message, confirmText = "Confirm", cancelText = "Cancel") {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
-        overlay.className = "fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md animate-fadeIn";
+        overlay.className = "fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md rf-modal-backdrop animate-fadeIn";
         overlay.innerHTML = `
             <div class="rf-glass-surface border border-[var(--ide-border-subtle)] rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 flex flex-col gap-3">
                 <div class="text-base font-bold text-[var(--ide-text-primary)]">${title}</div>
@@ -72,7 +72,7 @@ export function showConfirm(title, message, confirmText = "Confirm", cancelText 
 export function showPrompt(title, message = "", defaultValue = "", confirmText = "Save", cancelText = "Cancel") {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
-        overlay.className = "fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md animate-fadeIn";
+        overlay.className = "fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md rf-modal-backdrop animate-fadeIn";
         const escapedValue = (defaultValue || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
         overlay.innerHTML = `
@@ -109,7 +109,7 @@ export function showPrompt(title, message = "", defaultValue = "", confirmText =
 export function showMultiLinePrompt(title, message = "", defaultValue = "", confirmText = "Resend", cancelText = "Cancel") {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
-        overlay.className = "fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md animate-fadeIn";
+        overlay.className = "fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md rf-modal-backdrop animate-fadeIn";
         const escapedValue = (defaultValue || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
         overlay.innerHTML = `
