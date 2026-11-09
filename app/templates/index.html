@@ -11,7 +11,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}-memory-live-2">
+    <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}-memory-live-3">
     <link rel="stylesheet" href="/static/css/agent-graph.css?v={{ app_version }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
@@ -223,15 +223,18 @@
                 <div class="rf-memory-widget-heading">
                     <div class="rf-memory-heading-title"><span class="rf-memory-live-dot"></span><span>MEMORY GRAPH</span></div>
                     <span id="rf-memory-widget-count">0 NODES</span>
+                    <button id="rf-memory-widget-toggle" class="rf-memory-widget-toggle" type="button" aria-expanded="true" aria-label="Hide memory graph" title="Hide memory graph"><i data-lucide="chevron-down" class="w-3 h-3"></i></button>
                 </div>
-                <canvas id="rf-memory-sphere" aria-label="Live project knowledge graph"></canvas>
-                <div class="rf-memory-widget-stats">
-                    <span id="rf-memory-widget-status">Loading local SQLite graph…</span>
-                    <span id="rf-memory-widget-edges">0 EDGES</span>
-                </div>
-                <div class="rf-memory-activity-heading">LIVE MEMORY OPERATIONS</div>
-                <div id="rf-memory-activity" class="rf-memory-activity" aria-live="polite">
-                    <div class="rf-memory-activity-empty">Waiting for orchestrator query</div>
+                <div id="rf-memory-widget-body" class="rf-memory-widget-body">
+                    <canvas id="rf-memory-sphere" aria-label="Live project knowledge graph"></canvas>
+                    <div class="rf-memory-widget-stats">
+                        <span id="rf-memory-widget-status">Loading local SQLite graph…</span>
+                        <span id="rf-memory-widget-edges">0 EDGES</span>
+                    </div>
+                    <div class="rf-memory-activity-heading">LIVE MEMORY OPERATIONS</div>
+                    <div id="rf-memory-activity" class="rf-memory-activity" aria-live="polite">
+                        <div class="rf-memory-activity-empty">Waiting for orchestrator query</div>
+                    </div>
                 </div>
             </section>
         </section>
