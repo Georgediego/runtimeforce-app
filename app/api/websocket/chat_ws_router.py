@@ -84,6 +84,10 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
             if not driver:
                 driver = WorkspaceLocalDriver("~")
+                driver.command_approval_service = container.command_approval_service
+                driver.command_approval_metadata = {
+                    "user_id": user_id, "project_id": project_id, "workspace_id": "", "target": "local"
+                }
 
             strategy = data.get("strategy") or "auto"
             model_lock = data.get("model_lock")
@@ -131,28 +135,29 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     existing_message_id=existing_message_id,
                 )
 
-                async for event in agent_stream:
-                    await websocket.send_json(event)
+                with container.command_approval_service.context(session_id=session_id, project_id=project_id):
+                    async for event in agent_stream:
+                        await websocket.send_json(event)
 
-                    status = event.get("status")
-                    if status in ["model_try", "tool_start", "tool_end", "error", "failed"]:
-                        try:
-                            if status in ["tool_start", "tool_end"]:
-                                conv_repo.save_tool_execution(
+                        status = event.get("status")
+                        if status in ["model_try", "tool_start", "tool_end", "error", "failed"]:
+                            try:
+                                if status in ["tool_start", "tool_end"]:
+                                    conv_repo.save_tool_execution(
+                                        session_id=session_id,
+                                        tool_id=event.get("tool_id", "tool-1"),
+                                        tool_name=event.get("tool_name", "unknown"),
+                                        status="running" if status == "tool_start" else "success"
+                                    )
+                                badge = "TRY" if status == "model_try" else ("TOOL" if status == "tool_start" else "ERROR")
+                                text = event.get("label") or event.get("error") or event.get("tool_name") or ""
+                                conv_repo.append_trace(
                                     session_id=session_id,
-                                    tool_id=event.get("tool_id", "tool-1"),
-                                    tool_name=event.get("tool_name", "unknown"),
-                                    status="running" if status == "tool_start" else "success"
+                                    badge=badge,
+                                    text=text
                                 )
-                            badge = "TRY" if status == "model_try" else ("TOOL" if status == "tool_start" else "ERROR")
-                            text = event.get("label") or event.get("error") or event.get("tool_name") or ""
-                            conv_repo.append_trace(
-                                session_id=session_id,
-                                badge=badge,
-                                text=text
-                            )
-                        except Exception as db_err:
-                            logger.warning(f"Failed to persist trace/tool event: {db_err}")
+                            except Exception as db_err:
+                                logger.warning(f"Failed to persist trace/tool event: {db_err}")
 
             task = asyncio.create_task(run_task())
             active_tasks[session_id] = task

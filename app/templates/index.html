@@ -827,49 +827,27 @@
     </div>
 </div>
 
-<div id="command-approval-modal" class="hidden fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fadeIn">
-    <div class="bg-[var(--ide-surface)] border border-amber-500/40 rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4 flex flex-col gap-4">
+<div<div id="command-approval-modal" class="hidden fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fadeIn">
+    <div class="bg-[var(--ide-surface)] border border-amber-500/40 rounded-2xl shadow-2xl p-6 max-w-xl w-full mx-4 flex flex-col gap-4">
         <div class="flex items-center gap-2 text-amber-400 font-bold text-sm border-b border-[var(--ide-border-subtle)] pb-3">
             <i data-lucide="shield-alert" class="w-5 h-5"></i>
-            <span>Confirm Action / Dangerous Command Approval</span>
+            <span>Подтверждение выполнения команды</span>
         </div>
-        <div class="text-xs text-[var(--ide-text-secondary)] leading-relaxed">
-            The agent is requesting permission to execute an elevated or potentially destructive system command:
-        </div>
-        <div id="approval-cmd-box" class="bg-[var(--ide-bg)] p-3 rounded-lg font-mono text-xs text-amber-300 border border-[var(--ide-border-subtle)] overflow-x-auto whitespace-pre-wrap break-all">
-            sudo apt-get update
-        </div>
-        <div id="approval-sudo-container" class="hidden space-y-1.5 p-3 rounded-lg bg-[var(--ide-elevated)] border border-[var(--ide-border-subtle)]">
-            <label class="block text-[11px] font-bold text-[var(--ide-text-primary)]">Sudo Password Required:</label>
-            <input type="password" id="approval-sudo-password-input" placeholder="Enter root/sudo password" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono text-xs outline-none focus:border-[var(--ide-accent)]">
-            <div class="text-[10px] text-[var(--ide-text-muted)]">Password is used solely to execute this command in local memory and is never logged or stored.</div>
-        </div>
-        <div class="grid grid-cols-2 gap-4 pt-2 border-t border-[var(--ide-border-subtle)]">
-            <div>
-                <label class="block text-[10px] uppercase font-bold text-[var(--ide-text-muted)] mb-1.5">1. Duration</label>
-                <select id="approval-duration-select" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg text-xs text-white outline-none">
-                    <option value="once">Only this time</option>
-                    <option value="today">Only today</option>
-                    <option value="always">Always</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[10px] uppercase font-bold text-[var(--ide-text-muted)] mb-1.5">2. Scope</label>
-                <select id="approval-scope-select" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg text-xs text-white outline-none">
-                    <option value="session">In this session</option>
-                    <option value="workspace">In this workspace</option>
-                    <option value="project">In this project</option>
-                    <option value="everywhere">Everywhere</option>
-                </select>
-            </div>
+        <div id="approval-context-box" class="text-xs text-[var(--ide-text-secondary)] leading-relaxed"></div>
+        <pre id="approval-cmd-box" class="bg-[var(--ide-bg)] p-3 rounded-lg font-mono text-xs text-amber-300 border border-[var(--ide-border-subtle)] overflow-x-auto whitespace-pre-wrap break-all"></pre>
+        <div>
+            <label class="block text-[10px] uppercase font-bold text-[var(--ide-text-muted)] mb-1.5">Разрешение</label>
+            <select id="approval-decision-select" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg text-xs text-white outline-none">
+                <option value="once">Выполнить только на этот раз</option>
+                <option value="session">Выполнить только в этой сессии</option>
+                <option value="workspace">Выполнить только в этом воркспейсе</option>
+                <option value="project">Выполнить только в этом проекте</option>
+                <option value="always">Выполнять всегда (эта точная команда)</option>
+            </select>
         </div>
         <div class="flex items-center justify-end gap-3 pt-3 border-t border-[var(--ide-border-subtle)]">
-            <button id="approval-deny-btn" class="px-4 py-2 rounded-lg text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 cursor-pointer transition-colors">
-                Deny Execution
-            </button>
-            <button id="approval-allow-btn" class="px-5 py-2 rounded-lg text-xs font-bold bg-[var(--ide-accent)] text-black hover:brightness-110 cursor-pointer transition-all shadow-lg">
-                Approve & Execute
-            </button>
+            <button id="approval-deny-btn" class="px-4 py-2 rounded-lg text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 cursor-pointer transition-colors">Запретить</button>
+            <button id="approval-allow-btn" class="px-5 py-2 rounded-lg text-xs font-bold bg-[var(--ide-accent)] text-black hover:brightness-110 cursor-pointer transition-all shadow-lg">Подтвердить и выполнить</button>
         </div>
     </div>
 </div>

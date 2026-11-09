@@ -52,6 +52,13 @@ class WorkspaceLocalDriver(IWorkspaceDriver):
     async def execute_command(
         self, command: str, cwd: Optional[str] = None, timeout: float = 30.0, password: Optional[str] = None, env: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
+        approval_service = getattr(self, "command_approval_service", None)
+        if approval_service:
+            await approval_service.require_approval(
+                command,
+                getattr(self, "command_approval_metadata", {}),
+                cwd=cwd,
+            )
         work_dir = self._resolve(cwd) if cwd else self.root
         exec_cmd = command
 

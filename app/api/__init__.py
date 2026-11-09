@@ -14,6 +14,7 @@ from app.api.http.usage_http_router import router as usage_router
 from app.api.http.audit_http_router import router as audit_router
 from app.api.http.support_http_router import router as support_router
 from app.api.http.memory_http_router import router as memory_router
+from app.api.http.approval_http_router import router as approval_router
 from app.api.websocket.chat_ws_router import router as chat_ws_router
 
 ALL_ROUTERS = [
@@ -30,6 +31,7 @@ ALL_ROUTERS = [
     audit_router,
     support_router,
     memory_router,
+    approval_router,
     chat_ws_router,
 ]
 

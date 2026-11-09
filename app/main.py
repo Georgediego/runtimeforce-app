@@ -56,6 +56,10 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("🛑 RuntimeForce IDE shutting down...")
     try:
+        await container.command_approval_service.close_all()
+    except Exception as e:
+        logger.warning(f"Command approval cleanup failed: {e}")
+    try:
         await container.ssh_pool.close_all()
     except Exception as e:
         logger.warning(f"SSH cleanup failed: {e}")

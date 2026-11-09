@@ -19,10 +19,12 @@ class WorkspaceManagerService:
         workspace_repo: WorkspaceDBRepository,
         driver_factory: IWorkspaceDriverFactory,
         project_repo: Optional[Any] = None,
+        command_approval_service: Optional[Any] = None,
     ):
         self.workspace_repo = workspace_repo
         self.driver_factory = driver_factory
         self.project_repo = project_repo
+        self.command_approval_service = command_approval_service
         self._drivers: Dict[str, IWorkspaceDriver] = {}
 
     async def get_driver_for_project(
@@ -88,12 +90,25 @@ class WorkspaceManagerService:
         existing = self._drivers.get(wid)
         if existing:
             if ws_type == "local" and getattr(existing, "root", "") == norm_path:
+                self._attach_approval(existing, ws, user_id)
                 return existing
 
         driver = self.driver_factory.create_driver(ws, user_id)
         if driver:
             self._drivers[wid] = driver
+            self._attach_approval(driver, ws, user_id)
         return driver
+
+    def _attach_approval(self, driver, ws: Dict[str, Any], user_id: str) -> None:
+        if not self.command_approval_service:
+            return
+        driver.command_approval_service = self.command_approval_service
+        driver.command_approval_metadata = {
+            "user_id": user_id,
+            "workspace_id": str(ws.get("id") or ""),
+            "project_id": str(ws.get("project_id") or ""),
+            "target": "ssh" if ws.get("type") == "ssh" else "local",
+        }
 
     def invalidate_driver(self, wid: str) -> None:
         """Remove cached driver (e.g. after credentials change)."""

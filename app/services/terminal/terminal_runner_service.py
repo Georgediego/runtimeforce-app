@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 class TerminalRunnerService:
     """Service for running terminal commands with async PTY support."""
 
-    def __init__(self):
+    def __init__(self, approval_service=None, approval_metadata=None):
+        self.approval_service = approval_service
+        self.approval_metadata = approval_metadata or {}
         self.active_processes: Dict[str, asyncio.subprocess.Process] = {}
         self.max_concurrent_processes = 10
         self._lock = asyncio.Lock()
@@ -47,6 +49,12 @@ class TerminalRunnerService:
             Dictionary with stdout, stderr, returncode, duration
         """
         start_time = datetime.utcnow()
+        if not self.approval_service:
+            return {"stdout": "", "stderr": "Command approval service is required; command was not executed.", "returncode": -1, "duration": 0, "success": False, "error": "approval_required"}
+        try:
+            await self.approval_service.require_approval(command, self.approval_metadata, cwd=cwd)
+        except Exception as approval_error:
+            return {"stdout": "", "stderr": str(approval_error), "returncode": -1, "duration": 0, "success": False, "error": "approval_denied"}
         process_key = f"{session_id}_{id(command)}" if session_id else str(id(command))
 
         try:
@@ -155,6 +163,15 @@ class TerminalRunnerService:
             Dictionaries with output chunks
         """
         process_key = f"{session_id}_{id(command)}" if session_id else str(id(command))
+
+        if not self.approval_service:
+            yield {"type": "error", "data": "Command approval service is required; command was not executed.", "timestamp": datetime.utcnow().isoformat()}
+            return
+        try:
+            await self.approval_service.require_approval(command, {**self.approval_metadata, "session_id": session_id or ""}, cwd=cwd)
+        except Exception as approval_error:
+            yield {"type": "error", "data": str(approval_error), "timestamp": datetime.utcnow().isoformat()}
+            return
 
         try:
             # Merge environment

@@ -143,45 +143,45 @@ export function showMultiLinePrompt(title, message = "", defaultValue = "", conf
     });
 }
 
-export function showCommandApprovalModal(command, reason = "") {
+export function showCommandApprovalModal(command, reason = "", options = {}) {
     return new Promise((resolve) => {
         const modal = document.getElementById("command-approval-modal");
         const cmdBox = document.getElementById("approval-cmd-box");
+        const contextBox = document.getElementById("approval-context-box");
+        const decisionSelect = document.getElementById("approval-decision-select");
         const allowBtn = document.getElementById("approval-allow-btn");
         const denyBtn = document.getElementById("approval-deny-btn");
-        const sudoContainer = document.getElementById("approval-sudo-container");
-        const sudoInput = document.getElementById("approval-sudo-password-input");
 
-        if (cmdBox) cmdBox.textContent = command;
-
-        const isSudo = command.trim().startsWith("sudo ") || command.includes(" sudo ");
-        if (sudoContainer) {
-            sudoContainer.classList.toggle("hidden", !isSudo);
+        if (cmdBox) cmdBox.textContent = command || "";
+        if (contextBox) contextBox.textContent = reason || "Команда ожидает подтверждения. До вашего решения она не будет запущена.";
+        if (decisionSelect) {
+            decisionSelect.value = "once";
+            const sessionOption = decisionSelect.querySelector('option[value="session"]');
+            const workspaceOption = decisionSelect.querySelector('option[value="workspace"]');
+            const projectOption = decisionSelect.querySelector('option[value="project"]');
+            if (sessionOption) sessionOption.disabled = !options.sessionAvailable;
+            if (workspaceOption) workspaceOption.disabled = !options.workspaceAvailable;
+            if (projectOption) projectOption.disabled = !options.projectAvailable;
         }
-        if (sudoInput) sudoInput.value = "";
-
         if (modal) {
             modal.classList.remove("hidden");
             modal.style.display = "flex";
         }
 
-        const close = (approved) => {
-            const duration = document.getElementById("approval-duration-select")?.value || "once";
-            const scope = document.getElementById("approval-scope-select")?.value || "session";
-            const password = isSudo && sudoInput ? sudoInput.value : null;
-
+        let settled = false;
+        const close = (choice) => {
+            if (settled) return;
+            settled = true;
             if (modal) {
                 modal.classList.add("hidden");
                 modal.style.display = "none";
             }
-            resolve({ approved, duration, scope, password });
+            resolve(choice);
         };
-
-        if (allowBtn) allowBtn.onclick = () => close(true);
-        if (denyBtn) denyBtn.onclick = () => close(false);
+        if (allowBtn) allowBtn.onclick = () => close(decisionSelect?.value || "once");
+        if (denyBtn) denyBtn.onclick = () => close("deny");
     });
 }
-
 
 function initRuntimeForceTooltips() {
     if (typeof document === "undefined") return;
