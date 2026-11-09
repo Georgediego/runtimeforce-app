@@ -1909,3 +1909,8 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-memory-sphere-large{display:block;width:180px;height:180px;margin:2px auto}
 #rf-memory-widget-status{color:var(--ide-text-muted);font:8px 'JetBrains Mono',monospace;text-align:center}
 .rf-memory-widget.is-active .rf-memory-widget-toggle{border-color:#22d3ee;box-shadow:0 0 12px rgba(34,211,238,.18)}
+
+
+/* Shared transparent backdrop for dynamically-created dialogs and tooltips. */
+.rf-modal-backdrop{background:rgba(4,18,11,.48)!important;-webkit-backdrop-filter:blur(7px)!important;backdrop-filter:blur(7px)!important}
+[data-rf-tooltip]::after{background:rgba(17,25,21,.74)!important;-webkit-backdrop-filter:blur(8px)!important;backdrop-filter:blur(8px)!important}
