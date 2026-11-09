@@ -495,6 +495,12 @@ import { eventBus } from "../core/event_bus.js";
             const k = edgeIndexById.get(id);
             if (k !== undefined) edgeTarget[k] = 1;
         });
+        // Real relationships connected to an active object light up during its operation.
+        edges.forEach((edge, k) => {
+            if (activeIds.has(String(edge.source)) || activeIds.has(String(edge.target))) {
+                if (k < edgeTarget.length) edgeTarget[k] = 1;
+            }
+        });
     }
 
     // ---- Runtime topology sources ---------------------------------------
@@ -751,9 +757,39 @@ import { eventBus } from "../core/event_bus.js";
         if (nodes.length) setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
     }
 
+    function addContextActive(item) {
+        if (!item || typeof item !== "object") return;
+        const modeValue = String(item.mode || item.strategy || "").toLowerCase().replace(/[^a-z]/g, "");
+        const modeAliases = { auto: "auto", automatic: "auto", coding: "coding", atm: "coding", local: "local", manual: "manual" };
+        const modeId = modeAliases[modeValue];
+        if (modeId) activeIds.add("chat-mode:" + modeId);
+
+        const roleValue = String(item.role || item.agent_role || item.agent || "").toLowerCase();
+        if (roleValue) {
+            const roleNode = nodes.find(node => node.type === "role" && String(node.label).toLowerCase() === roleValue);
+            if (roleNode) activeIds.add(String(roleNode.id));
+        }
+
+        const modelValue = String(item.model || item.model_id || "").toLowerCase().trim();
+        if (modelValue) {
+            const modelNode = nodes.find(node =>
+                node.type === "model" &&
+                (String(node.label).toLowerCase() === modelValue ||
+                 String(node.id).toLowerCase().endsWith(":" + modelValue) ||
+                 modelValue.includes(String(node.label).toLowerCase()))
+            );
+            if (modelNode) {
+                activeIds.add(String(modelNode.id));
+                const providerId = String(modelNode.id).split(":").slice(0, 2).join(":");
+                if (indexById.has(providerId) || nodes.some(node => String(node.id) === providerId)) activeIds.add(providerId);
+            }
+        }
+    }
+
     function addActive(item) {
         if (Array.isArray(item.active_node_ids)) item.active_node_ids.forEach(id => activeIds.add(String(id)));
         if (Array.isArray(item.active_edge_ids)) item.active_edge_ids.forEach(id => activeEdgeIds.add(String(id)));
+        addContextActive(item);
     }
 
     const hasUnknown = () => [...activeIds].some(id => !indexById.has(id));
@@ -769,8 +805,9 @@ import { eventBus } from "../core/event_bus.js";
             runStartedAt = performance.now();
             activeIds.clear();
             activeEdgeIds.clear();
+            addContextActive(detail);
             applyActive();
-            setStatus("Memory query running · reading SQLite graph");
+            setStatus("Runtime operation running · tracing active graph objects");
             activity({ label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "orchestrator") });
             loadGraph(eventProject || lastProject);
             return;
