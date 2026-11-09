@@ -159,7 +159,7 @@ import { eventBus } from "../core/event_bus.js";
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
-        const cx = width / 2, cy = height / 2, radius = Math.min(width, height) * .39;
+        const cx = width / 2, cy = height / 2, radius = Math.min(width, height) * .48;
         const cos = Math.cos(rotation), sin = Math.sin(rotation), ct = Math.cos(.28), st = Math.sin(.28);
         const projected = new Map();
         const hasData = graphNodes.length > 0;
@@ -261,7 +261,7 @@ import { eventBus } from "../core/event_bus.js";
         }
         let nodeIndex = 0;
         for (const [id, p] of projected) {
-            const depth = (p.z + 1) / 2, active = hasData && activeIds.has(id);
+            const depth = (p.z + 1) / 2, active = hasData && (activeIds.has(id) || (operationLive && activeIds.size === 0));
             const twinkle = .72 + .28 * Math.sin(flowClock * .003 + nodeIndex * 1.71);
             const size = hasData ? (active ? 2.8 : 1.15) + depth * (active ? 2.7 : 1.8) : 1.8 + depth * 1.5;
             ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
