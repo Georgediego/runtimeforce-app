@@ -155,7 +155,7 @@ export function showCommandApprovalModal(command, reason = "", options = {}) {
         if (cmdBox) cmdBox.textContent = command || "";
         if (contextBox) {
             contextBox.replaceChildren();
-            const contextText = reason || "Команда ожидает подтверждения. До вашего решения она не будет запущена.";
+            const contextText = reason || "This command is awaiting your approval. It will not run until you decide.";
             contextText.split(" · ").forEach((part, index) => {
                 if (index) contextBox.appendChild(document.createTextNode(" · "));
                 const separator = part.indexOf(":");
