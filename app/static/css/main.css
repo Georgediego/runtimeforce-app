@@ -1837,3 +1837,30 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 @media(max-width:900px){.rf-system-monitor{gap:8px;padding:5px 7px}.rf-system-monitor .rf-monitor-network{display:none}}
 @media(max-width:680px){.rf-system-monitor{position:static;transform:none;margin-left:auto;margin-right:8px;gap:7px}.rf-system-monitor .rf-monitor-metric:nth-child(2),.rf-system-monitor .rf-monitor-metric:nth-child(4){display:none}}
 @media(prefers-reduced-motion:reduce){.rf-monitor-live{animation:none}}
+
+
+/* Header system monitor: five uniform 3rem cards with circular gauges. */
+.rf-system-monitor{gap:6px;padding:0;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.rf-system-monitor .rf-monitor-card{box-sizing:border-box;display:flex;flex:0 0 3rem;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:3rem;height:3rem;min-width:3rem;padding:3px;border:1px solid var(--ide-border-subtle);border-radius:9px;background:var(--ide-surface);color:var(--ide-text-secondary);font:8px 'JetBrains Mono',monospace;overflow:hidden}
+.rf-monitor-card-label{display:flex;align-items:center;justify-content:center;gap:3px;color:var(--ide-text-muted);font:700 7px 'Inter',sans-serif;letter-spacing:.08em;line-height:1}
+.rf-monitor-card .rf-monitor-ring{position:relative;display:grid;place-items:center;width:25px;height:25px;flex:0 0 25px;border-radius:50%;background:conic-gradient(var(--rf-monitor-color,#07f77a) 0 var(--rf-cpu-progress,0%),rgba(120,140,130,.20) var(--rf-cpu-progress,0%) 100%);box-shadow:0 0 7px color-mix(in srgb,var(--rf-monitor-color,#07f77a) 32%,transparent)}
+.rf-monitor-card .rf-monitor-ring::before{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--ide-surface)}
+.rf-monitor-card .rf-monitor-ring b{position:relative;z-index:1;color:var(--ide-text-primary);font:700 7px 'JetBrains Mono',monospace;white-space:nowrap}
+.rf-monitor-ring[data-level="medium"]{--rf-monitor-color:#facc15}
+.rf-monitor-ring[data-level="high"]{--rf-monitor-color:#f87171}
+.rf-monitor-live{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#07f77a;box-shadow:0 0 6px #07f77a;animation:rf-monitor-pulse 1.4s ease-in-out infinite}
+.rf-monitor-live.is-offline,.rf-system-monitor.is-offline .rf-monitor-live{background:#f87171;box-shadow:0 0 6px #f87171;animation:none}
+.rf-monitor-api-value{color:var(--ide-text-primary);font:700 9px 'JetBrains Mono',monospace;white-space:nowrap}
+.rf-monitor-network-values{display:flex;flex-direction:column;gap:2px;color:var(--ide-text-muted);font:7px 'JetBrains Mono',monospace;line-height:1.1}
+.rf-monitor-network-values b{color:var(--ide-text-primary);font-weight:700}
+.rf-approval-context-label{color:var(--ide-text-muted);font-weight:500}
+.rf-approval-context-value{color:var(--ide-text-primary);font-weight:800}
+@media(max-width:900px){.rf-system-monitor{gap:4px}.rf-system-monitor .rf-monitor-card{flex-basis:2.75rem;width:2.75rem;min-width:2.75rem;height:2.75rem}}
+@media(max-width:680px){.rf-system-monitor{position:static;transform:none;margin-left:auto;margin-right:8px;gap:3px}.rf-system-monitor .rf-monitor-card{flex-basis:2.5rem;width:2.5rem;min-width:2.5rem;height:2.5rem}.rf-system-monitor .rf-monitor-network{display:none}}
+@media(prefers-reduced-motion:reduce){.rf-monitor-live{animation:none}}
+
+/* Workflow stage cards: 20% lower without changing their five-column layout. */
+.rf-agent-workflow-panel.rf-agent-graph>.rf-graph-stages{margin-top:11px;margin-bottom:8px}
+.rf-graph-stage{gap:4px;padding:6px 2px 5px}
+.rf-stage-icon{width:19px;height:19px;border-radius:6px;font-size:12px}
+.rf-graph-stage:not(:last-child)::after{top:14px}
