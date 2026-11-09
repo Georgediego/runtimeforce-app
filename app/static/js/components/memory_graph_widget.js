@@ -46,7 +46,7 @@ import { eventBus } from "../core/event_bus.js";
     let processActive = false, runStartedAt = 0;
     let pointerDown = false, pointerX = 0;
 
-    let nodePoints = null, glowPoints = null, edgeLines = null, ambientPoints = null;
+    let nodePoints = null, glowPoints = null, edgeLines = null, ambientPoints = null, shellMesh = null;
     let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
     let positionById = new Map();      // id -> [x, y, z]
     let indexById = new Map();         // node id -> buffer index
@@ -385,15 +385,51 @@ import { eventBus } from "../core/event_bus.js";
                 Math.sin(theta) * ring * radius
             ], i * 3);
         }
+        // Build a spherical lattice: each surface point joins its three
+        // nearest neighbours. These struts are shell geometry, not memory edges.
+        const shellLinks = [];
+        const linked = new Set();
+        for (let i = 0; i < AMBIENT_SHELL_POINTS; i++) {
+            const nearest = [];
+            for (let j = 0; j < AMBIENT_SHELL_POINTS; j++) {
+                if (i === j) continue;
+                const dx = shellPositions[i * 3] - shellPositions[j * 3];
+                const dy = shellPositions[i * 3 + 1] - shellPositions[j * 3 + 1];
+                const dz = shellPositions[i * 3 + 2] - shellPositions[j * 3 + 2];
+                nearest.push({ j, d: dx * dx + dy * dy + dz * dz });
+            }
+            nearest.sort((a, b) => a.d - b.d);
+            for (const item of nearest.slice(0, 3)) {
+                const lo = Math.min(i, item.j), hi = Math.max(i, item.j);
+                const key = lo + ":" + hi;
+                if (linked.has(key)) continue;
+                linked.add(key);
+                shellLinks.push(
+                    shellPositions[lo * 3], shellPositions[lo * 3 + 1], shellPositions[lo * 3 + 2],
+                    shellPositions[hi * 3], shellPositions[hi * 3 + 1], shellPositions[hi * 3 + 2]
+                );
+            }
+        }
+        const shellLineGeometry = new THREE.BufferGeometry();
+        shellLineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(shellLinks, 3));
+        const shellLineMaterial = new THREE.LineBasicMaterial({
+            color: 0x6685a8, transparent: true, opacity: 0.28,
+            depthTest: true, depthWrite: true
+        });
+        shellMesh = new THREE.LineSegments(shellLineGeometry, shellLineMaterial);
+        shellMesh.frustumCulled = false;
+        shellMesh.renderOrder = 0;
+        graphGroup.add(shellMesh);
+
         const shellGeometry = new THREE.BufferGeometry();
         shellGeometry.setAttribute("position", new THREE.BufferAttribute(shellPositions, 3));
         const shellMaterial = new THREE.PointsMaterial({
-            color: 0x91a8c9, size: 0.038, sizeAttenuation: true,
-            transparent: true, opacity: 0.72, depthWrite: false
+            color: 0xb5c9e6, size: 0.052, sizeAttenuation: true,
+            transparent: true, opacity: 0.96, depthTest: true, depthWrite: true
         });
         ambientPoints = new THREE.Points(shellGeometry, shellMaterial);
         ambientPoints.frustumCulled = false;
-        ambientPoints.renderOrder = 0;
+        ambientPoints.renderOrder = 1;
         graphGroup.add(ambientPoints);
         nodeMaterial = createNodeMaterial();
         glowMaterial = createGlowMaterial();
@@ -823,6 +859,7 @@ import { eventBus } from "../core/event_bus.js";
         resetScene();
         ambientPoints?.geometry.dispose();
         ambientPoints?.material.dispose();
+        if (shellMesh) { graphGroup.remove(shellMesh); shellMesh.geometry.dispose(); shellMesh.material.dispose(); shellMesh = null; }
         nodeMaterial?.dispose();
         glowMaterial?.dispose();
         edgeMaterial?.dispose();
