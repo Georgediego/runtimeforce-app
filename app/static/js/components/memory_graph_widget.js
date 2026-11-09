@@ -10,11 +10,15 @@
     const countEl = document.getElementById("rf-memory-widget-count");
     const edgeCountEl = document.getElementById("rf-memory-widget-edges");
     const feedEl = document.getElementById("rf-memory-activity");
+    const toggle = document.getElementById("rf-memory-widget-toggle");
+    const body = document.getElementById("rf-memory-widget-body");
     if (!canvas) return;
 
     let graphNodes = [], graphEdges = [], activeIds = new Set();
     let rotation = 0, lastFrame = 0, raf = 0, lastProjectId = "";
     let refreshTimer = null, eventTimer = null;
+    let pointerDown = false, pointerX = 0;
+    const collapsedKey = "rf_memory_graph_collapsed";
     const token = () => (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
     const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -106,7 +110,8 @@
         const ctx = canvas.getContext("2d", {alpha: true});
         if (!ctx) return;
         const rect = canvas.getBoundingClientRect();
-        const width = Math.max(80, rect.width || 190), height = Math.max(80, rect.height || 150);
+        if (rect.width < 2 || rect.height < 2) return;
+        const width = rect.width, height = rect.height;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const w = Math.round(width * dpr), h = Math.round(height * dpr);
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -115,35 +120,65 @@
         const cx = width / 2, cy = height / 2, radius = Math.min(width, height) * .39;
         const cos = Math.cos(rotation), sin = Math.sin(rotation), ct = Math.cos(.28), st = Math.sin(.28);
         const projected = new Map();
-        ctx.save(); ctx.translate(cx, cy); ctx.strokeStyle = "rgba(75,205,190,.10)"; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.ellipse(0, 0, radius, radius * .34, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.ellipse(0, 0, radius * .58, radius, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-        for (const [id, p] of makePositions()) {
+        const hasData = graphNodes.length > 0;
+        ctx.save(); ctx.translate(cx, cy);
+        ctx.strokeStyle = hasData ? "rgba(75,205,190,.12)" : "rgba(75,205,190,.25)";
+        ctx.lineWidth = 1;
+        for (let ring = 0; ring < 3; ring++) {
+            const scale = 1 - ring * .23;
+            ctx.beginPath(); ctx.ellipse(0, 0, radius * scale, radius * scale * .34, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(0, 0, radius * scale * .58, radius * scale, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
+        let positions;
+        if (hasData) {
+            positions = makePositions();
+        } else {
+            // A visual 3D wireframe placeholder only; never counted as SQLite memory.
+            positions = new Map();
+            const count = 42, golden = Math.PI * (3 - Math.sqrt(5));
+            for (let i = 0; i < count; i++) {
+                const y = 1 - (i / (count - 1)) * 2;
+                const r = Math.sqrt(1 - y * y), theta = golden * i;
+                positions.set("preview-" + i, {x: Math.cos(theta) * r, y, z: Math.sin(theta) * r});
+            }
+        }
+        for (const [id, p] of positions) {
             const x = p.x * cos - p.z * sin, z0 = p.x * sin + p.z * cos;
             const y = p.y * ct - z0 * st, z = p.y * st + z0 * ct;
             const perspective = 1.35 / (1.35 - z * .20);
             projected.set(id, {x: cx + x * radius * perspective, y: cy + y * radius * perspective, z});
         }
-        ctx.lineWidth = 1;
-        for (const edge of graphEdges) {
-            const a = projected.get(String(edge.source)), b = projected.get(String(edge.target));
-            if (!a || !b || a.z + b.z < -.7) continue;
-            const active = activeIds.has(String(edge.source)) || activeIds.has(String(edge.target));
-            ctx.strokeStyle = active ? "rgba(75,231,255,.78)" : "rgba(54,190,170,.20)";
-            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        if (hasData) {
+            ctx.lineWidth = 1;
+            for (const edge of graphEdges) {
+                const a = projected.get(String(edge.source)), b = projected.get(String(edge.target));
+                if (!a || !b || a.z + b.z < -.7) continue;
+                const active = activeIds.has(String(edge.source)) || activeIds.has(String(edge.target));
+                ctx.strokeStyle = active ? "rgba(75,231,255,.86)" : "rgba(54,190,170,.25)";
+                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            }
+        } else {
+            const ids = Array.from(projected.values());
+            ctx.strokeStyle = "rgba(54,190,170,.23)"; ctx.lineWidth = .7;
+            for (let i = 0; i < ids.length; i++) {
+                const nearest = ids.map((p,j)=>({j,d:(p.x-ids[i].x)**2+(p.y-ids[i].y)**2})).filter(v=>v.j!==i).sort((a,b)=>a.d-b.d).slice(0,2);
+                for (const n of nearest) if(n.j>i){ctx.beginPath();ctx.moveTo(ids[i].x,ids[i].y);ctx.lineTo(ids[n.j].x,ids[n.j].y);ctx.stroke();}
+            }
         }
         for (const [id, p] of projected) {
-            const depth = (p.z + 1) / 2, active = activeIds.has(id), size = (active ? 3.1 : 1.4) + depth * 1.7;
+            const depth = (p.z + 1) / 2, active = hasData && activeIds.has(id);
+            const size = hasData ? (active ? 3.4 : 1.6) + depth * 1.7 : 1.8 + depth * 1.5;
             ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-            ctx.fillStyle = active ? "#71efff" : "rgba(74,220,185," + (.35 + depth * .58) + ")";
-            ctx.shadowColor = active ? "#43eaff" : "rgba(35,220,170,.25)";
-            ctx.shadowBlur = active ? 15 : 4; ctx.fill();
+            ctx.fillStyle = active ? "#71efff" : "rgba(74,220,185," + (hasData ? .35 + depth * .58 : .42 + depth * .48) + ")";
+            ctx.shadowColor = active ? "#43eaff" : "rgba(35,220,170,.35)";
+            ctx.shadowBlur = active ? 15 : 5; ctx.fill();
         }
         ctx.shadowBlur = 0; ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(220,255,245,.88)"; ctx.font = "600 10px Inter, sans-serif";
-        ctx.fillText(String(graphNodes.length), cx, cy + 3);
-        ctx.fillStyle = "rgba(135,185,170,.75)"; ctx.font = "7px JetBrains Mono, monospace";
-        ctx.fillText("MEMORY NODES", cx, cy + 15);
+        ctx.fillStyle = "rgba(220,255,245,.92)"; ctx.font = "600 11px Inter, sans-serif";
+        ctx.fillText(hasData ? String(graphNodes.length) : "◌", cx, cy + 3);
+        ctx.fillStyle = "rgba(135,185,170,.82)"; ctx.font = "7px JetBrains Mono, monospace";
+        ctx.fillText(hasData ? "SQLITE MEMORY" : "WAITING FOR MEMORY", cx, cy + 16);
     }
     function animate(now) {
         raf = 0;
@@ -159,6 +194,28 @@
     function startAnimation() { if (!raf && !document.hidden) raf = requestAnimationFrame(animate); }
     function stopAnimation() { if (raf) cancelAnimationFrame(raf); raf = 0; }
 
+    function setCollapsed(collapsed) {
+        root.classList.toggle("is-collapsed", collapsed);
+        if (toggle) {
+            toggle.setAttribute("aria-expanded", String(!collapsed));
+            toggle.setAttribute("aria-label", collapsed ? "Show memory graph" : "Hide memory graph");
+            toggle.title = collapsed ? "Show memory graph" : "Hide memory graph";
+        }
+        try { localStorage.setItem(collapsedKey, collapsed ? "1" : "0"); } catch (_) {}
+        if (!collapsed) startAnimation();
+    }
+    toggle?.addEventListener("click", () => setCollapsed(!root.classList.contains("is-collapsed")));
+    try { setCollapsed(localStorage.getItem(collapsedKey) === "1"); } catch (_) { setCollapsed(false); }
+    canvas.addEventListener("pointerdown", event => { pointerDown = true; pointerX = event.clientX; canvas.setPointerCapture?.(event.pointerId); });
+    canvas.addEventListener("pointermove", event => {
+        if (!pointerDown) return;
+        rotation += (event.clientX - pointerX) * .008;
+        pointerX = event.clientX;
+        draw();
+    });
+    canvas.addEventListener("pointerup", () => { pointerDown = false; });
+    canvas.addEventListener("pointercancel", () => { pointerDown = false; });
+    if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => draw()).observe(canvas);
     window.addEventListener("rf:memory-graph", event => handleMemoryEvent(event.detail || {}));
     window.addEventListener("storage", event => { if (event.key === "rf_active_project_id") loadGraph(); });
     document.addEventListener("visibilitychange", () => { if (document.hidden) stopAnimation(); else startAnimation(); });
