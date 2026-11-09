@@ -16,6 +16,7 @@
 
     let graphNodes = [], graphEdges = [], activeIds = new Set();
     let rotation = 0, lastFrame = 0, raf = 0, lastProjectId = "";
+    let pulseStartedAt = 0, pulseUntil = 0;
     let refreshTimer = null, eventTimer = null;
     let pointerDown = false, pointerX = 0;
     const collapsedKey = "rf_memory_graph_collapsed";
@@ -71,9 +72,19 @@
         }
         if (detail.phase === "activity") {
             if (detail.event) {
-                appendActivity(detail.event);
-                if (detail.event.active_node_ids?.length) activeIds = new Set(detail.event.active_node_ids.map(String));
-                if (statusEl) statusEl.textContent = (detail.event.label || "Memory operation") + " · " + (detail.event.duration_ms ?? 0) + " ms";
+                const item = detail.event;
+                appendActivity({
+                    label: (item.phase === "started" ? "▶ " : "✓ ") + (item.label || "Memory operation"),
+                    detail: item.detail || "",
+                    duration_ms: item.phase === "started" ? "" : item.duration_ms,
+                });
+                if (Array.isArray(item.active_node_ids)) activeIds = new Set(item.active_node_ids.map(String));
+                if (statusEl) {
+                    statusEl.textContent = (item.phase === "started" ? "Running: " : "Completed: ")
+                        + (item.label || "Memory operation");
+                }
+                pulseStartedAt = performance.now();
+                pulseUntil = pulseStartedAt + 1550;
             }
             startAnimation();
             return;
@@ -87,9 +98,12 @@
         if (detail.phase === "completed") {
             if (detail.active_node_ids) activeIds = new Set(detail.active_node_ids.map(String));
             const stats = detail.graph_stats || {};
+            pulseStartedAt = performance.now();
+            pulseUntil = pulseStartedAt + 1550;
             loadGraph().finally(() => {
                 root.classList.remove("is-querying");
                 if (statusEl) statusEl.textContent = "Used " + activeIds.size + " nodes · " + (stats.context_tokens || 0) + " tokens";
+                draw();
             });
             startAnimation();
         }
@@ -166,6 +180,31 @@
                 for (const n of nearest) if(n.j>i){ctx.beginPath();ctx.moveTo(ids[i].x,ids[i].y);ctx.lineTo(ids[n.j].x,ids[n.j].y);ctx.stroke();}
             }
         }
+        const pulseProgress = pulseUntil > performance.now()
+            ? Math.max(0, Math.min(1, (performance.now() - pulseStartedAt) / Math.max(1, pulseUntil - pulseStartedAt)))
+            : 1;
+        if (hasData && pulseProgress < 1) {
+            // Expanding rings mark only nodes returned by the live memory operation.
+            for (const id of activeIds) {
+                const p = projected.get(id);
+                if (!p) continue;
+                const wave = (pulseProgress * 2.6) % 1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5 + wave * 15, 0, Math.PI * 2);
+                ctx.strokeStyle = "rgba(91,235,255," + (1 - wave) * .75 + ")";
+                ctx.lineWidth = 1.4;
+                ctx.stroke();
+            }
+            // Packets travel only over real SQLite graph edges touching active nodes.
+            for (const edge of graphEdges) {
+                const a = projected.get(String(edge.source)), b = projected.get(String(edge.target));
+                if (!a || !b || (!activeIds.has(String(edge.source)) && !activeIds.has(String(edge.target)))) continue;
+                const t = pulseProgress;
+                const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+                ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+                ctx.fillStyle = "#b8fbff"; ctx.shadowColor = "#43eaff"; ctx.shadowBlur = 9; ctx.fill();
+            }
+        }
         for (const [id, p] of projected) {
             const depth = (p.z + 1) / 2, active = hasData && activeIds.has(id);
             const size = hasData ? (active ? 3.4 : 1.6) + depth * 1.7 : 1.8 + depth * 1.5;
@@ -183,10 +222,16 @@
     function animate(now) {
         raf = 0;
         if (document.hidden) return;
+        const querying = root.classList.contains("is-querying");
+        const pulsing = now < pulseUntil;
+        if (!querying && !pulsing) {
+            draw();
+            return;
+        }
         if (now - lastFrame >= 33) {
             const delta = lastFrame ? Math.min(50, now - lastFrame) : 33;
             lastFrame = now;
-            rotation += (root.classList.contains("is-querying") ? .009 : .0012) * (delta / 33);
+            if (querying) rotation += .003 * (delta / 33);
             draw();
         }
         raf = requestAnimationFrame(animate);
@@ -224,6 +269,6 @@
         if (refreshTimer) clearInterval(refreshTimer);
         if (eventTimer) clearTimeout(eventTimer);
     });
-    loadGraph(); startAnimation();
+    loadGraph().finally(draw);
     refreshTimer = setInterval(loadGraph, 12000);
 })();
