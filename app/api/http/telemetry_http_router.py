@@ -27,7 +27,11 @@ def _read_network_bytes():
         for line in Path("/proc/net/dev").read_text().splitlines()[2:]:
             if ":" not in line:
                 continue
-            fields = line.split(":", 1)[1].split()
+            interface, counters = line.split(":", 1)
+            # Loopback is used by localhost FastAPI/Ollama traffic, not external network I/O.
+            if interface.strip() == "lo":
+                continue
+            fields = counters.split()
             if len(fields) >= 9:
                 rx += int(fields[0])
                 tx += int(fields[8])
