@@ -235,7 +235,10 @@ import { eventBus } from "../core/event_bus.js";
             const headers = {};
             const jwt = token();
             if (jwt) headers.Authorization = "Bearer " + jwt;
-            const response = await fetch("/api/v1/memory/graph-status/" + encodeURIComponent(pid), {
+            const query = new URLSearchParams();
+            [...activeIds].slice(0, 30).forEach(id => query.append("active_node_ids", id));
+            const suffix = query.toString() ? "?" + query.toString() : "";
+            const response = await fetch("/api/v1/memory/graph-status/" + encodeURIComponent(pid) + suffix, {
                 headers, credentials: "same-origin", cache: "no-store"
             });
             if (!response.ok) throw new Error("HTTP " + response.status);
@@ -281,7 +284,9 @@ import { eventBus } from "../core/event_bus.js";
                 label: (item.phase === "started" ? "Running · " : "Completed · ") + (item.label || item.operation || "Memory operation"),
                 detail: item.detail || "", duration_ms: item.duration_ms
             });
-            buildGraph();
+            const loadedIds = new Set(nodes.map(node => String(node.id)));
+            if ([...activeIds].some(id => !loadedIds.has(id))) loadGraph(lastProject);
+            else buildGraph();
             return;
         }
 
