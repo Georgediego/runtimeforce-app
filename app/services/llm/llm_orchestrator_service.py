@@ -43,7 +43,8 @@ class LLMOrchestratorService:
         model_name: str,
         messages: List[Dict[str, str]],
         temperature: float = 0.2,
-        timeout: float = 45.0
+        timeout: float = 45.0,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Direct native ndjson streaming to Ollama without truncating full system/graph context."""
         clean_url = api_base.rstrip("/").replace("/v1", "")
@@ -58,8 +59,11 @@ class LLMOrchestratorService:
                 "num_ctx": 8192
             }
         }
+        if tools:
+            payload["tools"] = tools
 
         client_timeout = httpx.Timeout(timeout, connect=5.0, read=timeout)
+        emitted_tool_calls = False
         async with httpx.AsyncClient(timeout=client_timeout) as client:
             async with client.stream("POST", endpoint, json=payload) as response:
                 if response.status_code != 200:
@@ -74,6 +78,23 @@ class LLMOrchestratorService:
                         content = msg_chunk.get("content", "")
                         if content:
                             yield {"status": "streaming", "content": content}
+                        native_calls = msg_chunk.get("tool_calls") or []
+                        if native_calls and not emitted_tool_calls:
+                            normalized_calls = []
+                            for index, native_call in enumerate(native_calls):
+                                function = native_call.get("function") or {}
+                                name = function.get("name")
+                                if not name:
+                                    continue
+                                arguments = function.get("arguments") or {}
+                                normalized_calls.append({
+                                    "id": native_call.get("id") or f"ollama_call_{index}_{int(time.time())}",
+                                    "name": name,
+                                    "arguments": arguments,
+                                })
+                            if normalized_calls:
+                                emitted_tool_calls = True
+                                yield {"status": "tool_calls", "calls": normalized_calls}
                         if chunk_json.get("done"):
                             break
                     except Exception:
@@ -145,7 +166,7 @@ class LLMOrchestratorService:
             full_text = ""
             start_t = time.time()
             try:
-                async for chunk in self._stream_native_ollama(base_url, clean_name, messages, temperature=temperature, timeout=STREAM_LOCAL_TIMEOUT):
+                async for chunk in self._stream_native_ollama(base_url, clean_name, messages, temperature=temperature, timeout=STREAM_LOCAL_TIMEOUT, tools=tools):
                     full_text += chunk.get("content", "")
                     yield chunk
                 
@@ -200,7 +221,7 @@ class LLMOrchestratorService:
                     kwargs["api_key"] = api_key
                 if api_base:
                     kwargs["api_base"] = api_base
-                if tools and not is_local_model:
+                if tools:
                     kwargs["tools"] = tools
 
                 completion_coro = litellm.acompletion(**kwargs)
