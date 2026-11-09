@@ -164,14 +164,16 @@ class LLMOrchestratorService:
             clean_name = model_id.replace("ollama/", "")
             base_url = api_base or "http://localhost:11434"
             full_text = ""
+            native_tool_calls = False
             start_t = time.time()
             try:
                 async for chunk in self._stream_native_ollama(base_url, clean_name, messages, temperature=temperature, timeout=STREAM_LOCAL_TIMEOUT, tools=tools):
                     full_text += chunk.get("content", "")
+                    native_tool_calls = native_tool_calls or chunk.get("status") == "tool_calls"
                     yield chunk
                 
-                if full_text.strip():
-                    logger.info(f"[Orchestrator] Native Ollama {clean_name} streamed {len(full_text)} chars in {int((time.time()-start_t)*1000)}ms")
+                if full_text.strip() or native_tool_calls:
+                    logger.info(f"[Orchestrator] Native Ollama {clean_name} completed with {len(full_text)} text chars and tool_calls={native_tool_calls} in {int((time.time()-start_t)*1000)}ms")
                     return
             except Exception as e:
                 err_desc = f"{type(e).__name__}: {str(e) or 'timeout'}"
