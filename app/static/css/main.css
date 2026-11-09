@@ -1968,3 +1968,9 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-memory-widget .rf-memory-widget-toggle i{transition:transform .18s}
 #rf-memory-sphere{min-height:110px!important;height:clamp(132px,18vh,190px)!important;flex:1 1 auto!important}
 @media(max-height:760px){#rf-memory-sphere{min-height:115px!important;height:115px!important;flex:0 0 115px!important}}
+
+
+/* Larger memory sphere and translucent persistent error notifications. */
+#rf-memory-sphere{height:clamp(150px,22vh,220px)!important;min-height:150px!important;flex:1 1 auto!important}
+@media(max-height:760px){#rf-memory-sphere{height:145px!important;min-height:145px!important;flex:0 0 145px!important}}
+.rf-toast-notification{background:rgba(16,32,24,.40)!important;-webkit-backdrop-filter:blur(12px)!important;backdrop-filter:blur(12px)!important}
