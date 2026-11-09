@@ -91,6 +91,10 @@ class ContextBuilderService(IContextBuilder):
             session_key = hashlib.sha256(f"{user_id}:{project_id}:{session_id}".encode("utf-8")).hexdigest()[:24]
             project_node_id = f"project-{project_key}"
             session_node_id = f"session-{session_key}"
+            query_key = hashlib.sha256(
+                f"{user_id}:{project_id}:{session_id}:{time.time_ns()}".encode("utf-8")
+            ).hexdigest()[:24]
+            query_node_id = f"memory-query-{query_key}"
             self.graph_memory.record_entity(
                 node_id=project_node_id,
                 user_id=user_id,
@@ -120,6 +124,25 @@ class ContextBuilderService(IContextBuilder):
                 relation_type="CONTAINS",
                 weight=1.0,
             )
+            self.graph_memory.record_entity(
+                node_id=query_node_id,
+                user_id=user_id,
+                project_id=project_id,
+                node_type="MemoryQuery",
+                label=(user_prompt or "Memory query")[:120],
+                attributes={
+                    "source": "orchestrator_memory_query",
+                    "session_id": session_id,
+                    "prompt_excerpt": (user_prompt or "")[:1000],
+                },
+            )
+            self.graph_memory.graph_repo.add_edge(
+                edge_id=f"edge-query-{query_key}",
+                source_id=session_node_id,
+                target_id=query_node_id,
+                relation_type="CONTAINS_QUERY",
+                weight=1.0,
+            )
             graph_persisted = True
         except Exception:
             logger.exception("Failed to persist project/session graph footprint")
@@ -127,9 +150,9 @@ class ContextBuilderService(IContextBuilder):
             "graph_persist", "Persisting project memory graph",
             "Project and conversation nodes saved" if graph_persisted else "Graph persistence failed; see local service log",
             persist_started,
-            active_node_ids=[project_node_id, session_node_id] if graph_persisted else [],
-            node_count=2 if graph_persisted else 0,
-            edge_count=1 if graph_persisted else 0,
+            active_node_ids=[project_node_id, session_node_id, query_node_id] if graph_persisted else [],
+            node_count=3 if graph_persisted else 0,
+            edge_count=2 if graph_persisted else 0,
         )
 
         stage_started = await begin("intent", "Intent analysis", "Extracting search terms from the prompt")
@@ -237,7 +260,26 @@ class ContextBuilderService(IContextBuilder):
             trimmed_tokens = TokenBudgetAllocator.estimate_tokens(compiled_context)
             logger.info(f"Context trimmed from {initial_tokens} to {trimmed_tokens} tokens for max_context_tokens={max_context_tokens}")
 
-        active_node_ids = [str(node.get("id")) for node in selected_nodes[:12] if node.get("id")]
+        # Persist the actual retrieval result as graph edges for this memory query.
+        matched_ids = []
+        for node in selected_nodes[:12]:
+            matched_id = str(node.get("id") or "")
+            if not matched_id:
+                continue
+            matched_ids.append(matched_id)
+            try:
+                edge_suffix = hashlib.sha256(matched_id.encode("utf-8")).hexdigest()[:12]
+                self.graph_memory.graph_repo.add_edge(
+                    edge_id=f"edge-query-{query_key}-{edge_suffix}",
+                    source_id=query_node_id,
+                    target_id=matched_id,
+                    relation_type="RETRIEVED",
+                    weight=float(node.get("traversal_weight") or 1.0),
+                )
+            except Exception:
+                logger.exception("Failed to link memory query %s to node %s", query_node_id, matched_id)
+
+        active_node_ids = [query_node_id] + matched_ids
         self.context_cache.update_cache(session_id, user_prompt, selected_nodes[:12])
         await record(
             "context_ready", "Memory context assembled",
