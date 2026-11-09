@@ -292,3 +292,51 @@ if (typeof window !== "undefined" && !window.__rfGlobalErrorToastsBound) {
         showToast(`Application error: ${event.message}`, "error", 0);
     });
 }
+
+
+// Check whether the developer has resolved a bug reported by this IDE account.
+if (typeof window !== "undefined" && !window.__rfResolutionUpdatesStarted) {
+    window.__rfResolutionUpdatesStarted = true;
+    const checkResolutionUpdates = async () => {
+        try {
+            const token = (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
+            const response = await fetch("/api/v1/bug-reports/updates", {
+                headers: token ? { Authorization: "Bearer " + token } : {},
+                credentials: "same-origin",
+                cache: "no-store"
+            });
+            if (!response.ok) return;
+            const updates = await response.json();
+            for (const update of (Array.isArray(updates) ? updates : [])) {
+                const seenKey = "rf_resolution_notice_" + update.id;
+                if (localStorage.getItem(seenKey) === "1") {
+                    fetch("/api/v1/bug-reports/" + update.id + "/ack", {
+                        method: "POST", headers: token ? { Authorization: "Bearer " + token } : {},
+                        credentials: "same-origin"
+                    }).catch(() => {});
+                    continue;
+                }
+                showToast(
+                    (update.message || "Мы исправили ошибку, о которой вы сообщили. Спасибо за обратную связь!") +
+                    "\n\nВаш отчёт: " + (update.title || "Ошибка RuntimeForce IDE"),
+                    "success",
+                    12000
+                );
+                localStorage.setItem(seenKey, "1");
+                fetch("/api/v1/bug-reports/" + update.id + "/ack", {
+                    method: "POST", headers: token ? { Authorization: "Bearer " + token } : {},
+                    credentials: "same-origin"
+                }).catch(() => {});
+            }
+        } catch (_) {
+            // Resolution notifications are best-effort and must never interrupt IDE startup.
+        }
+    };
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", checkResolutionUpdates, { once: true });
+    } else {
+        checkResolutionUpdates();
+    }
+    window.addEventListener("focus", checkResolutionUpdates);
+    window.setInterval(checkResolutionUpdates, 60000);
+}
