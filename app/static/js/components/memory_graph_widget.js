@@ -114,8 +114,17 @@ import { eventBus } from "../core/event_bus.js";
 
     // All real SQLite nodes share one spherical surface.
     // Fibonacci distribution spreads the existing points evenly over the globe.
+    // Hash-shuffle IDs before Fibonacci placement. This prevents sorted ID prefixes
+    // (workspace files, models, roles) from occupying separate latitude bands.
+    // Every real object receives a stable, evenly distributed position on the sphere.
     function layoutGraph(nodeList, edgeList, cache, radius) {
-        const ordered = nodeList.map(node => String(node.id)).sort();
+        const ordered = nodeList
+            .map(node => String(node.id))
+            .sort((a, b) => {
+                const ha = hash01(a, 0x6d2b79f5);
+                const hb = hash01(b, 0x6d2b79f5);
+                return ha - hb || a.localeCompare(b);
+            });
         const total = ordered.length;
         const goldenAngle = Math.PI * (3 - Math.sqrt(5));
         ordered.forEach((id, i) => {
@@ -139,7 +148,9 @@ import { eventBus } from "../core/event_bus.js";
         workspace: 0x73d9ff, directory: 0x36c9a8, provider: 0xffc36b, model: 0xff9a56,
         role: 0xf47fb2, tool: 0xd78cff, mode: 0x9bafff
     };
-    const nodeColor = node => rawColor(PALETTE[String(node.type || "memory").toLowerCase()] || PALETTE.memory);
+    // Inactive objects follow the IDE's green accent; active objects are highlighted HOT by the shader.
+    const INACTIVE_NODE_COLOR = 0x42d99a;
+    const nodeColor = () => rawColor(INACTIVE_NODE_COLOR);
 
     // ---- Shaders ---------------------------------------------------------
     const DEPTH_GLSL = "float depth = clamp((-mv.z - 4.0) / 3.6, 0.0, 1.0);";
@@ -496,8 +507,12 @@ import { eventBus } from "../core/event_bus.js";
             if (k !== undefined) edgeTarget[k] = 1;
         });
         // Real relationships connected to an active object light up during its operation.
+        // Illuminate only real stored/configured relationships that touch an active object.
+        // This keeps the network meaningful: no synthetic all-to-all links are drawn.
         edges.forEach(edge => {
-            if (!activeIds.has(String(edge.source)) && !activeIds.has(String(edge.target))) return;
+            const source = String(edge.source);
+            const target = String(edge.target);
+            if (!activeIds.has(source) && !activeIds.has(target)) return;
             const k = edgeIndexById.get(String(edge.id));
             if (k !== undefined) edgeTarget[k] = 1;
         });
