@@ -44,13 +44,23 @@ import { eventBus } from "../core/event_bus.js";
         }
         try {
             const response = await fetch("/api/v1/memory/graph-status/" + encodeURIComponent(currentProject), {
-                headers: token() ? {Authorization: "Bearer " + token()} : {}, cache: "no-store"
+                headers: token() ? {Authorization: "Bearer " + token()} : {},
+                credentials: "same-origin",
+                cache: "no-store"
             });
-            if (!response.ok) throw new Error("HTTP " + response.status);
-            setGraph(await response.json());
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.detail || ("HTTP " + response.status));
+            }
+            const payload = await response.json();
+            setGraph(payload);
             lastProjectId = currentProject;
+            if (!graphNodes.length && statusEl && !root.classList.contains("is-querying")) {
+                statusEl.textContent = "Graph ready · waiting for first saved interaction";
+            }
         } catch (error) {
-            if (statusEl) statusEl.textContent = "Memory graph unavailable";
+            console.error("[MemoryGraph] Snapshot request failed:", error);
+            if (statusEl) statusEl.textContent = "Graph API error · " + String(error.message || error).slice(0, 90);
         }
     }
     function appendActivity(item) {
@@ -77,6 +87,7 @@ import { eventBus } from "../core/event_bus.js";
             appendActivity({label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "model")});
             pulseStartedAt = performance.now();
             pulseUntil = pulseStartedAt + 900;
+            loadGraph(detail.project_id || lastProjectId);
             startAnimation();
             return;
         }
@@ -307,10 +318,17 @@ import { eventBus } from "../core/event_bus.js";
     canvas.addEventListener("pointerup", () => { pointerDown = false; });
     canvas.addEventListener("pointercancel", () => { pointerDown = false; });
     if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { draw(); startAnimation(); }).observe(canvas);
-    // Chat stream events are published on the shared EventBus. Listen to that exact channel;
-    // a window CustomEvent listener would never receive these module EventBus messages.
-    eventBus.on("agent:graph_event", event => {
-        if (event?.status === "memory_graph") handleMemoryEvent(event);
+    // ChatWSClient dispatches this native event directly for every memory_graph WebSocket
+    // frame. This avoids relying on the chat UI secondary EventBus callback.
+    window.addEventListener("rf:memory-graph", event => {
+        if (event.detail?.status === "memory_graph") handleMemoryEvent(event.detail);
+    });
+    eventBus.on("project.activated", project => {
+        lastProjectId = project || projectId();
+        graphNodes = [];
+        graphEdges = [];
+        setGraph({nodes: [], edges: []});
+        loadGraph(lastProjectId);
     });
     window.addEventListener("storage", event => { if (event.key === "rf_active_project_id") loadGraph(); });
     document.addEventListener("visibilitychange", () => { if (document.hidden) stopAnimation(); else startAnimation(); });
