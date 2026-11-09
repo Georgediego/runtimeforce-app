@@ -103,5 +103,6 @@ class ContextBuilderService(IContextBuilder):
             "budget": budget,
             "compiled_memory_context": compiled_context,
             "nodes_count": len(selected_nodes[:12]),
+            "active_node_ids": [str(node.get("id")) for node in selected_nodes[:12] if node.get("id")],
             "decisions_count": len(decisions)
         }
