@@ -1,9 +1,10 @@
 """
 Builds the project memory context and records a compact trace of real SQLite operations.
 """
+import asyncio
 import logging
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Callable
 from app.core.interfaces.context_builder_interface import IContextBuilder
 from app.services.memory.graph_memory_service import GraphMemoryService
 from app.services.memory.graph_traversal_service import GraphTraversalService
@@ -42,12 +43,20 @@ class ContextBuilderService(IContextBuilder):
         user_id: str,
         project_id: str,
         max_token_budget: int = 128000,
-        max_context_tokens: int = 8000
+        max_context_tokens: int = 8000,
+        trace_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         trace: List[Dict[str, Any]] = []
         pipeline_started = time.perf_counter()
 
-        def record(operation: str, label: str, detail: str, started: float, **extra: Any) -> None:
+        async def emit(item: Dict[str, Any]) -> None:
+            trace.append(item)
+            if trace_callback:
+                trace_callback(item)
+            # Yield control so the WebSocket can forward this operation immediately.
+            await asyncio.sleep(0)
+
+        async def record(operation: str, label: str, detail: str, started: float, **extra: Any) -> None:
             item = {
                 "operation": operation,
                 "label": label,
@@ -55,7 +64,7 @@ class ContextBuilderService(IContextBuilder):
                 "duration_ms": round((time.perf_counter() - started) * 1000, 1),
             }
             item.update(extra)
-            trace.append(item)
+            await emit(item)
 
         logger.info(f"Pipeline start: Building context for session={session_id}, project={project_id}")
         budget = self.calculate_token_budget(max_token_budget)
@@ -66,7 +75,7 @@ class ContextBuilderService(IContextBuilder):
 
         stage_started = time.perf_counter()
         quick_nodes = self.embeddings_repo.hybrid_search(user_prompt, project_id, top_k=5)
-        record(
+        await record(
             "hybrid_search", "Hybrid memory search",
             f"{len(quick_nodes)} candidate nodes · SQLite/vector index",
             stage_started, candidate_count=len(quick_nodes),
@@ -85,7 +94,7 @@ class ContextBuilderService(IContextBuilder):
         if cache_hit:
             logger.info(f"Context Cache HIT for session={session_id}. Using cached base + delta nodes.")
             selected_nodes = candidate_nodes
-            trace.append({
+            await emit({
                 "operation": "graph_traversal_skipped",
                 "label": "Graph traversal skipped",
                 "detail": "Cache supplied the context; BFS was not needed",
