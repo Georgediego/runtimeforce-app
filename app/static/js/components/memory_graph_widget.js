@@ -177,6 +177,7 @@ import { eventBus } from "../core/event_bus.js";
             const perspective = 1.35 / (1.35 - z * .20);
             projected.set(id, {x: cx + x * radius * perspective, y: cy + y * radius * perspective, z});
         }
+        const operationLive = root.classList.contains("is-querying") || nowSafe() - lastActivityAt < 2600;
         if (hasData) {
             // Only stored SQLite relationships are drawn as graph edges.
             ctx.lineWidth = .72;
@@ -216,7 +217,6 @@ import { eventBus } from "../core/event_bus.js";
         const pulseProgress = pulseUntil > performance.now()
             ? Math.max(0, Math.min(1, (performance.now() - pulseStartedAt) / Math.max(1, pulseUntil - pulseStartedAt)))
             : 1;
-        const operationLive = root.classList.contains("is-querying") || nowSafe() - lastActivityAt < 2600;
         if (hasData && operationLive) {
             // Highlight actual touched nodes. Operations without node IDs still animate the
             // real graph as a whole (intent analysis/cache lookup/context assembly).
