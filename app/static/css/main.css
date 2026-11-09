@@ -2030,3 +2030,15 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
     font:700 8px 'JetBrains Mono',monospace;letter-spacing:.08em;cursor:pointer;
 }
 .rf-memory-widget-restore:hover{border-color:var(--ide-accent);color:var(--ide-accent);background:rgba(7,247,122,.10)}
+
+
+/* Memory graph: let the rotating globe occupy the full card; UI stays overlaid. */
+#rf-memory-widget.rf-memory-widget{position:relative}
+#rf-memory-widget-body{position:relative;display:block!important;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important}
+#rf-memory-sphere{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;max-height:none!important;flex:none!important;z-index:0}
+#rf-memory-widget .rf-memory-widget-stats{position:absolute;left:8px;right:8px;top:4px;z-index:4;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+#rf-memory-widget .rf-memory-activity-heading{position:absolute;left:8px;bottom:82px;z-index:4;padding:2px 5px;border-radius:4px;background:rgba(5,12,20,.48);pointer-events:none}
+#rf-memory-activity{position:absolute;left:7px;right:7px;bottom:5px;z-index:4;flex:none!important;width:auto;max-height:72px!important;min-height:0!important;padding:3px 5px;border:1px solid rgba(130,155,190,.12);border-radius:6px;background:rgba(5,12,20,.42);backdrop-filter:blur(3px);overflow-y:auto}
+#rf-memory-activity .rf-memory-activity-row{background:transparent}
+@media(max-height:760px){#rf-memory-activity{max-height:52px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:60px}}
+@media(max-height:620px){#rf-memory-activity{max-height:36px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:44px}}
