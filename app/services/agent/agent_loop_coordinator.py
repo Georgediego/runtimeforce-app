@@ -266,16 +266,34 @@ class AgentLoopCoordinator:
                         trace_callback=queue_memory_event,
                     )
                 )
-                while not context_task.done() or not trace_queue.empty():
-                    if trace_queue.empty() and not context_task.done():
-                        await asyncio.wait({context_task}, timeout=0.05)
-                    while not trace_queue.empty():
+                while True:
+                    if not trace_queue.empty():
+                        memory_event = trace_queue.get_nowait()
                         yield {
                             "status": "memory_graph",
                             "phase": "activity",
                             "project_id": project_id,
-                            "event": trace_queue.get_nowait(),
+                            "event": memory_event,
                         }
+                        continue
+                    if context_task.done():
+                        break
+
+                    queue_waiter = asyncio.create_task(trace_queue.get())
+                    done, _ = await asyncio.wait(
+                        {context_task, queue_waiter},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if queue_waiter in done:
+                        yield {
+                            "status": "memory_graph",
+                            "phase": "activity",
+                            "project_id": project_id,
+                            "event": queue_waiter.result(),
+                        }
+                    else:
+                        queue_waiter.cancel()
+                        await asyncio.gather(queue_waiter, return_exceptions=True)
 
                 context_res = await context_task
                 memory_context_str = context_res.get("compiled_memory_context", "")
