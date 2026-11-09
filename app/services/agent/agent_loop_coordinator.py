@@ -166,7 +166,7 @@ class AgentLoopCoordinator:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
         workspace_task_requested = bool(re.search(
-            r"\\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\\b|"
+            r"\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\b|"
             r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
             user_prompt,
             re.IGNORECASE,
