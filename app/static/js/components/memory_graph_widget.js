@@ -84,7 +84,7 @@ if (root) {
         for (const edge of edges) {
             const a = projected[edge.source], b = projected[edge.target];
             if (!a || !b || a.z + b.z < -.55) continue;
-            const highlight = active && (activeIds.size === 0 || [...activeIds].some((id) => nodeIndex.get(id) === edge.source || nodeIndex.get(id) === edge.target));
+            const highlight = active && activeIds.size > 0 && [...activeIds].some((id) => nodeIndex.get(id) === edge.source || nodeIndex.get(id) === edge.target);
             context.strokeStyle = highlight ? "rgba(74,230,255,.42)" : "rgba(48,170,190,.075)";
             context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke();
         }
@@ -106,7 +106,10 @@ if (root) {
         if (now - lastFrame >= 33) {
             const delta = lastFrame ? Math.min(50, now - lastFrame) : 33;
             lastFrame = now; rotation += (now < activeUntil ? .010 : .00085) * (delta / 33);
-            canvases.forEach((canvas) => drawCanvas(canvas, now));
+            canvases.forEach((canvas) => {
+                if (canvas.id === "rf-memory-sphere-large" && popover?.classList.contains("hidden")) return;
+                drawCanvas(canvas, now);
+            });
             if (now >= activeUntil && root.classList.contains("is-active")) {
                 root.classList.remove("is-active"); if (statusEl) statusEl.textContent = "Idle · local SQLite";
             }
