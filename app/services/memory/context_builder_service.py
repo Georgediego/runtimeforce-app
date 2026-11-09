@@ -230,6 +230,7 @@ class ContextBuilderService(IContextBuilder):
                 stage_started, seed_count=len(start_node_ids), matched_keywords=keyword_matches,
                 node_count=traversal_node_count, edge_count=traversal_edge_count,
                 active_node_ids=[str(n.get("id")) for n in traversed_nodes if n.get("id")],
+                active_edge_ids=[str(edge.get("id")) for edge in traversed_edges if edge.get("id")],
             )
 
         stage_started = await begin("decision_lookup", "Decision memory lookup", "Loading saved project decisions")
@@ -269,17 +270,18 @@ class ContextBuilderService(IContextBuilder):
             if not matched_id:
                 continue
             matched_ids.append(matched_id)
-            try:
-                edge_suffix = hashlib.sha256(matched_id.encode("utf-8")).hexdigest()[:12]
-                self.graph_memory.graph_repo.add_edge(
-                    edge_id=f"edge-query-{query_key}-{edge_suffix}",
-                    source_id=query_node_id,
-                    target_id=matched_id,
-                    relation_type="RETRIEVED",
-                    weight=float(node.get("traversal_weight") or 1.0),
-                )
-            except Exception:
-                logger.exception("Failed to link memory query %s to node %s", query_node_id, matched_id)
+            if query_node_id:
+                try:
+                    edge_suffix = hashlib.sha256(matched_id.encode("utf-8")).hexdigest()[:12]
+                    self.graph_memory.graph_repo.add_edge(
+                        edge_id=f"edge-query-{query_key}-{edge_suffix}",
+                        source_id=query_node_id,
+                        target_id=matched_id,
+                        relation_type="RETRIEVED",
+                        weight=float(node.get("traversal_weight") or 1.0),
+                    )
+                except Exception:
+                    logger.exception("Failed to link memory query %s to node %s", query_node_id, matched_id)
 
         active_node_ids = [value for value in (query_node_id,) if value] + matched_ids
         active_edge_ids = []
