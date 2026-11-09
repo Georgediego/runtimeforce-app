@@ -23,6 +23,9 @@ export class ChatWSClient {
             this.ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
+                    if (data.status === "memory_graph") {
+                        window.dispatchEvent(new CustomEvent("rf:memory-graph", { detail: data }));
+                    }
                     this.onEvent(data);
                 } catch (e) {
                     console.error("WS JSON parse error:", e);
