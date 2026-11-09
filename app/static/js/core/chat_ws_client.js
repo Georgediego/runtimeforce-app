@@ -7,7 +7,8 @@ export class ChatWSClient {
         this.ws = null;
         this.onEvent = callbacks.onEvent || (() => {});
         this.onError = callbacks.onError || (() => {});
-        this.onClose = callbacks.onClose || (() => {});\n        this.abortRequested = false;
+        this.onClose = callbacks.onClose || (() => {});
+        this.abortRequested = false;
     }
 
     connect() {
