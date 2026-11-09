@@ -242,7 +242,7 @@ import { eventBus } from "../core/event_bus.js";
                 const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
                 ctx.beginPath();
                 ctx.arc(x, y, 2.0 + Math.sin(flowClock * .006 + index) * .65, 0, Math.PI * 2);
-                ctx.fillStyle = "#caffdf"; ctx.shadowColor = "#ff38c8"; ctx.shadowBlur = 15; ctx.fill();
+                ctx.fillStyle = "#caffdf"; ctx.shadowColor = "#07f77a"; ctx.shadowBlur = 15; ctx.fill();
             });
         }
         let nodeIndex = 0;
@@ -252,12 +252,12 @@ import { eventBus } from "../core/event_bus.js";
             const size = hasData ? (active ? 2.8 : 1.15) + depth * (active ? 2.7 : 1.8) : 1.8 + depth * 1.5;
             ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
             ctx.fillStyle = active ? "#fff0fb" : "rgba(93,255,166," + ((hasData ? .40 + depth * .58 : .42 + depth * .48) * twinkle) + ")";
-            ctx.shadowColor = active ? "#ff36c7" : "#9b55ff";
+            ctx.shadowColor = active ? "#07f77a" : "#07f77a";
             ctx.shadowBlur = active ? 19 : 4 + depth * 5; ctx.fill();
             if (active) {
                 ctx.beginPath(); ctx.arc(p.x, p.y, size + 4 + (Math.sin(flowClock * .009 + nodeIndex) + 1) * 2, 0, Math.PI * 2);
                 ctx.strokeStyle = "rgba(7,247,122,.62)"; ctx.lineWidth = 1;
-                ctx.shadowColor = "#ff36c7"; ctx.shadowBlur = 12; ctx.stroke();
+                ctx.shadowColor = "#07f77a"; ctx.shadowBlur = 12; ctx.stroke();
             }
             nodeIndex++;
         }
