@@ -1974,3 +1974,48 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-memory-sphere{height:clamp(150px,22vh,220px)!important;min-height:150px!important;flex:1 1 auto!important}
 @media(max-height:760px){#rf-memory-sphere{height:145px!important;min-height:145px!important;flex:0 0 145px!important}}
 .rf-toast-notification{background:rgba(16,32,24,.40)!important;-webkit-backdrop-filter:blur(12px)!important;backdrop-filter:blur(12px)!important}
+
+
+/* Memory graph: keep the globe and activity feed inside the sidebar card. */
+#rf-memory-widget.rf-memory-widget{
+    flex:0 1 43%;
+    min-height:220px;
+    max-height:48%;
+    overflow:hidden;
+}
+#rf-memory-widget-body{
+    flex:1 1 0;
+    min-height:0;
+    gap:4px;
+    overflow:hidden;
+}
+#rf-memory-sphere{
+    display:block;
+    width:100%;
+    height:auto!important;
+    min-height:105px!important;
+    max-height:none!important;
+    flex:1 1 125px!important;
+    align-self:stretch;
+}
+#rf-memory-widget .rf-memory-widget-stats,
+#rf-memory-widget .rf-memory-activity-heading{flex:0 0 auto}
+#rf-memory-activity{
+    flex:0 1 76px;
+    min-height:22px;
+    max-height:76px;
+    overflow-y:auto;
+    overflow-x:hidden;
+    scrollbar-width:thin;
+}
+#rf-memory-activity .rf-memory-activity-row{min-height:17px}
+@media(max-height:760px){
+    #rf-memory-widget.rf-memory-widget{flex-basis:41%;min-height:190px;max-height:48%;padding:7px 9px 6px}
+    #rf-memory-sphere{min-height:92px!important;flex-basis:100px!important}
+    #rf-memory-activity{flex-basis:55px;max-height:55px}
+}
+@media(max-height:620px){
+    #rf-memory-widget.rf-memory-widget{min-height:168px}
+    #rf-memory-sphere{min-height:78px!important;flex-basis:82px!important}
+    #rf-memory-activity{flex-basis:38px;max-height:38px}
+}
