@@ -126,10 +126,10 @@ export const terminalUIController = {
                             projectAvailable: !!item.project_id,
                         });
                         await approvalsApi.decide(item.pending_id, choice || "deny");
-                        if (choice === "deny") showToast("Команда отклонена и не была выполнена", "warning");
+                        if (choice === "deny") showToast("Command denied. It was not executed.", "warning");
                     } catch (error) {
                         console.error("Command approval decision failed:", error);
-                        showToast(`Не удалось отправить решение: ${error.message}`, "error");
+                        showToast(`Failed to submit approval decision: ${error.message}`, "error");
                     } finally {
                         activeApprovalDialogs.delete(item.pending_id);
                         approvalDialogOpen = false;
