@@ -44,7 +44,7 @@ export function showToast(message, type = "info", duration = 3000) {
                     credentials: "include",
                     headers: {
                         "Content-Type": "application/json",
-                        ...(token ? { "Authorization": `Bearer ${token.replace(/^Bearer\\s+/i, "")}` } : {})
+                        ...(token ? { "Authorization": `Bearer ${token.replace(/^Bearer\s+/i, "")}` } : {})
                     },
                     body: JSON.stringify({
                         title: String(message ?? "RuntimeForce error").slice(0, 180),
