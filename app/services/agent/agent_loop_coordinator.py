@@ -250,6 +250,13 @@ class AgentLoopCoordinator:
                     user_id=user_id, project_id=project_id, max_context_tokens=8000,
                 )
                 memory_context_str = context_res.get("compiled_memory_context", "")
+                active_memory_ids = context_res.get("active_node_ids", [])
+                yield {
+                    "status": "memory_graph",
+                    "active_node_ids": active_memory_ids,
+                    "project_id": project_id,
+                    "query_active": bool(active_memory_ids),
+                }
             except Exception as e:
                 logger.warning(f"[AgentCoordinator] Context build failed: {e}")
 
