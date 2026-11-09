@@ -1919,7 +1919,7 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 /* Persistent memory graph: reserved lower third of the left workspace sidebar. */
 #file-explorer-col{min-height:0}
 #rf-memory-widget.rf-memory-widget{
-    position:relative;z-index:2;flex:0 0 36%;min-height:235px;max-height:40%;
+    position:relative;z-index:2;flex:0 0 43.2%;min-height:282px;max-height:48%;
     width:100%;padding:10px 10px 8px;margin-top:auto;display:flex;flex-direction:column;
     justify-content:flex-start;gap:5px;overflow:hidden;
     border-top:1px solid var(--ide-border-subtle);
@@ -1929,7 +1929,7 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
     color:var(--ide-text-secondary);font:700 9px 'Inter',sans-serif;letter-spacing:.09em}
 .rf-memory-heading-title{display:flex;align-items:center;gap:7px}
 .rf-memory-live-dot{width:6px;height:6px;border-radius:50%;background:#39e6ad;box-shadow:0 0 9px rgba(57,230,173,.75)}
-#rf-memory-widget.is-querying .rf-memory-live-dot{background:#5beaff;box-shadow:0 0 12px #5beaff;animation:rf-memory-pulse .8s ease-in-out infinite alternate}
+#rf-memory-widget.is-querying .rf-memory-live-dot{background:var(--ide-accent);box-shadow:0 0 12px var(--ide-accent);animation:rf-memory-pulse .8s ease-in-out infinite alternate}
 @keyframes rf-memory-pulse{to{opacity:.35;transform:scale(.72)}}
 #rf-memory-widget-count,#rf-memory-widget-edges{font:8px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap}
 #rf-memory-sphere{display:block;width:100%;height:clamp(94px,13vh,145px);min-height:94px;flex:0 0 auto}
@@ -1938,14 +1938,14 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 .rf-memory-activity-heading{font:700 8px 'Inter',sans-serif;letter-spacing:.08em;color:var(--ide-text-muted);padding-top:4px;border-top:1px solid rgba(120,180,160,.12)}
 .rf-memory-activity{display:flex;flex-direction:column;gap:3px;min-height:0;overflow:hidden}
 .rf-memory-activity-row{display:flex;align-items:center;gap:6px;min-width:0;min-height:17px;color:var(--ide-text-secondary)}
-.rf-memory-activity-pulse{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#47dcb5;box-shadow:0 0 7px rgba(71,220,181,.5)}
+.rf-memory-activity-pulse{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#47dcb5;box-shadow:0 0 7px rgba(7,247,122,.65)}
 .rf-memory-activity-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:1px}
 .rf-memory-activity-copy b{font:600 8px 'Inter',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rf-memory-activity-copy small{font:7px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rf-memory-activity-row time{font:7px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap}
-.rf-memory-activity-empty{font:8px 'JetBrains Mono',monospace;color:var(--ide-text-muted);padding:4px 0}
+.rf-memory-activity-empty{font:8px 'JetBrains Mono',monospace;color:var(--ide-accent);padding:4px 0}
 @media(max-height:760px){
-    #rf-memory-widget.rf-memory-widget{min-height:195px;flex-basis:34%;padding:7px 9px 5px}
+    #rf-memory-widget.rf-memory-widget{min-height:234px;flex-basis:40.8%;padding:8px 10px 6px}
     #rf-memory-sphere{height:94px;min-height:94px}
     .rf-memory-activity-row{min-height:17px}
 }
@@ -1966,5 +1966,5 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-memory-widget.is-collapsed #rf-memory-widget-body{display:none}
 #rf-memory-widget.is-collapsed .rf-memory-widget-toggle i{transform:rotate(180deg)}
 #rf-memory-widget .rf-memory-widget-toggle i{transition:transform .18s}
-#rf-memory-sphere{min-height:110px!important;height:clamp(110px,15vh,158px)!important;flex:1 1 auto!important}
-@media(max-height:760px){#rf-memory-sphere{min-height:96px!important;height:96px!important;flex:0 0 96px!important}}
+#rf-memory-sphere{min-height:110px!important;height:clamp(132px,18vh,190px)!important;flex:1 1 auto!important}
+@media(max-height:760px){#rf-memory-sphere{min-height:115px!important;height:115px!important;flex:0 0 115px!important}}
