@@ -669,27 +669,36 @@ export const chatUIController = {
         try {
             const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
             if (!token) throw new Error("Authentication token is missing. Please sign in again.");
-            const response = await fetch("https://runtimeforce.dev/api/v1/mail/report", {
+            const clientInstanceId = localStorage.getItem("rf_client_instance_id") || (crypto.randomUUID ? crypto.randomUUID() : "rf-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+            localStorage.setItem("rf_client_instance_id", clientInstanceId);
+            const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports", {
                 method: "POST",
+                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": "Bearer " + token.replace(/^Bearer\s+/i, "")
                 },
                 body: JSON.stringify({
-                    error: errText,
-                    session_id: currentSessionId || "",
-                    prompt: lastUserPrompt || "",
-                    partial_response: fullResponseText || "",
-                    model: currentAgentModel || "",
-                    strategy: document.getElementById("strategy-select")?.value || "",
-                    app_version: document.getElementById("active-project-ver-display")?.textContent?.trim() || "",
-                    user_agent: navigator.userAgent || ""
+                    title: ("Generation failure: " + (currentAgentModel || "model")).slice(0, 180),
+                    message: errText,
+                    component: "LLM Generation",
+                    diagnostics: {
+                        session_id: currentSessionId || "",
+                        prompt: String(lastUserPrompt || "").slice(0, 4000),
+                        partial_response: String(fullResponseText || "").slice(0, 4000),
+                        model: currentAgentModel || "",
+                        strategy: document.getElementById("strategy-select")?.value || "",
+                        app_version: document.getElementById("active-project-ver-display")?.textContent?.trim() || "",
+                        user_agent: navigator.userAgent || "",
+                        occurred_at: new Date().toISOString(),
+                        client_instance_id: clientInstanceId
+                    }
                 })
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.detail || ("HTTP " + response.status));
-            button.textContent = "Report sent";
-            if (status) status.textContent = "Отчёт отправлен на errors@runtimeforce.dev";
+            button.textContent = "Report submitted";
+            if (status) status.textContent = "Report submitted to Bug Reports.";
         } catch (error) {
             button.disabled = false;
             button.textContent = originalLabel || "Send to developer";
