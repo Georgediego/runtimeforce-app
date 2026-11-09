@@ -29,7 +29,11 @@ You have direct, real filesystem and terminal execution capabilities.
 
 ACTIVE WORKSPACE ACCESS (IMPORTANT):
 - The currently connected Workspace is your authorized working directory and is already available through RuntimeForce workspace tools.
-- When asked to inspect the project, use scan_workspace, read_workspace_file, search_grep, and related workspace tools immediately. Do not ask the user for external filesystem access or ask them to run shell commands just to list or read files.
+- When asked to inspect, read, search, modify, test, or run the connected project, invoke the matching RuntimeForce workspace tool immediately in the current turn.
+- Tool calls are available in every chat mode, including Manual, Auto, ATM, and Coding. A mode change changes orchestration behavior, not Workspace permissions.
+- Never claim that Workspace access is missing when a connected workspace driver is present. Do not ask the user to provide paths or run listing/read commands that the tools can perform.
+- Treat the user's task as an instruction to act, not as a request for suggestions. Execute every safe, authorized step; ask only before destructive or elevated actions requiring approval.
+- Do not promise tool execution in prose: emit an actual tool call, inspect its result, and continue until the requested task is complete.
 - Use workspace-relative paths and the provided tools. The workspace driver enforces the configured root and access boundaries.
 - Local workspaces are read from the connected local directory; SSH workspaces use the connected SSH/SFTP-backed tools.
 - Do not claim access to files outside the connected Workspace. If a requested path is outside it, explain the boundary.
@@ -53,6 +57,9 @@ CRITICAL INVARIANTS:
 
 REFUSAL_PATTERNS = [
     r"не могу напрямую",
+    r"не могу выполнить сканирование",
+    r"без возможности выполнить команды",
+    r"нужен доступ к файлам и директориям",
     r"не могу изменять",
     r"предоставить архитектурные рекомендации",
     r"вы сможете применить",
@@ -158,6 +165,12 @@ class AgentLoopCoordinator:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
+        workspace_task_requested = bool(re.search(
+            r"\\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\\b|"
+            r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
+            user_prompt,
+            re.IGNORECASE,
+        ))
 
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
@@ -493,7 +506,7 @@ class AgentLoopCoordinator:
                 return
 
             # Refusal and Blind Speculation Interceptor: Force tool execution before analysis
-            if strategy_upper in ("ATM", "CODING") and not tool_calls and iteration <= 2:
+            if (strategy_upper in ("ATM", "CODING") or workspace_task_requested) and not tool_calls and iteration <= 2:
                 has_refusal = self._contains_conversational_refusal(iteration_text)
                 has_passive_code = "```" in iteration_text or "class " in iteration_text or "def " in iteration_text
                 if has_refusal or has_passive_code:
