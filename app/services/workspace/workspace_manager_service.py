@@ -53,7 +53,9 @@ class WorkspaceManagerService:
                         "project_id": project_id,
                     }
         if not ws:
-            return await self.get_driver(user_id)
+            # A project without its own workspace must never inherit the user's
+            # globally active workspace (which may point to an unrelated SSH host).
+            return None
         return await self.get_driver_by_workspace_id(ws["id"], user_id, override_ws=ws)
 
     async def get_driver(self, user_id: str) -> Optional[IWorkspaceDriver]:
@@ -70,6 +72,9 @@ class WorkspaceManagerService:
                 return await self.get_driver_by_workspace_id(ws["id"], user_id)
             elif active_project.get("workspace_path") or active_project.get("ssh_host"):
                 return await self.get_driver_for_project(user_id, active_project["id"])
+            # An active project with no workspace is intentionally disconnected.
+            # Never fall through to a different project's globally active SSH/local workspace.
+            return None
 
         active_ws = self.workspace_repo.get_active_workspace(user_id)
         if not active_ws:
