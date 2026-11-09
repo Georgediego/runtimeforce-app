@@ -297,7 +297,7 @@ export const chatUIController = {
             activeClient.abort();
             wsClient = null;
             // Give the abort frame time to reach the backend before closing the socket.
-            setTimeout(() => activeClient.close(), 180);
+            setTimeout(() => activeClient.close(), 2500);
         }
         this.stopExecutionTimer();
         showToast("Generation aborted", "info");
