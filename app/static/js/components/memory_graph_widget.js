@@ -192,7 +192,7 @@ import { eventBus } from "../core/event_bus.js";
                     vec3 base = mix(uIdleColor, vColor, vActive);
                     vec3 col = base * (0.30 + 0.85 * diff) + base * rim * 0.35;
                     col += vec3(1.0) * spec * (0.55 + 0.4 * vActive);
-                    col += uHot * vActive * 0.45;
+                    col += vColor * vActive * 0.18;
                     col *= mix(1.0, 0.42, vDepth);
                     gl_FragColor = vec4(col, 1.0);
                 }`
@@ -205,18 +205,20 @@ import { eventBus } from "../core/event_bus.js";
             transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
             uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) } },
             vertexShader: `
+                attribute vec3 aColor;
                 attribute float aSize, aActive;
                 uniform float uScale;
+                varying vec3 vColor;
                 varying float vActive;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     gl_Position = projectionMatrix * mv;
                     gl_PointSize = aSize * (3.2 + aActive * 4.8) * uScale / -mv.z;
                     if (aActive < 0.02) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; }
-                    vActive = aActive;
+                    vColor = aColor; vActive = aActive;
                 }`,
             fragmentShader: `
-                uniform vec3 uHot;
+                varying vec3 vColor;
                 varying float vActive;
                 void main() {
                     vec2 p = (gl_PointCoord - 0.5) * 2.0;
@@ -226,7 +228,7 @@ import { eventBus } from "../core/event_bus.js";
                     float star = exp(-abs(p.x) * 14.0) * exp(-abs(p.y) * 3.0)
                                + exp(-abs(p.y) * 14.0) * exp(-abs(p.x) * 3.0);
                     float a = clamp(glow * 0.85 + star * 0.6, 0.0, 1.0) * vActive;
-                    gl_FragColor = vec4(mix(uHot, vec3(1.0), glow * 0.35), a);
+                    gl_FragColor = vec4(mix(vColor, vec3(1.0), glow * 0.35), a);
                 }`
         });
     }
