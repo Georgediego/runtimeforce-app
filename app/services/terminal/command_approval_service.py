@@ -95,6 +95,10 @@ class CommandApprovalService:
             async with self._lock:
                 self._pending.pop(pending_id, None)
             raise PermissionError("Command approval timed out. The command was not executed.")
+        except asyncio.CancelledError:
+            async with self._lock:
+                self._pending.pop(pending_id, None)
+            raise
         if not approved:
             raise PermissionError("Command execution was denied by the user.")
 
