@@ -853,23 +853,23 @@
     <div class="bg-[var(--ide-surface)] border border-amber-500/40 rounded-2xl shadow-2xl p-6 max-w-xl w-full mx-4 flex flex-col gap-4">
         <div class="flex items-center gap-2 text-amber-400 font-bold text-sm border-b border-[var(--ide-border-subtle)] pb-3">
             <i data-lucide="shield-alert" class="w-5 h-5"></i>
-            <span>Подтверждение выполнения команды</span>
+            <span>Command Execution Approval</span>
         </div>
         <div id="approval-context-box" class="text-xs text-[var(--ide-text-secondary)] leading-relaxed"></div>
         <pre id="approval-cmd-box" class="bg-[var(--ide-bg)] p-3 rounded-lg font-mono text-xs text-amber-300 border border-[var(--ide-border-subtle)] overflow-x-auto whitespace-pre-wrap break-all"></pre>
         <div>
-            <label class="block text-[10px] uppercase font-bold text-[var(--ide-text-muted)] mb-1.5">Разрешение</label>
+            <label class="block text-[10px] uppercase font-bold text-[var(--ide-text-muted)] mb-1.5">Permission Scope</label>
             <select id="approval-decision-select" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded-lg text-xs text-white outline-none">
-                <option value="once">Выполнить только на этот раз</option>
-                <option value="session">Выполнить только в этой сессии</option>
-                <option value="workspace">Выполнить только в этом воркспейсе</option>
-                <option value="project">Выполнить только в этом проекте</option>
-                <option value="always">Выполнять всегда (эта точная команда)</option>
+                <option value="once">Allow once</option>
+                <option value="session">Allow for this session</option>
+                <option value="workspace">Allow for this workspace</option>
+                <option value="project">Allow for this project</option>
+                <option value="always">Always allow this exact command</option>
             </select>
         </div>
         <div class="flex items-center justify-end gap-3 pt-3 border-t border-[var(--ide-border-subtle)]">
-            <button id="approval-deny-btn" class="px-4 py-2 rounded-lg text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 cursor-pointer transition-colors">Запретить</button>
-            <button id="approval-allow-btn" class="px-5 py-2 rounded-lg text-xs font-bold bg-[var(--ide-accent)] text-black hover:brightness-110 cursor-pointer transition-all shadow-lg">Подтвердить и выполнить</button>
+            <button id="approval-deny-btn" class="px-4 py-2 rounded-lg text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 cursor-pointer transition-colors">Deny</button>
+            <button id="approval-allow-btn" class="px-5 py-2 rounded-lg text-xs font-bold bg-[var(--ide-accent)] text-black hover:brightness-110 cursor-pointer transition-all shadow-lg">Approve & Execute</button>
         </div>
     </div>
 </div>
