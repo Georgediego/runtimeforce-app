@@ -155,48 +155,86 @@ import { eventBus } from "../core/event_bus.js";
     const INACTIVE_NODE_COLOR = 0x42d99a;
     const nodeColor = node => rawColor(PALETTE[String(node?.type || "memory").toLowerCase()] || PALETTE.memory);
 
+    // Small type glyphs replace the spherical point markers; graph positions and data stay unchanged.
+    const ICON_GLYPHS = {
+        project: "▰", conversation: "▤", memoryquery: "⌕", decision: "✓",
+        file: "▧", code: "</>", symbol: "{ }", memory: "✳",
+        workspace: "▰", directory: "▱", provider: "◉", model: "⬡",
+        role: "♙", tool: "⚒", mode: "☷"
+    };
+    const ICON_TYPES = Object.keys(ICON_GLYPHS);
+    const ICON_INDEX = Object.fromEntries(ICON_TYPES.map((type, index) => [type, index]));
+    function createIconAtlas() {
+        const cell = 48, columns = 4;
+        const canvas = document.createElement("canvas");
+        canvas.width = cell * columns;
+        canvas.height = cell * Math.ceil(ICON_TYPES.length / columns);
+        const ctx = canvas.getContext("2d");
+        ICON_TYPES.forEach((type, index) => {
+            const x = (index % columns) * cell;
+            const y = Math.floor(index / columns) * cell;
+            ctx.save();
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.font = type === "code" || type === "symbol"
+                ? "bold 19px 'JetBrains Mono', monospace"
+                : "bold 29px 'Arial Unicode MS', sans-serif";
+            ctx.fillText(ICON_GLYPHS[type], x + cell / 2, y + cell / 2 + 1);
+            ctx.restore();
+        });
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+        return texture;
+    }
+    const iconAtlas = createIconAtlas();
+
     // ---- Shaders ---------------------------------------------------------
     const DEPTH_GLSL = "float depth = clamp((-mv.z - 4.0) / 3.6, 0.0, 1.0);";
 
     function createNodeMaterial() {
-        // Point-sprite impostor: each point is shaded as a lit 3D ball.
+        // Flat type icons instead of shaded spherical points.
         return new THREE.ShaderMaterial({
-            transparent: true, depthWrite: true, depthTest: true,
-            uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) }, uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) } },
+            transparent: true, depthWrite: false, depthTest: true,
+            uniforms: {
+                uScale: { value: 300 },
+                uTime: { value: 0 },
+                uIconAtlas: { value: iconAtlas },
+                uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) }
+            },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aSize, aActive, aMarked;
+                attribute float aSize, aActive, aMarked, aIcon;
                 uniform float uScale, uTime;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth;
+                varying float vActive, vMarked, vDepth, vIcon;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
                     float pulse = 1.0 + aActive * 0.18 * sin(uTime * 0.009 + position.x * 5.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(3.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z);
-                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth;
+                    gl_PointSize = max(9.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z * 2.0);
+                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
                 }`,
             fragmentShader: `
-                uniform vec3 uHot, uIdleColor;
+                uniform sampler2D uIconAtlas;
+                uniform vec3 uIdleColor;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth;
+                varying float vActive, vMarked, vDepth, vIcon;
                 void main() {
-                    vec2 p = (gl_PointCoord - 0.5) * 2.0;
-                    p.y = -p.y;
-                    float r2 = dot(p, p);
-                    if (r2 > 1.0) discard;
-                    vec3 n = vec3(p, sqrt(1.0 - r2));
-                    vec3 L = normalize(vec3(-0.45, 0.55, 0.7));
-                    float diff = max(dot(n, L), 0.0);
-                    float rim = pow(1.0 - n.z, 2.5);
-                    float spec = pow(max(dot(n, normalize(L + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
+                    float columns = 4.0;
+                    float rows = ${Math.ceil(ICON_TYPES.length / 4)}.0;
+                    vec2 cell = vec2(mod(vIcon, columns), floor(vIcon / columns));
+                    vec2 uv = (cell + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y)) / vec2(columns, rows);
+                    vec4 glyph = texture2D(uIconAtlas, uv);
+                    if (glyph.a < 0.16 || max(glyph.r, max(glyph.g, glyph.b)) < 0.12) discard;
                     vec3 base = mix(uIdleColor, vColor, vMarked);
-                    vec3 col = base * (0.30 + 0.85 * diff) + base * rim * 0.35;
-                    col += vec3(1.0) * spec * (0.55 + 0.4 * vActive);
-                    col += vColor * vActive * 0.18;
-                    col *= mix(1.0, 0.42, vDepth);
-                    gl_FragColor = vec4(col, 1.0);
+                    vec3 col = mix(base, vec3(1.0), vActive * 0.32);
+                    col *= mix(1.0, 0.55, vDepth);
+                    gl_FragColor = vec4(col, glyph.a);
                 }`
         });
     }
@@ -419,6 +457,7 @@ import { eventBus } from "../core/event_bus.js";
             const sizes = new Float32Array(count);
             const active = new Float32Array(count);
             const marked = new Float32Array(count);
+            const icons = new Float32Array(count);
             const colorById = new Map();
             nodes.forEach((node, i) => {
                 const id = String(node.id);
@@ -428,6 +467,7 @@ import { eventBus } from "../core/event_bus.js";
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
                 sizes[i] = 0.075 + 0.085 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                icons[i] = ICON_INDEX[String(node.type || "memory").toLowerCase()] ?? ICON_INDEX.memory;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
                 positionById.set(id, pos);
@@ -440,6 +480,7 @@ import { eventBus } from "../core/event_bus.js";
             geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
             geometry.setAttribute("aActive", new THREE.BufferAttribute(active, 1));
             geometry.setAttribute("aMarked", new THREE.BufferAttribute(marked, 1));
+            geometry.setAttribute("aIcon", new THREE.BufferAttribute(icons, 1));
 
             // Real SQLite edges only: both endpoints must exist in the loaded node set.
             const rows = edges.filter(edge => positionById.has(String(edge.source)) && positionById.has(String(edge.target)));
