@@ -1050,7 +1050,7 @@ import { eventBus } from "../core/event_bus.js";
         activeEdgeIds.clear();
         if (!generationActive) processActive = false;
         graphSignature = "";
-        loadGraph(lastProject, true);
+        loadGraph(lastProject);
     });
 
     eventBus.on("generation:state", state => {
