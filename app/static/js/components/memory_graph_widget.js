@@ -227,7 +227,7 @@ import { eventBus } from "../core/event_bus.js";
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(11.0, aSize * (1.0 + aActive * 0.12) * uScale / -mv.z);
+                    gl_PointSize = max(15.0, aSize * (1.0 + aActive * 0.62 + aMarked * 0.28) * uScale / -mv.z);
                     vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
                 }`,
             fragmentShader: `
@@ -256,20 +256,20 @@ import { eventBus } from "../core/event_bus.js";
             uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) } },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aSize, aActive;
+                attribute float aSize, aActive, aMarked;
                 uniform float uScale;
                 varying vec3 vColor;
-                varying float vActive;
+                varying float vActive, vMarked;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = aSize * (3.2 + aActive * 4.8) * uScale / -mv.z;
-                    if (aActive < 0.02) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; }
-                    vColor = aColor; vActive = aActive;
+                    gl_PointSize = aSize * (2.4 + aActive * 4.8 + aMarked * 0.65) * uScale / -mv.z;
+                    if (aActive < 0.02 && aMarked < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; }
+                    vColor = aColor; vActive = aActive; vMarked = aMarked;
                 }`,
             fragmentShader: `
                 varying vec3 vColor;
-                varying float vActive;
+                varying float vActive, vMarked;
                 void main() {
                     vec2 p = (gl_PointCoord - 0.5) * 2.0;
                     float d = length(p);
@@ -277,7 +277,7 @@ import { eventBus } from "../core/event_bus.js";
                     float glow = exp(-d * d * 5.0);
                     float star = exp(-abs(p.x) * 14.0) * exp(-abs(p.y) * 3.0)
                                + exp(-abs(p.y) * 14.0) * exp(-abs(p.x) * 3.0);
-                    float a = clamp(glow * 0.85 + star * 0.6, 0.0, 1.0) * vActive;
+                    float a = clamp(glow * 0.85 + star * 0.6, 0.0, 1.0) * max(vActive, vMarked * 0.12);
                     gl_FragColor = vec4(mix(vColor, vec3(1.0), glow * 0.35), a);
                 }`
         });
@@ -480,7 +480,7 @@ import { eventBus } from "../core/event_bus.js";
                 positions.set(pos, i * 3);
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
-                sizes[i] = 0.27 + 0.075 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                sizes[i] = 0.52 + 0.10 * Math.min(1, Math.log1p(deg) / Math.log(14));
                 icons[i] = ICON_INDEX[String(node.type || "").toLowerCase()] ?? ICON_INDEX.symbol;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
