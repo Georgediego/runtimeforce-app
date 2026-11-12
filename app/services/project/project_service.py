@@ -78,6 +78,26 @@ class ProjectService:
             is_active=payload.get("activate", True)
         )
         if success:
+            if self.workspace_repo:
+                workspace_id = str(uuid.uuid4())
+                workspace_type = "ssh" if payload.get("ssh_host") else "local"
+                workspace_created = self.workspace_repo.create_workspace(
+                    workspace_id,
+                    user_id,
+                    project_id=pid,
+                    name=f"{payload.get('name', 'Project')} Workspace",
+                    type=workspace_type,
+                    path=payload.get("workspace_path") or "~",
+                    host=payload.get("ssh_host") or "",
+                    port=payload.get("ssh_port", 22),
+                    username=payload.get("ssh_username") or "",
+                    auth_type="key" if payload.get("ssh_key_id") else "password",
+                    key_id=payload.get("ssh_key_id") or "",
+                    is_active=True,
+                )
+                if not workspace_created:
+                    self.repo.delete_project(pid, user_id)
+                    return {"error": "The required Workspace could not be created. Project was not saved.", "status": "workspace_failed"}
             if payload.get("activate", True):
                 self.repo.set_active_project(pid, user_id)
             self.repo.record_changelog(pid, initial_version, "Initial project creation", None, payload.get("git_branch_main", "main"))
