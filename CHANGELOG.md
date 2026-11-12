@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Replace Runtime Graph point markers with object-specific model, file, memory, project, and tool icons; use a less rigid spherical distribution and a cohesive emerald palette.
+- Keep real graph relationships highlighted after a run completes until the next run begins.
+- Remove the LIVE MEMORY OPERATIONS overlay so the 3D graph has the full widget area.
+
+### Fixed
+- Delete session-owned graph nodes, their relationships and embeddings, and invalidate the session context cache when a chat is deleted.
+
 ## [1.1.16] - 2026-11-10
 
 ### Added
