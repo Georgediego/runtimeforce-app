@@ -13,6 +13,7 @@ import { eventBus } from "../core/event_bus.js";
     const activityEl = document.getElementById("rf-memory-activity");
     function recordActivity(label, detail = "") {
         if (!activityEl || !label) return;
+        activityEl.querySelector(".rf-graph-empty")?.remove();
         const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
         const row = document.createElement("div");
         row.className = "rf-graph-event";
