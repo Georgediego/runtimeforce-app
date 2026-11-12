@@ -16,8 +16,12 @@ from app.container import (
     get_project_service,
     get_provider_keys_repo,
     get_llm_registry,
+    get_graph_repo,
+    get_context_cache_service,
 )
 from app.repository.conversation_db_repository import ConversationDBRepository
+from app.repository.graph_db_repository import GraphDBRepository
+from app.services.memory.context_cache_service import ContextCacheService
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.services.llm.llm_orchestrator_service import LLMOrchestratorService
 from app.services.llm.llm_registry_service import LLMRegistryService
@@ -248,10 +252,15 @@ async def save_session_terminal(
 async def delete_session(
     session_id: str,
     user_id: str = Depends(require_authenticated_user),
-    repo: ConversationDBRepository = Depends(get_conversation_repo)
+    repo: ConversationDBRepository = Depends(get_conversation_repo),
+    graph_repo: GraphDBRepository = Depends(get_graph_repo),
+    context_cache: ContextCacheService = Depends(get_context_cache_service),
 ):
     if repo.get_session_owner(session_id) != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
+    project_id = repo.get_session_project(session_id)
     await container.command_approval_service.close_session(session_id)
+    graph_repo.delete_session_memory(session_id, user_id, project_id)
+    context_cache.invalidate_session(session_id)
     repo.delete_session(session_id)
     return {"status": "success", "message": f"Session {session_id} deleted."}
