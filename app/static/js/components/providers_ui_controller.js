@@ -358,21 +358,23 @@ export const providersUIController = {
         const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
 
         return `
-            <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2">
-                <div class="flex items-center justify-between text-xs font-semibold gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
+            <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0 text-xs font-semibold">
                         <span>${p.name}</span>
                         ${refLinkHTML}
                     </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                        <span class="text-[10px] text-[var(--ide-accent)] font-mono selected-count-${p.id}">${countBadgeText}</span>
-                        <span class="text-[10px] key-status-${p.id} text-[var(--ide-text-muted)]">Not connected</span>
-                        <button class="provider-toggle-btn text-[10px] px-2 py-0.5 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Connect</button>
-                        <button class="provider-delete-key-btn text-[10px] px-2 py-0.5 rounded text-red-400 hover:bg-red-500/10 cursor-pointer hidden" data-provider="${p.id}">Delete key</button>
-                        <button class="configure-models-btn hidden text-[10px] px-2 py-0.5 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Select Models</button>
-                    </div>
+                    <span class="text-[10px] key-status-${p.id} text-[var(--ide-text-muted)] shrink-0">No API key</span>
                 </div>
                 <input type="password" id="key-input-${p.id}" placeholder="${p.placeholder}" class="w-full p-2 text-xs bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-[10px] text-[var(--ide-accent)] font-mono selected-count-${p.id}">${countBadgeText}</span>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button type="button" class="provider-toggle-btn text-[10px] px-3 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] border border-[var(--ide-accent)]/30 hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Connect</button>
+                        <button type="button" class="provider-delete-key-btn text-[10px] px-3 py-1 rounded text-red-400 border border-red-500/30 hover:bg-red-500/10 cursor-pointer" data-provider="${p.id}" disabled>Delete key</button>
+                        <button type="button" class="configure-models-btn hidden text-[10px] px-2 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Select Models</button>
+                    </div>
+                </div>
             </div>
         `;
     },
@@ -470,7 +472,11 @@ export const providersUIController = {
                     toggleBtn.classList.toggle("opacity-40", !hasKey);
                     toggleBtn.classList.toggle("cursor-not-allowed", !hasKey);
                 }
-                if (deleteBtn) deleteBtn.classList.toggle("hidden", !hasKey);
+                if (deleteBtn) {
+                    deleteBtn.disabled = !hasKey;
+                    deleteBtn.classList.toggle("opacity-40", !hasKey);
+                    deleteBtn.classList.toggle("cursor-not-allowed", !hasKey);
+                }
                 if (configBtn) configBtn.classList.toggle("hidden", !hasKey && totalAvailable === 0);
             });
         } catch (e) {
