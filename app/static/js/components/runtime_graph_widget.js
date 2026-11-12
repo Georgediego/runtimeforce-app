@@ -8,6 +8,7 @@ import { eventBus } from "../core/event_bus.js";
 (() => {
   const host = document.getElementById("rf-rg");
   if (!host) return;
+  host.classList.add("rf-sd");
   const $ = (tag, cls, text) => {
     const el = document.createElement(tag);
     if (cls) el.className = cls;
