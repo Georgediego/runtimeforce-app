@@ -98,6 +98,11 @@ import { eventBus } from "../core/event_bus.js";
         if (!id) return;
         const old = S.nodes.get(id);
         S.nodes.set(id, { id, kind, label: String(label || id), detail: String(detail || "") });
+        if (!S.positions.has(id)) {
+            const a = hash(id, 31) * Math.PI * 2;
+            const r = 0.16 + Math.sqrt(hash(id, 73)) * 0.72;
+            S.positions.set(id, { x: 0.5 + Math.cos(a) * r * 0.47, y: 0.5 + Math.sin(a) * r * 0.43, depth: hash(id, 19) });
+        }
     }
     function addEdge(id, a, b, kind = "relation", detail = "") {
         if (!id || !S.nodes.has(a) || !S.nodes.has(b) || a === b) return;
@@ -287,6 +292,7 @@ import { eventBus } from "../core/event_bus.js";
         ctx.setTransform(dpr,0,0,dpr,0,0); S.dirty = true; draw();
     }
     let width = 0, height = 0;
+    let framePending = false;
     function draw() {
         if (document.hidden || collapsed) return;
         const rect = stage.getBoundingClientRect();
@@ -322,7 +328,10 @@ import { eventBus } from "../core/event_bus.js";
                 ctx.fillText(n.label.slice(0,24), x+7, y-7);
             }
         });
-        if (S.run || t < S.animUntil) requestAnimationFrame(draw);
+        if ((S.run || t < S.animUntil) && !framePending) {
+            framePending = true;
+            requestAnimationFrame(() => { framePending = false; draw(); });
+        }
     }
 
     let collapsed = false;
