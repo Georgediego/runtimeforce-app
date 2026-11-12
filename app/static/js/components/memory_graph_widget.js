@@ -25,8 +25,8 @@ import { eventBus } from "../core/event_bus.js";
     // ---- Scene constants -------------------------------------------------
     const FOV = 38, CAM_Z = 4.85, RADIUS = 1.48;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
-    const EDGE_IDLE_ALPHA = 0.075;       // faint real links keep the entity field readable at rest
-    const HOT = 0xffc36a;
+    const EDGE_IDLE_ALPHA = 0.18;        // visible, but subdued, real graph relationships
+    const HOT = 0x62ff83;
 
     // ---- State -----------------------------------------------------------
     let nodes = [];
@@ -82,80 +82,37 @@ import { eventBus } from "../core/event_bus.js";
     function layoutGraph(nodeList, edgeList, cache, radius) {
         const count = nodeList.length;
         if (!count) return;
-        const ids = nodeList.map(node => String(node.id));
-        const index = new Map(ids.map((id, i) => [id, i]));
-        const degree = new Float32Array(count);
-        const links = [];
-        edgeList.forEach(edge => {
-            const a = index.get(String(edge.source)), b = index.get(String(edge.target));
-            if (a === undefined || b === undefined || a === b) return;
-            links.push([a, b]); degree[a]++; degree[b]++;
+
+        // Every real entity occupies a point on one spherical shell.
+        // Fibonacci distribution avoids a fake core, spokes, or decorative geometry.
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+        const shellRadius = radius * 0.82;
+        const jitter = radius * 0.012;
+        nodeList.forEach((node, i) => {
+            const id = String(node.id);
+            const y = 1 - 2 * ((i + 0.5) / count);
+            const ring = Math.sqrt(Math.max(0, 1 - y * y));
+            const angle = goldenAngle * i;
+            const depth = (hash01(id, 0x73a91d) - 0.5) * 2 * jitter;
+            const r = shellRadius + depth;
+            cache.set(id, [
+                Math.cos(angle) * ring * r,
+                y * r,
+                Math.sin(angle) * ring * r
+            ]);
         });
-        const positions = ids.map(id => {
-            const saved = cache.get(id);
-            if (saved) return saved.slice(0, 3);
-            const direction = unitVector(id, 0x73a91d);
-            const distance = radius * (0.34 + hash01(id, 0x4c2b17) * 0.48);
-            return direction.map(value => value * distance);
-        });
-        const maxRadius = radius * 0.88, minRadius = radius * 0.30;
-        const iterations = count > 500 ? 12 : 20;
-        const repulsion = radius * radius * (count > 500 ? 0.0012 : 0.0018);
-        const spring = 0.010, targetLength = radius * 0.30;
-        for (let step = 0; step < iterations; step++) {
-            const forces = Array.from({ length: count }, () => [0, 0, 0]);
-            const cooling = 1 - step / iterations;
-            for (let a = 0; a < count; a++) {
-                const pa = positions[a];
-                for (let b = a + 1; b < count; b++) {
-                    const pb = positions[b];
-                    let dx = pa[0] - pb[0], dy = pa[1] - pb[1], dz = pa[2] - pb[2];
-                    const d2 = dx * dx + dy * dy + dz * dz + 0.0001;
-                    const force = repulsion / d2, inv = 1 / Math.sqrt(d2);
-                    dx *= inv * force; dy *= inv * force; dz *= inv * force;
-                    forces[a][0] += dx; forces[a][1] += dy; forces[a][2] += dz;
-                    forces[b][0] -= dx; forces[b][1] -= dy; forces[b][2] -= dz;
-                }
-            }
-            links.forEach(([a, b]) => {
-                const pa = positions[a], pb = positions[b];
-                const dx = pb[0] - pa[0], dy = pb[1] - pa[1], dz = pb[2] - pa[2];
-                const distance = Math.hypot(dx, dy, dz) || 0.001;
-                const weight = 1 / Math.sqrt(1 + Math.max(degree[a], degree[b]) * 0.18);
-                const pull = (distance - targetLength) * spring * weight;
-                const fx = dx / distance * pull, fy = dy / distance * pull, fz = dz / distance * pull;
-                forces[a][0] += fx; forces[a][1] += fy; forces[a][2] += fz;
-                forces[b][0] -= fx; forces[b][1] -= fy; forces[b][2] -= fz;
-            });
-            for (let i = 0; i < count; i++) {
-                const p = positions[i], f = forces[i];
-                const length = Math.hypot(f[0], f[1], f[2]) || 1;
-                const scale = Math.min(1, radius * 0.045 * cooling / length);
-                p[0] += f[0] * scale; p[1] += f[1] * scale; p[2] += f[2] * scale;
-                const radial = Math.hypot(p[0], p[1], p[2]) || 0.001;
-                const bias = Math.min(1, degree[i] / 8) * radius * 0.0025 * cooling;
-                p[0] += p[0] / radial * bias; p[1] += p[1] / radial * bias; p[2] += p[2] / radial * bias;
-                const nextRadius = Math.hypot(p[0], p[1], p[2]) || 0.001;
-                if (nextRadius > maxRadius) {
-                    const k = maxRadius / nextRadius; p[0] *= k; p[1] *= k; p[2] *= k;
-                } else if (nextRadius < minRadius * 0.55) {
-                    const k = (minRadius * 0.55) / nextRadius; p[0] *= k; p[1] *= k; p[2] *= k;
-                }
-            }
-        }
-        ids.forEach((id, i) => cache.set(id, positions[i]));
     }
     // LAYOUT-END
 
     // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
     const PALETTE = {
-        project: 0xe5a64b, conversation: 0xd99538, memoryquery: 0xf0b85a, decision: 0xffcf75,
-        file: 0xd99a43, code: 0xf0ad4e, symbol: 0xd9a04b, memory: 0xffbd59,
-        workspace: 0xd9a04b, directory: 0xc78b37, provider: 0xffc56b, model: 0xffd18a,
-        role: 0xe6a84b, tool: 0xffb84d, mode: 0xe5b46c
+        project: 0x69ff91, conversation: 0x45e978, memoryquery: 0x8affaa, decision: 0xb0ffc2,
+        file: 0x50f080, code: 0x72ff9a, symbol: 0x3fe875, memory: 0x9bffb2,
+        workspace: 0x64f58a, directory: 0x38d96c, provider: 0x72ff9a, model: 0x9affb3,
+        role: 0x55ed7d, tool: 0x83ffa2, mode: 0x6bf58f
     };
-    const INACTIVE_NODE_COLOR = 0xb98238;
+    const INACTIVE_NODE_COLOR = 0x42d96e;
     const nodeColor = node => rawColor(PALETTE[String(node?.type || "memory").toLowerCase()] || PALETTE.memory);
 
     // ---- Shaders ---------------------------------------------------------
@@ -271,7 +228,7 @@ import { eventBus } from "../core/event_bus.js";
                     float core = 1.0 - smoothstep(0.06, 0.5, d);
                     float alpha = mix(0.32, 0.68, vMarked);
                     alpha = mix(alpha, 1.0, vActive);
-                    vec3 col = mix(vColor, vec3(1.0, 0.72, 0.38), vActive * 0.86);
+                    vec3 col = mix(vColor, vec3(0.38, 1.0, 0.55), vActive * 0.86);
                     col *= mix(1.0, 0.38, vDepth);
                     gl_FragColor = vec4(col, core * alpha);
                 }`
@@ -306,7 +263,7 @@ import { eventBus } from "../core/event_bus.js";
                     float glow = exp(-d * d * 4.2);
                     float core = 1.0 - smoothstep(0.0, 0.42, d);
                     float a = glow * 0.22 * vActive;
-                    gl_FragColor = vec4(mix(vColor, vec3(1.0), core * 0.22), a);
+                    gl_FragColor = vec4(mix(vColor, vec3(0.72, 1.0, 0.80), core * 0.22), a);
                 }`
         });
     }
@@ -350,10 +307,10 @@ import { eventBus } from "../core/event_bus.js";
     const labelStyle = document.createElement("style");
     labelStyle.textContent =
         ".rf-memory-label{position:absolute;left:0;top:0;white-space:nowrap;font:600 8px 'JetBrains Mono',monospace;" +
-        "padding:1px 5px;border-radius:3px;color: #e8c58f;background:rgba(18,12,5,.88);border:1px solid rgba(213,151,63,.28);" +
+        "padding:1px 5px;border-radius:3px;color: #aaffbd;background:rgba(3,18,9,.90);border:1px solid rgba(75,255,125,.32);" +
         "transition:opacity .15s;will-change:transform}" +
-        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff0d4;background:rgba(92,53,12,.94);border-color:#f2b75d;" +
-        "box-shadow:0 0 12px rgba(235,164,67,.38)}";
+        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#eaffef;background:rgba(5,54,22,.95);border-color:#65ff8b;" +
+        "box-shadow:0 0 12px rgba(75,255,125,.38)}";
     document.head.appendChild(labelStyle);
     const labelPool = [];
     const labelVec = new THREE.Vector3();
@@ -636,19 +593,6 @@ import { eventBus } from "../core/event_bus.js";
     let topologyLoadedAt = 0;
     let modelsLoadedAt = 0;
     const SKIP_TREE_NAMES = new Set([".git", "__pycache__", "node_modules", "venv", ".venv", ".pytest_cache", "staticfiles", "media", ".cache", ".DS_Store"]);
-    const CHAT_MODES = [
-        { id: "auto", label: "Auto" },
-        { id: "coding", label: "Autonomous Team" },
-        { id: "local", label: "Local" },
-        { id: "manual", label: "Manual" }
-    ];
-    const ROLE_TOOLS = {
-        Engineer: ["read_workspace_file", "write_workspace_file", "run_shell_command", "grep_search"],
-        Implementer: ["read_workspace_file", "write_workspace_file", "patch_file", "run_shell_command"],
-        Designer: ["read_workspace_file", "write_workspace_file", "patch_file"],
-        Architect: ["read_workspace_file", "grep_search", "search_graph"]
-    };
-
     async function authenticatedJson(url) {
         const headers = {};
         const jwt = token();
@@ -756,29 +700,6 @@ import { eventBus } from "../core/event_bus.js";
         }
     }
 
-    function buildStaticTopology() {
-        const outNodes = [];
-        const outEdges = [];
-        Object.entries(ROLE_TOOLS).forEach(([role, tools]) => {
-            const roleId = "agent-role:" + role.toLowerCase();
-            outNodes.push({ id: roleId, label: role, type: "role", source: "agents" });
-            tools.forEach(tool => {
-                const toolId = "agent-tool:" + tool;
-                if (!outNodes.some(node => node.id === toolId)) {
-                    outNodes.push({ id: toolId, label: tool, type: "tool", source: "agents" });
-                }
-                outEdges.push({
-                    id: "role-tool:" + roleId + "->" + toolId,
-                    source: roleId, target: toolId, relation: "allowed tool", weight: 1
-                });
-            });
-        });
-        CHAT_MODES.forEach(mode => {
-            outNodes.push({ id: "chat-mode:" + mode.id, label: mode.label, type: "mode", source: "chat" });
-        });
-        return { nodes: outNodes, edges: outEdges };
-    }
-
     let topologyLoadPromise = null;
     async function loadRuntimeTopology(pid, force = false) {
         const now = Date.now();
@@ -803,9 +724,9 @@ import { eventBus } from "../core/event_bus.js";
                     };
                 })
             ]);
-            const staticGraph = buildStaticTopology();
-            topologyNodes = workspace.nodes.concat(models.nodes, staticGraph.nodes);
-            topologyEdges = workspace.edges.concat(models.edges, staticGraph.edges);
+            // Only entities returned by live workspace/model APIs are added here.
+            topologyNodes = workspace.nodes.concat(models.nodes);
+            topologyEdges = workspace.edges.concat(models.edges);
             topologyLoadedAt = Date.now();
             return { nodes: topologyNodes, edges: topologyEdges };
         })();
