@@ -25,9 +25,9 @@ import { eventBus } from "../core/event_bus.js";
     // ---- Scene constants -------------------------------------------------
     const FOV = 38, CAM_Z = 4.85, RADIUS = 1.48;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
-    const EDGE_IDLE_ALPHA = 0;           // real edges are visible only during actual memory activity
-    const IDLE_ROTATION_SPEED = 0.00010;
-    const ACTIVE_ROTATION_SPEED = 0.00058;
+    const EDGE_IDLE_ALPHA = 0.075;       // faint real links keep the spherical neural network readable at rest
+    const IDLE_ROTATION_SPEED = 0.00016;
+    const ACTIVE_ROTATION_SPEED = 0.00072;
     let rotationSpeed = IDLE_ROTATION_SPEED;
     const HOT = 0x68f0b7;
 
@@ -306,8 +306,10 @@ import { eventBus } from "../core/event_bus.js";
                 void main() {
                     float flow = fract(vAlong * 1.5 - uTime * 0.0011);
                     float spark = smoothstep(0.0, 0.15, flow) * (1.0 - smoothstep(0.15, 0.45, flow));
-                    float a = mix(uIdle, 0.45 + 0.55 * spark, vAct) * mix(1.0, 0.4, vDepth);
-                    vec3 col = mix(vColor * 1.1 + 0.15, uHot, vAct);
+                    float idleFlow = spark * (0.025 + 0.035 * (0.5 + 0.5 * sin(uTime * 0.001 + vAlong * 6.283)));
+                    float activeFlow = 0.30 + 0.58 * spark;
+                    float a = mix(uIdle + idleFlow, activeFlow, vAct) * mix(1.0, 0.42, vDepth);
+                    vec3 col = mix(vColor * 1.08 + 0.12, uHot, vAct);
                     gl_FragColor = vec4(col, a);
                 }`
         });
@@ -375,6 +377,82 @@ import { eventBus } from "../core/event_bus.js";
         for (let k = used; k < labelPool.length; k++) labelPool[k].style.opacity = "0";
     }
 
+    // ---- Neural sphere ---------------------------------------------------
+    // The shell and orbital core make the spherical form unmistakable even
+    // when the real graph contains only a handful of nodes.
+    const neuralRings = [];
+
+    function createNeuralSphere() {
+        shellMesh = new THREE.Group();
+        shellMesh.name = "runtime-neural-shell";
+
+        const shell = new THREE.Mesh(
+            new THREE.SphereGeometry(RADIUS * 1.025, 28, 20),
+            new THREE.MeshBasicMaterial({
+                color: 0x43d7a0, wireframe: true, transparent: true,
+                opacity: 0.105, depthWrite: false
+            })
+        );
+        shell.renderOrder = 0;
+        shellMesh.add(shell);
+
+        // Three orthogonal orbital circuits reinforce the globe silhouette.
+        const ringSpecs = [
+            [Math.PI / 2, 0, 0],
+            [0, Math.PI / 2, 0],
+            [0.72, 0.72, 0.35]
+        ];
+        ringSpecs.forEach((rotation, index) => {
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(RADIUS * 1.035, 0.0035, 5, 96),
+                new THREE.MeshBasicMaterial({
+                    color: index === 1 ? 0x63e6b2 : 0x2c9d78,
+                    transparent: true, opacity: index === 1 ? 0.20 : 0.12,
+                    depthWrite: false
+                })
+            );
+            ring.rotation.set(...rotation);
+            ring.userData.orbitSpeed = (index % 2 ? -1 : 1) * (0.00012 + index * 0.000035);
+            ring.renderOrder = 0;
+            shellMesh.add(ring);
+            neuralRings.push(ring);
+        });
+        graphGroup.add(shellMesh);
+
+        // A restrained AI nucleus: wireframe icosahedron + rotating signal rings.
+        ambientPoints = new THREE.Group();
+        ambientPoints.name = "runtime-ai-core";
+        const core = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.19, 1),
+            new THREE.MeshBasicMaterial({
+                color: 0x68f0b7, wireframe: true, transparent: true,
+                opacity: 0.46, depthWrite: false
+            })
+        );
+        ambientPoints.add(core);
+        const nucleus = new THREE.Mesh(
+            new THREE.SphereGeometry(0.075, 12, 10),
+            new THREE.MeshBasicMaterial({
+                color: 0xa5ffda, transparent: true, opacity: 0.24,
+                depthWrite: false
+            })
+        );
+        ambientPoints.add(nucleus);
+        for (let i = 0; i < 2; i++) {
+            const orbit = new THREE.Mesh(
+                new THREE.TorusGeometry(0.27 + i * 0.075, 0.003, 4, 64),
+                new THREE.MeshBasicMaterial({
+                    color: 0x58dca8, transparent: true,
+                    opacity: 0.28 - i * 0.07, depthWrite: false
+                })
+            );
+            orbit.rotation.set(0.8 + i * 0.9, 0.45 + i * 0.7, i * 0.6);
+            ambientPoints.add(orbit);
+            neuralRings.push(orbit);
+        }
+        graphGroup.add(ambientPoints);
+    }
+
     // ---- Three.js setup --------------------------------------------------
     function initThree() {
         renderer = new THREE.WebGLRenderer({
@@ -388,6 +466,7 @@ import { eventBus } from "../core/event_bus.js";
         camera.position.set(0, 0, CAM_Z);
         graphGroup = new THREE.Group();
         scene.add(graphGroup);
+        createNeuralSphere();
 
         nodeMaterial = createNodeMaterial();
         glowMaterial = createGlowMaterial();
@@ -1001,6 +1080,21 @@ import { eventBus } from "../core/event_bus.js";
         graphGroup.rotation.y += rotationSpeed * delta;
         graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
 
+        if (shellMesh) {
+            shellMesh.rotation.y -= delta * (processActive ? 0.00011 : 0.000045);
+            shellMesh.rotation.x = Math.sin(pulseClock * 0.00009) * 0.035;
+        }
+        if (ambientPoints) {
+            const beat = processActive ? 0.055 : 0.022;
+            const breath = 1 + Math.sin(pulseClock * (processActive ? 0.0042 : 0.0018)) * beat;
+            ambientPoints.scale.setScalar(breath);
+            ambientPoints.rotation.y += delta * (processActive ? 0.0015 : 0.00045);
+            ambientPoints.rotation.x += delta * 0.00022;
+        }
+        neuralRings.forEach((ring, index) => {
+            ring.rotation.z += delta * (ring.userData.orbitSpeed || 0.0001) * (processActive ? 2.2 : 1);
+        });
+
         edgeMaterial.uniforms.uTime.value = pulseClock;
         if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
         if (edgeLines) easeBuffer(edgeLines.geometry.attributes.aAct, edgeTarget, 1 - Math.exp(-delta / 220), 2);
@@ -1139,6 +1233,7 @@ import { eventBus } from "../core/event_bus.js";
         if (endRunTimer) clearTimeout(endRunTimer);
         resizeObserver?.disconnect();
         resetScene();
+        neuralRings.length = 0;
         nodeMaterial?.dispose();
         glowMaterial?.dispose();
         edgeMaterial?.dispose();
