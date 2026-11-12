@@ -25,7 +25,7 @@ import { eventBus } from "../core/event_bus.js";
     // ---- Scene constants -------------------------------------------------
     const FOV = 38, CAM_Z = 4.85, RADIUS = 1.48;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
-    const EDGE_IDLE_ALPHA = 0.075;       // faint real links keep the spherical neural network readable at rest
+    const EDGE_IDLE_ALPHA = 0.075;       // faint real links keep the entity field readable at rest
     const IDLE_ROTATION_SPEED = 0.00016;
     const ACTIVE_ROTATION_SPEED = 0.00072;
     let rotationSpeed = IDLE_ROTATION_SPEED;
@@ -471,7 +471,7 @@ import { eventBus } from "../core/event_bus.js";
                 positions.set(pos, i * 3);
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
-                sizes[i] = 0.27;
+                sizes[i] = 0.055;
                 icons[i] = ICON_INDEX[String(node.type || "").toLowerCase()] ?? ICON_INDEX.symbol;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
