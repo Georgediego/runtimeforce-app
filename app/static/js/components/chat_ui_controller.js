@@ -206,7 +206,14 @@ export const chatUIController = {
         } catch (e) {
             console.warn("Failed to get enabled models list:", e);
         }
-        return hasAnySavedConfig ? enabled : null;
+        if (hasAnySavedConfig) return enabled;
+        // If API keys exist but every provider is disconnected, send an explicit
+        // empty allow-list instead of allowing the server to auto-route a provider.
+        try {
+            const status = await keysApi.status();
+            if (Object.keys(status.providers || {}).length) return enabled;
+        } catch (e) {}
+        return null;
     },
 
     getATMModels() {
