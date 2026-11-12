@@ -259,9 +259,10 @@ export const providersUIController = {
                                     Connected • ${selectedCount}/${totalCount} models selected
                                 </div>
                             </div>
-                            <button class="remove-local-provider-btn text-xs text-red-400 hover:text-red-300 font-bold cursor-pointer" data-provider="${pName}">
-                                Remove
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button class="toggle-local-provider-btn text-xs text-[var(--ide-accent)] hover:underline font-bold cursor-pointer" data-provider="${pName}">${selectedCount ? "Disconnect" : "Connect"}</button>
+                                <button class="remove-local-provider-btn text-xs text-red-400 hover:text-red-300 font-bold cursor-pointer" data-provider="${pName}">Remove</button>
+                            </div>
                         </div>
 
                         <div class="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pt-1 border-t border-[var(--ide-border-subtle)]">
@@ -278,6 +279,10 @@ export const providersUIController = {
                     </div>
                 `;
             }).join('');
+
+            container.querySelectorAll(".toggle-local-provider-btn").forEach(btn => {
+                btn.addEventListener("click", () => this.toggleProviderConnection(btn.dataset.provider));
+            });
 
             container.querySelectorAll(".remove-local-provider-btn").forEach(btn => {
                 btn.addEventListener("click", () => this.removeLocalProvider(btn.dataset.provider));
@@ -354,17 +359,17 @@ export const providersUIController = {
 
         return `
             <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2">
-                <div class="flex items-center justify-between text-xs font-semibold">
-                    <div class="flex items-center gap-2">
+                <div class="flex items-center justify-between text-xs font-semibold gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
                         <span>${p.name}</span>
                         ${refLinkHTML}
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 shrink-0">
                         <span class="text-[10px] text-[var(--ide-accent)] font-mono selected-count-${p.id}">${countBadgeText}</span>
                         <span class="text-[10px] key-status-${p.id} text-[var(--ide-text-muted)]">Not connected</span>
-                        <button class="configure-models-btn hidden text-[10px] px-2 py-0.5 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">
-                            Select Models
-                        </button>
+                        <button class="provider-toggle-btn text-[10px] px-2 py-0.5 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Connect</button>
+                        <button class="provider-delete-key-btn text-[10px] px-2 py-0.5 rounded text-red-400 hover:bg-red-500/10 cursor-pointer hidden" data-provider="${p.id}">Delete key</button>
+                        <button class="configure-models-btn hidden text-[10px] px-2 py-0.5 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Select Models</button>
                     </div>
                 </div>
                 <input type="password" id="key-input-${p.id}" placeholder="${p.placeholder}" class="w-full p-2 text-xs bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
@@ -373,12 +378,65 @@ export const providersUIController = {
     },
 
     bindCardEvents() {
+        document.querySelectorAll(".provider-toggle-btn").forEach(btn => {
+            btn.addEventListener("click", e => this.toggleProviderConnection(e.currentTarget.dataset.provider));
+        });
+        document.querySelectorAll(".provider-delete-key-btn").forEach(btn => {
+            btn.addEventListener("click", e => this.deleteProviderKey(e.currentTarget.dataset.provider));
+        });
         document.querySelectorAll(".configure-models-btn").forEach(btn => {
             btn.addEventListener("click", (e) => {
                 const provider = e.currentTarget.dataset.provider;
                 this.openModelPicker(provider);
             });
         });
+    },
+
+    async toggleProviderConnection(providerId) {
+        const provider = String(providerId || "").toLowerCase();
+        const selected = [...(this._selectedModelsMap[provider] || [])];
+        try {
+            if (selected.length) {
+                await keysApi.saveSelectedModels(provider, []);
+                this._selectedModelsMap[provider] = [];
+                showToast(`${provider} disconnected. API key retained.`, "info");
+            } else {
+                const status = await keysApi.status();
+                if (!(status.providers || {})[provider]) {
+                    showToast("Add and save this provider's API key first.", "warning");
+                    return;
+                }
+                await this.autoSelectModels(provider);
+            }
+            await this.syncSelectedModelsFromSQLite();
+            await this.updateStatus();
+            await this.renderExistingLocalProviders();
+            eventBus.emit("providers.updated");
+        } catch (error) {
+            showToast(`Provider update failed: ${error.message}`, "error");
+        }
+    },
+
+    async deleteProviderKey(providerId) {
+        const provider = String(providerId || "").toLowerCase();
+        const confirmed = await showConfirm(
+            "Delete API Key",
+            `Permanently delete the saved API key for ${provider}?`,
+            "Delete Key",
+            "Cancel"
+        );
+        if (!confirmed) return;
+        try {
+            await keysApi.delete(provider);
+            this._selectedModelsMap[provider] = [];
+            await this.syncSelectedModelsFromSQLite();
+            await this.updateStatus();
+            await this.renderExistingLocalProviders();
+            showToast(`${provider} API key deleted`, "success");
+            eventBus.emit("providers.updated");
+        } catch (error) {
+            showToast(`Failed to delete key: ${error.message}`, "error");
+        }
     },
 
     async updateStatus() {
@@ -395,19 +453,25 @@ export const providersUIController = {
                 const availableModels = availableModelsMap[p.id] || [];
                 const totalAvailable = availableModels.length;
 
+                const hasKey = Boolean(connected[p.id]);
+                const selectedCount = Array.isArray(savedSelections) ? savedSelections.length : 0;
+                const enabled = hasKey && selectedCount > 0;
+                const toggleBtn = document.querySelector(`.provider-toggle-btn[data-provider="${p.id}"]`);
+                const deleteBtn = document.querySelector(`.provider-delete-key-btn[data-provider="${p.id}"]`);
                 if (statusEl) {
-                    if (connected[p.id] || totalAvailable > 0) {
-                        let selectedCount = Array.isArray(savedSelections) ? savedSelections.length : 0;
-                        const countText = totalAvailable > 0 ? `${selectedCount}/${totalAvailable} models selected` : `${selectedCount} models selected`;
-                        statusEl.textContent = `Connected • ${countText}`;
-                        statusEl.className = `text-[10px] key-status-${p.id} text-[var(--ide-success)] font-bold`;
-                        if (configBtn) configBtn.classList.remove("hidden");
-                    } else {
-                        statusEl.textContent = "Not connected";
-                        statusEl.className = `text-[10px] key-status-${p.id} text-[var(--ide-text-muted)]`;
-                        if (configBtn) configBtn.classList.add("hidden");
-                    }
+                    statusEl.textContent = !hasKey
+                        ? "No API key"
+                        : `${enabled ? "Enabled" : "Disconnected"} • ${selectedCount}/${totalAvailable || selectedCount} models`;
+                    statusEl.className = `text-[10px] key-status-${p.id} ${enabled ? "text-[var(--ide-success)]" : "text-[var(--ide-text-muted)]"} font-bold`;
                 }
+                if (toggleBtn) {
+                    toggleBtn.textContent = enabled ? "Disconnect" : "Connect";
+                    toggleBtn.disabled = !hasKey;
+                    toggleBtn.classList.toggle("opacity-40", !hasKey);
+                    toggleBtn.classList.toggle("cursor-not-allowed", !hasKey);
+                }
+                if (deleteBtn) deleteBtn.classList.toggle("hidden", !hasKey);
+                if (configBtn) configBtn.classList.toggle("hidden", !hasKey && totalAvailable === 0);
             });
         } catch (e) {
             console.warn("Failed to check keys status:", e);
