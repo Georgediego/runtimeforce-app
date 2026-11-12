@@ -46,10 +46,10 @@ import { eventBus } from "../core/event_bus.js";
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
 
     // ---- Scene constants -------------------------------------------------
-    const FOV = 38, CAM_Z = 4.85, RADIUS = 1.48;
+    const FOV = 42, CAM_Z = 4.25, RADIUS = 1.48;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
     const EDGE_IDLE_ALPHA = 0.18;        // visible, but subdued, real graph relationships
-    const HOT = 0x62ff83;
+    const HOT = 0x73f2d0;
 
     // ---- State -----------------------------------------------------------
     let nodes = [];
@@ -107,26 +107,18 @@ import { eventBus } from "../core/event_bus.js";
     // Organic 3D force layout: no core, no radial spokes, no type-based center.
     // Real edges gently pull their endpoints together; repulsion distributes every node.
     function layoutGraph(nodeList, edgeList, cache, radius) {
-        const count = nodeList.length;
-        if (!count) return;
-
-        // Every real entity occupies a point on one spherical shell.
-        // Fibonacci distribution avoids a fake core, spokes, or decorative geometry.
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-        const shellRadius = radius * 0.82;
-        const jitter = radius * 0.012;
-        nodeList.forEach((node, i) => {
+        // Volumetric field: every point is an actual entity, distributed through depth.
+        // No shell, hub, orbit, synthetic anchor, or generated relationship.
+        const extent = radius * 0.88;
+        nodeList.forEach(node => {
             const id = String(node.id);
-            const y = 1 - 2 * ((i + 0.5) / count);
-            const ring = Math.sqrt(Math.max(0, 1 - y * y));
-            const angle = goldenAngle * i;
-            const depth = (hash01(id, 0x73a91d) - 0.5) * 2 * jitter;
-            const r = shellRadius + depth;
-            cache.set(id, [
-                Math.cos(angle) * ring * r,
-                y * r,
-                Math.sin(angle) * ring * r
-            ]);
+            const x = hash01(id, 0x193a) * 2 - 1;
+            const y = hash01(id, 0x72b1) * 2 - 1;
+            const z = hash01(id, 0x4ce7) * 2 - 1;
+            const length = Math.sqrt(x * x + y * y + z * z) || 1;
+            const density = 0.28 + 0.72 * Math.cbrt(hash01(id, 0x8f31));
+            const scale = extent * density / Math.max(1, length);
+            cache.set(id, [x * scale, y * scale, z * scale]);
         });
     }
     // LAYOUT-END
