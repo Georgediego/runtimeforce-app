@@ -55,7 +55,7 @@ import { eventBus } from "../core/event_bus.js";
 
     const setStatus = value => { if (statusEl) statusEl.textContent = value; };
 
-     // ---- Stable clustered layout (pure functions) ------------------------
+    // ---- Distributed graph layout ---------------------------------------
     // LAYOUT-BEGIN
     function hash01(value, salt) {
         let h = (2166136261 ^ salt) >>> 0;
@@ -76,21 +76,7 @@ import { eventBus } from "../core/event_bus.js";
         return [Math.cos(theta) * ring, y, Math.sin(theta) * ring];
     }
 
-    const KNOWN_ANCHORS = {
-        project: [0, 1, 0.1], conversation: [-0.9, 0.2, 0.4], memoryquery: [0.85, -0.15, 0.5],
-        decision: [0.1, -0.95, -0.3], file: [0.65, 0.5, -0.7], code: [0.65, 0.5, -0.7],
-        symbol: [-0.55, -0.6, -0.65], memory: [-0.2, 0.15, 0.95]
-    };
-
-    function typeAnchor(type, radius) {
-        const key = String(type || "memory").toLowerCase();
-        const raw = KNOWN_ANCHORS[key] || unitVector(key, 0x51ed27);
-        const len = Math.hypot(raw[0], raw[1], raw[2]) || 1;
-        return raw.map(v => (v / len) * radius * 0.55);
-    }
-
-    // Organic clustered layout: related entity types form loose neighborhoods.
-    // Each entity keeps a stable position; no radial spokes or spherical shell.
+    // Distributed 3D layout: node positions are derived from real graph relationships.
     // Organic 3D force layout: no core, no radial spokes, no type-based center.
     // Real edges gently pull their endpoints together; repulsion distributes every node.
     function layoutGraph(nodeList, edgeList, cache, radius) {
