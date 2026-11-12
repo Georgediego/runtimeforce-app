@@ -741,16 +741,9 @@ import { eventBus } from "../core/event_bus.js";
             const outNodes = [];
             const outEdges = [];
             Object.entries(payload.models || {}).forEach(([provider, models]) => {
-                const providerId = "provider:" + provider;
-                outNodes.push({ id: providerId, label: provider, type: "provider", source: "models" });
                 (Array.isArray(models) ? models : []).forEach(model => {
                     const modelId = "model:" + provider + ":" + String(model.id || model.name);
                     outNodes.push({ id: modelId, label: String(model.name || model.id), type: "model", source: "models" });
-                    outEdges.push({
-                        id: "model-edge:" + provider + "->" + modelId,
-                        source: providerId, target: modelId, relation: "provides model", weight: 1,
-                        sourceType: "models"
-                    });
                 });
             });
             modelsLoadedAt = Date.now();
@@ -906,9 +899,6 @@ import { eventBus } from "../core/event_bus.js";
             );
             if (modelNode) {
                 activeIds.add(String(modelNode.id));
-                const providerName = String(modelNode.id).split(":")[1];
-                const providerId = "provider:" + providerName;
-                if (nodes.some(node => String(node.id) === providerId)) activeIds.add(providerId);
             }
         }
     }
