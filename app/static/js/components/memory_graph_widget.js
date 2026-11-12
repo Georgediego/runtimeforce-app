@@ -556,10 +556,10 @@ import { eventBus } from "../core/event_bus.js";
 
         rememberActiveNodes(); // Include events received before an async graph refresh completed.
         applyActive();
-        if (countEl) countEl.textContent = count + " NODES";
-        if (edgeCountEl) edgeCountEl.textContent = edges.length + " EDGES";
-        const activeText = processActive && activeIds.size ? " · " + activeIds.size + " ACTIVE" : "";
-        setStatus("RUNTIME GRAPH · " + count + " OBJECTS · " + edges.length + " LINKS" + activeText);
+        if (countEl) countEl.textContent = count + " ENTITIES";
+        if (edgeCountEl) edgeCountEl.textContent = edges.length;
+        if (memoryCountEl && !memoryCountEl.textContent) memoryCountEl.textContent = "0";
+        setStatus("CONNECTED");
     }
 
     function clearPersistentHighlights() {
