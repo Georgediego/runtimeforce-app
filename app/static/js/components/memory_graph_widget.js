@@ -972,7 +972,6 @@ import { eventBus } from "../core/event_bus.js";
         graphGroup.rotation.y += rotationSpeed * delta;
         graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
 
-        nodeMaterial.uniforms.uTime.value = pulseClock;
         edgeMaterial.uniforms.uTime.value = pulseClock;
         if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
         if (edgeLines) easeBuffer(edgeLines.geometry.attributes.aAct, edgeTarget, 1 - Math.exp(-delta / 220), 2);
