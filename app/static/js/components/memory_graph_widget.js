@@ -93,14 +93,23 @@ import { eventBus } from "../core/event_bus.js";
         return raw.map(v => (v / len) * radius * 0.55);
     }
 
-    // Real graph objects occupy a stable 3D volume, not a spherical surface.
-    // This creates depth and avoids the appearance of a globe or latitude bands.
+    // Organic clustered layout: related entity types form loose neighborhoods.
+    // Each entity keeps a stable position; no radial spokes or spherical shell.
     function layoutGraph(nodeList, edgeList, cache, radius) {
-        const ordered = nodeList.map(node => String(node.id)).sort((a, b) => a.localeCompare(b));
-        ordered.forEach(id => {
-            const direction = unitVector(id, 0x73a91d);
-            const radial = radius * (0.18 + Math.cbrt(hash01(id, 0x4c2b17)) * 0.76);
-            cache.set(id, direction.map(value => value * radial));
+        const spread = radius * 0.34;
+        nodeList.forEach(node => {
+            const id = String(node.id);
+            if (cache.has(id)) return;
+            const type = String(node.type || "memory").toLowerCase();
+            const anchor = typeAnchor(type, radius * 0.58);
+            const jitter = unitVector(id, 0x73a91d);
+            const depth = (hash01(id, 0x4c2b17) - 0.5) * radius * 0.52;
+            const local = [
+                jitter[0] * spread * (0.35 + hash01(id, 11) * 0.65),
+                jitter[1] * spread * (0.35 + hash01(id, 23) * 0.65),
+                jitter[2] * spread * (0.35 + hash01(id, 37) * 0.65) + depth
+            ];
+            cache.set(id, anchor.map((value, axis) => THREE.MathUtils.clamp(value + local[axis], -radius * 0.94, radius * 0.94)));
         });
     }
     // LAYOUT-END
@@ -261,11 +270,10 @@ import { eventBus } from "../core/event_bus.js";
                     vec2 p = (gl_PointCoord - 0.5) * 2.0;
                     float d = length(p);
                     if (d > 1.0) discard;
-                    float glow = exp(-d * d * 5.0);
-                    float star = exp(-abs(p.x) * 14.0) * exp(-abs(p.y) * 3.0)
-                               + exp(-abs(p.y) * 14.0) * exp(-abs(p.x) * 3.0);
-                    float a = clamp(glow * 0.34 + star * 0.12, 0.0, 0.45) * vActive;
-                    gl_FragColor = vec4(mix(vColor, vec3(1.0), glow * 0.35), a);
+                    float glow = exp(-d * d * 4.2);
+                    float core = 1.0 - smoothstep(0.0, 0.42, d);
+                    float a = glow * 0.22 * vActive;
+                    gl_FragColor = vec4(mix(vColor, vec3(1.0), core * 0.22), a);
                 }`
         });
     }
@@ -976,11 +984,14 @@ import { eventBus } from "../core/event_bus.js";
         lastFrame = now;
         pulseClock += delta;
 
-        // Rotation is unconditional: it never depends on AI activity.
-        const targetRotationSpeed = processActive ? ACTIVE_ROTATION_SPEED : IDLE_ROTATION_SPEED;
-        rotationSpeed += (targetRotationSpeed - rotationSpeed) * (1 - Math.exp(-delta / 650));
-        graphGroup.rotation.y += rotationSpeed * delta;
-        graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
+        // No spinning hedgehog: the entity field stays composed and breathes subtly.
+        // Small camera drift creates depth without rotating the whole graph.
+        const drift = processActive ? 0.018 : 0.008;
+        camera.position.x = Math.sin(pulseClock * 0.00016) * drift;
+        camera.position.y = Math.cos(pulseClock * 0.00013) * drift * 0.55;
+        camera.lookAt(0, 0, 0);
+        const breathe = 1 + Math.sin(pulseClock * 0.0007) * (processActive ? 0.004 : 0.002);
+        graphGroup.scale.setScalar(breathe);
 
         edgeMaterial.uniforms.uTime.value = pulseClock;
         if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
