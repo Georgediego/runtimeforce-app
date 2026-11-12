@@ -99,29 +99,18 @@ import { eventBus } from "../core/event_bus.js";
     // (workspace files, models, roles) from occupying separate latitude bands.
     // Every real object receives a stable, evenly distributed position on the sphere.
     function layoutGraph(nodeList, edgeList, cache, radius) {
+        // Stable pseudo-random spherical placement: every object keeps its own
+        // position, but the globe avoids rigid latitude bands and visible rows.
         const ordered = nodeList
             .map(node => String(node.id))
-            .sort((a, b) => {
-                const ha = hash01(a, 0x6d2b79f5);
-                const hb = hash01(b, 0x6d2b79f5);
-                return ha - hb || a.localeCompare(b);
-            });
-        const total = ordered.length;
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-        ordered.forEach((id, i) => {
-            const y = total <= 1 ? 0 : 1 - 2 * (i + 0.5) / total;
-            const ring = Math.sqrt(Math.max(0, 1 - y * y));
-            const theta = goldenAngle * i;
-            // Deterministic angular jitter breaks rigid Fibonacci rows while
-            // keeping every real object on the same spherical surface.
-            const x = Math.cos(theta) * ring + (hash01(id, 0x31a7) - 0.5) * 0.20;
-            const yy = y + (hash01(id, 0x52c9) - 0.5) * 0.20;
-            const z = Math.sin(theta) * ring + (hash01(id, 0x74eb) - 0.5) * 0.20;
-            const length = Math.hypot(x, yy, z) || 1;
-            cache.set(id, [x / length * radius, yy / length * radius, z / length * radius]);
+            .sort((a, b) => a.localeCompare(b));
+        ordered.forEach(id => {
+            const direction = unitVector(id, 0x73a91d);
+            const radialJitter = 0.975 + hash01(id, 0x4c2b17) * 0.05;
+            cache.set(id, direction.map(value => value * radius * radialJitter));
         });
     }
-        // LAYOUT-END
+    // LAYOUT-END
 
     // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
@@ -141,7 +130,7 @@ import { eventBus } from "../core/event_bus.js";
     const ICON_INDEX = {
         model: 0, provider: 0, file: 1, code: 1, memory: 2, memoryquery: 2,
         project: 3, workspace: 3, directory: 3, conversation: 4, decision: 5,
-        symbol: 6, role: 7, tool: 8, mode: 9
+        symbol: 6, role: 7, tool: 8, mode: 9, summary: 10
     };
 
     function createIconAtlas() {
@@ -149,7 +138,7 @@ import { eventBus } from "../core/event_bus.js";
         const canvas = document.createElement("canvas");
         canvas.width = canvas.height = cell * columns;
         const ctx = canvas.getContext("2d");
-        const types = ["model", "file", "memory", "project", "conversation", "decision", "symbol", "role", "tool", "mode"];
+        const types = ["model", "file", "memory", "project", "conversation", "decision", "symbol", "role", "tool", "mode", "summary"];
         types.forEach((type, index) => {
             const x = (index % columns) * cell, y = Math.floor(index / columns) * cell;
             ctx.save();
@@ -193,6 +182,9 @@ import { eventBus } from "../core/event_bus.js";
                 ctx.beginPath(); ctx.moveTo(10, 16); ctx.lineTo(14, 20); ctx.lineTo(22, 11); ctx.stroke();
             } else if (type === "symbol") {
                 ctx.font = "bold 23px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("{ }", 16, 16);
+            } else if (type === "summary") {
+                ctx.beginPath(); ctx.moveTo(8, 6); ctx.lineTo(24, 6); ctx.lineTo(24, 26); ctx.lineTo(8, 26); ctx.closePath(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(12, 12); ctx.lineTo(20, 12); ctx.moveTo(12, 17); ctx.lineTo(20, 17); ctx.moveTo(12, 22); ctx.lineTo(18, 22); ctx.stroke();
             } else if (type === "role") {
                 ctx.beginPath(); ctx.arc(16, 11, 4, 0, Math.PI * 2); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(7, 26); ctx.bezierCurveTo(7, 17, 25, 17, 25, 26); ctx.stroke();
@@ -235,7 +227,7 @@ import { eventBus } from "../core/event_bus.js";
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(8.0, aSize * (1.0 + aActive * 0.12) * uScale / -mv.z);
+                    gl_PointSize = max(11.0, aSize * (1.0 + aActive * 0.12) * uScale / -mv.z);
                     vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
                 }`,
             fragmentShader: `
@@ -328,10 +320,10 @@ import { eventBus } from "../core/event_bus.js";
     const labelStyle = document.createElement("style");
     labelStyle.textContent =
         ".rf-memory-label{position:absolute;left:0;top:0;white-space:nowrap;font:600 8px 'JetBrains Mono',monospace;" +
-        "padding:1px 5px;border-radius:3px;color:#e9e4ff;background:rgba(10,8,22,.72);border:1px solid rgba(160,140,255,.25);" +
+        "padding:1px 5px;border-radius:3px;color:#d8ffe9;background:rgba(7,30,21,.88);border:1px solid rgba(93,235,171,.30);" +
         "transition:opacity .15s;will-change:transform}" +
-        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff;background:#ff3fa4;border-color:#ff8fcb;" +
-        "box-shadow:0 0 12px rgba(255,63,164,.65)}";
+        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#f1fff7;background:rgba(18,105,69,.96);border-color:#68f0b7;" +
+        "box-shadow:0 0 12px rgba(72,220,150,.48)}";
     document.head.appendChild(labelStyle);
     const labelPool = [];
     const labelVec = new THREE.Vector3();
@@ -488,7 +480,7 @@ import { eventBus } from "../core/event_bus.js";
                 positions.set(pos, i * 3);
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
-                sizes[i] = 0.13 + 0.055 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                sizes[i] = 0.27 + 0.075 * Math.min(1, Math.log1p(deg) / Math.log(14));
                 icons[i] = ICON_INDEX[String(node.type || "").toLowerCase()] ?? ICON_INDEX.symbol;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
@@ -1052,8 +1044,13 @@ import { eventBus } from "../core/event_bus.js";
     });
 
     eventBus.on("session:deleted", () => {
-        // Refresh SQLite-backed nodes immediately after the server removes a chat's memory.
-        loadGraph(lastProject);
+        // A deleted chat must leave no visual activity residue in the runtime graph.
+        activeIds.clear();
+        everActiveIds.clear();
+        activeEdgeIds.clear();
+        if (!generationActive) processActive = false;
+        graphSignature = "";
+        loadGraph(lastProject, true);
     });
 
     eventBus.on("generation:state", state => {
