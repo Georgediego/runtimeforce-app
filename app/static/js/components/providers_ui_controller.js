@@ -255,8 +255,8 @@ export const providersUIController = {
                         <div class="flex items-center justify-between">
                             <div>
                                 <div class="font-bold text-xs text-[var(--ide-text-primary)] uppercase">${pName}</div>
-                                <div class="text-[10px] text-[var(--ide-success)] font-mono font-bold">
-                                    Connected • ${selectedCount}/${totalCount} models selected
+                                <div class="text-[10px] ${selectedCount ? "text-[var(--ide-success)]" : "text-[var(--ide-text-muted)]"} font-mono font-bold">
+                                    ${selectedCount ? "Enabled" : "Disconnected"} • ${selectedCount}/${totalCount} models selected
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
