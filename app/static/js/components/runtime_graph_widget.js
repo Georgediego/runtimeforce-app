@@ -199,7 +199,9 @@ import { eventBus } from "../core/event_bus.js";
             S.state = String(ev.label || "PROCESSING").toUpperCase();
             if (ev.role) {
                 const id = "role:" + ev.role.toLowerCase();
-                if (S.nodes.has(id)) { S.current.role = ev.role; S.activeNodes.add(id); }
+                if (!S.nodes.has(id)) addNode(id, "role", ev.role, "role observed in runtime event");
+                S.current.role = ev.role;
+                S.activeNodes.add(id);
             }
             addEvent(ev.label || "Agent phase", ev.role || "");
         } else if (ev.status === "model_try") {
@@ -218,6 +220,12 @@ import { eventBus } from "../core/event_bus.js";
         } else if (ev.status === "tool_start") {
             const id = "tool:" + ev.tool_name;
             if (!S.nodes.has(id)) addNode(id, "tool", ev.tool_name, "observed runtime tool");
+            if (ev.role) {
+                const roleId = "role:" + ev.role.toLowerCase();
+                if (!S.nodes.has(roleId)) addNode(roleId, "role", ev.role, "role observed in runtime event");
+                S.current.role = ev.role;
+                S.activeNodes.add(roleId);
+            }
             const role = S.current.role ? "role:" + S.current.role.toLowerCase() : "";
             runtimeEdge(role, id, "runtime:role-tool:" + ev.tool_name);
             S.current.tool = ev.tool_name; S.activeNodes.add(id); S.state = "TOOL";
@@ -381,8 +389,11 @@ import { eventBus } from "../core/event_bus.js";
         else if (!state?.active && S.run) finishRun("aborted");
     });
     eventBus.on("agent:graph_event", onGraphEvent);
-    eventBus.on("project.activated", () => {
-        S.project=projectId(); S.run=false; S.current={}; S.activeNodes.clear(); S.activeEdges.clear(); S.events=[];
+    eventBus.on("project.activated", project => {
+        const nextProjectId = typeof project === "string" ? project : (project && project.id) || "";
+        if (nextProjectId) localStorage.setItem("rf_active_project_id", nextProjectId);
+        else localStorage.removeItem("rf_active_project_id");
+        S.project=nextProjectId; S.run=false; S.current={}; S.activeNodes.clear(); S.activeEdges.clear(); S.events=[];
         S.memory={nodes:[],edges:[],totalNodes:0,totalEdges:0}; S.workspace=[]; S.selected={}; S.registry={roles:[],tools:[]};
         refreshAll(); renderLog(); renderReadout();
     });
