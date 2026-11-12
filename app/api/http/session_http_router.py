@@ -105,7 +105,12 @@ async def create_session(
     project_service: ProjectService = Depends(get_project_service)
 ):
     session_id = payload.id or str(uuid.uuid4())
-    project_id = _get_active_project_id(user_id, project_service)
+    project_id = (payload.project_id or _get_active_project_id(user_id, project_service)).strip()
+    if not project_id:
+        raise HTTPException(status_code=400, detail="Select a project before creating a chat.")
+    project = project_service.get_project_details(project_id, user_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
     repo.create_session(session_id, payload.title, user_id, project_id=project_id)
     return {
         "status": "success",
