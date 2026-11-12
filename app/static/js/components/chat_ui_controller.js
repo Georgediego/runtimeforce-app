@@ -561,7 +561,6 @@ export const chatUIController = {
                 localStorage.setItem(`rf_last_session_${activeProjectId}`, currentSessionId);
                 terminalUIController.setSession(currentSessionId);
                 eventBus.emit("session:selected", currentSessionId);
-                await this.loadSessionsList();
             } catch (error) {
                 showToast("Could not create chat. Message was not sent: " + (error.message || error), "error", 7000);
                 return;
