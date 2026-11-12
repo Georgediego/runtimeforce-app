@@ -617,8 +617,8 @@ import { eventBus } from "../core/event_bus.js";
         outNodes.push({ id: rootId, label: tree.name || "Workspace", type: "workspace", source: "workspace" });
         const queue = [{ item: tree, parentId: rootId, depth: 0 }];
         const seen = new Set([String(tree.path)]);
-        const maxNodes = 320;
-        const maxDepth = 4;
+        const maxNodes = 800;
+        const maxDepth = 6;
 
         while (queue.length && outNodes.length < maxNodes) {
             const current = queue.shift();
