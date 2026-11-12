@@ -557,9 +557,13 @@ import { eventBus } from "../core/event_bus.js";
         nodeTarget.fill(0);
         edgeTarget.fill(0);
         if (processActive) {
-            activeIds.forEach(id => {
-                const i = indexById.get(id);
-                if (i !== undefined) nodeTarget[i] = 1;
+            // Active edge IDs always resolve to real edges; keep both endpoint
+            // objects visibly engaged so no highlighted line appears detached.
+            activeEdgeIds.forEach(edgeId => {
+                const edge = edges.find(item => String(item.id) === edgeId);
+                if (!edge) return;
+                activeIds.add(String(edge.source));
+                activeIds.add(String(edge.target));
             });
             // Persist every real relationship reached through an active object.
             edges.forEach(edge => {
@@ -570,9 +574,26 @@ import { eventBus } from "../core/event_bus.js";
                 }
             });
         }
-        // Completed real relationships remain highlighted until the next run starts.
-        activeEdgeIds.forEach(id => {
-            const k = edgeIndexById.get(id);
+
+        // Keep both endpoints marked even after the run ends; edges and their
+        // endpoint icons remain visible until a new process starts.
+        activeEdgeIds.forEach(edgeId => {
+            const edge = edges.find(item => String(item.id) === edgeId);
+            if (edge) {
+                [String(edge.source), String(edge.target)].forEach(nodeId => {
+                    everActiveIds.add(nodeId);
+                    const i = indexById.get(nodeId);
+                    if (i !== undefined) {
+                        nodeTarget[i] = processActive ? 1 : 0;
+                        const marked = nodePoints?.geometry.attributes.aMarked;
+                        if (marked && marked.array[i] !== 1) {
+                            marked.array[i] = 1;
+                            marked.needsUpdate = true;
+                        }
+                    }
+                });
+            }
+            const k = edgeIndexById.get(edgeId);
             if (k !== undefined) edgeTarget[k] = 1;
         });
     }
