@@ -30,7 +30,7 @@ import { eventBus } from "../core/event_bus.js";
     const IDLE_ROTATION_SPEED = 0.00010;
     const ACTIVE_ROTATION_SPEED = 0.00058;
     let rotationSpeed = IDLE_ROTATION_SPEED;
-    const HOT = 0xff3fa4;
+    const HOT = 0x8dff4f;
 
     // ---- State -----------------------------------------------------------
     let nodes = [];
@@ -146,10 +146,10 @@ import { eventBus } from "../core/event_bus.js";
     // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
     const PALETTE = {
-        project: 0xbfe9ff, conversation: 0x8f6bff, memoryquery: 0x9b94c9, decision: 0xf0bd55,
-        file: 0x4fe0c0, code: 0x4fe0c0, symbol: 0x6aa8ff, memory: 0x9a74ff,
+        project: 0xbfe9ff, conversation: 0x55f2a0, memoryquery: 0x9cff57, decision: 0xf0bd55,
+        file: 0x4fe0c0, code: 0x4fe0c0, symbol: 0x6aa8ff, memory: 0x72ff8a,
         workspace: 0x73d9ff, directory: 0x36c9a8, provider: 0xffc36b, model: 0xff9a56,
-        role: 0xf47fb2, tool: 0xd78cff, mode: 0x9bafff
+        role: 0x8dff5a, tool: 0x48f5a6, mode: 0x9bffbd
     };
     // Inactive objects follow the IDE's green accent; active objects are highlighted HOT by the shader.
     const INACTIVE_NODE_COLOR = 0x42d99a;
@@ -390,9 +390,9 @@ import { eventBus } from "../core/event_bus.js";
     const labelStyle = document.createElement("style");
     labelStyle.textContent =
         ".rf-memory-label{position:absolute;left:0;top:0;white-space:nowrap;font:600 8px 'JetBrains Mono',monospace;" +
-        "padding:1px 5px;border-radius:3px;color:#e9e4ff;background:rgba(10,8,22,.72);border:1px solid rgba(160,140,255,.25);" +
+        "padding:1px 5px;border-radius:3px;color:#e6fff0;background:rgba(7,18,13,.78);border:1px solid rgba(110,255,150,.28);" +
         "transition:opacity .15s;will-change:transform}" +
-        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff;background:#ff3fa4;border-color:#ff8fcb;" +
+        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff;background:#78ed43;border-color:#c1ff9b;" +
         "box-shadow:0 0 12px rgba(255,63,164,.65)}";
     document.head.appendChild(labelStyle);
     const labelPool = [];
