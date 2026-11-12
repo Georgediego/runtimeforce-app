@@ -155,35 +155,115 @@ import { eventBus } from "../core/event_bus.js";
     const INACTIVE_NODE_COLOR = 0x42d99a;
     const nodeColor = node => rawColor(PALETTE[String(node?.type || "memory").toLowerCase()] || PALETTE.memory);
 
-    // Small type glyphs replace the spherical point markers; graph positions and data stay unchanged.
-    const ICON_GLYPHS = {
-        project: "▰", conversation: "▤", memoryquery: "⌕", decision: "✓",
-        file: "▧", code: "</>", symbol: "{ }", memory: "✳",
-        workspace: "▰", directory: "▱", provider: "◉", model: "⬡",
-        role: "♙", tool: "⚒", mode: "☷"
-    };
-    const ICON_TYPES = Object.keys(ICON_GLYPHS);
+    // Hand-drawn vector-style icons: no font glyphs or placeholder symbols.
+    const ICON_TYPES = [
+        "project", "conversation", "memoryquery", "decision", "file", "code", "symbol",
+        "memory", "workspace", "directory", "provider", "model", "role", "tool", "mode"
+    ];
     const ICON_INDEX = Object.fromEntries(ICON_TYPES.map((type, index) => [type, index]));
+
+    function drawNodeIcon(ctx, type, cx, cy) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.strokeStyle = "#ffffff";
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.lineWidth = 3.2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        const path = (points, close = false) => {
+            ctx.beginPath();
+            points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+            if (close) ctx.closePath();
+            ctx.stroke();
+        };
+        const circle = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); };
+        const rect = (x, y, w, h, r = 4) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.stroke(); };
+        switch (type) {
+            case "project": // folder with tab
+                path([[-19,-10],[-7,-10],[-2,-15],[18,-15],[18,15],[-19,15],[-19,-10]], true);
+                path([[-18,-5],[18,-5]]);
+                break;
+            case "conversation": // message bubble
+                path([[-17,-13],[17,-13],[17,9],[-2,9],[-12,17],[-10,9],[-17,9],[-17,-13]], true);
+                [-6, 1, 8].forEach(x => circle(x, -2, 1.1));
+                break;
+            case "memoryquery": // magnifier
+                circle(-4, -4, 11); path([[4,4],[17,17]]);
+                break;
+            case "decision": // branching decision
+                path([[-13,-15],[0,-15],[0,0],[13,0],[13,15]], false);
+                path([[0,0],[-13,0],[-13,15]], false);
+                circle(0,-15,3); circle(13,15,3); circle(-13,15,3);
+                break;
+            case "file": // document
+                path([[-12,-18],[5,-18],[15,-8],[15,18],[-12,18],[-12,-18]], true);
+                path([[5,-18],[5,-8],[15,-8]]);
+                path([[-6,1],[9,1]]); path([[-6,9],[9,9]]);
+                break;
+            case "code": // code brackets and slash
+                path([[-7,-13],[-17,0],[-7,13]]);
+                path([[7,-13],[17,0],[7,13]]);
+                path([[4,-17],[-4,17]]);
+                break;
+            case "symbol": // connected graph nodes
+                path([[-12,-10],[12,-10],[0,13],[-12,-10]]);
+                circle(-12,-10,4); circle(12,-10,4); circle(0,13,4);
+                break;
+            case "memory": // database stack
+                ctx.beginPath(); ctx.ellipse(0,-12,15,6,0,0,Math.PI*2); ctx.stroke();
+                path([[-15,-12],[-15,12]]); path([[15,-12],[15,12]]);
+                ctx.beginPath(); ctx.ellipse(0,12,15,6,0,0,Math.PI); ctx.stroke();
+                ctx.beginPath(); ctx.ellipse(0,0,15,6,0,0,Math.PI); ctx.stroke();
+                break;
+            case "workspace": // monitor
+                rect(-18,-14,36,25,4); path([[0,11],[0,18]]); path([[-9,18],[9,18]]);
+                break;
+            case "directory": // open folder
+                path([[-19,-9],[-6,-9],[0,-3],[19,-3],[15,15],[-17,15],[-19,-9]], true);
+                path([[-17,-3],[17,-3]]);
+                break;
+            case "provider": // cloud
+                ctx.beginPath(); ctx.arc(-8,2,8,Math.PI*0.7,Math.PI*1.8);
+                ctx.arc(1,-6,10,Math.PI*1.0,Math.PI*1.95);
+                ctx.arc(11,2,8,Math.PI*1.25,Math.PI*0.3);
+                ctx.lineTo(-8,10); ctx.stroke();
+                break;
+            case "model": // processor chip
+                rect(-12,-12,24,24,4); rect(-5,-5,10,10,2);
+                for (let n=-8;n<=8;n+=8) {
+                    path([[n,-18],[n,-12]]); path([[n,12],[n,18]]);
+                    path([[-18,n],[-12,n]]); path([[12,n],[18,n]]);
+                }
+                break;
+            case "role": // user silhouette
+                circle(0,-8,7);
+                ctx.beginPath(); ctx.arc(0,15,14,Math.PI,0); ctx.stroke();
+                break;
+            case "tool": // wrench
+                path([[-13,14],[3,-2]]);
+                ctx.beginPath(); ctx.arc(8,-8,10,-0.8,1.1); ctx.stroke();
+                circle(-13,14,4);
+                break;
+            case "mode": // adjustment sliders
+                path([[-15,-12],[15,-12]]); path([[-15,0],[15,0]]); path([[-15,12],[15,12]]);
+                circle(-5,-12,4); circle(8,0,4); circle(-9,12,4);
+                break;
+        }
+        ctx.restore();
+    }
+
     function createIconAtlas() {
-        const cell = 48, columns = 4;
-        const canvas = document.createElement("canvas");
-        canvas.width = cell * columns;
-        canvas.height = cell * Math.ceil(ICON_TYPES.length / columns);
-        const ctx = canvas.getContext("2d");
+        const cell = 64, columns = 4;
+        const atlas = document.createElement("canvas");
+        atlas.width = cell * columns;
+        atlas.height = cell * Math.ceil(ICON_TYPES.length / columns);
+        const ctx = atlas.getContext("2d");
         ICON_TYPES.forEach((type, index) => {
-            const x = (index % columns) * cell;
-            const y = Math.floor(index / columns) * cell;
-            ctx.save();
-            ctx.fillStyle = "#ffffff";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.font = type === "code" || type === "symbol"
-                ? "bold 19px 'JetBrains Mono', monospace"
-                : "bold 29px 'Arial Unicode MS', sans-serif";
-            ctx.fillText(ICON_GLYPHS[type], x + cell / 2, y + cell / 2 + 1);
-            ctx.restore();
+            const x = (index % columns) * cell + cell / 2;
+            const y = Math.floor(index / columns) * cell + cell / 2;
+            drawNodeIcon(ctx, type, x, y);
         });
-        const texture = new THREE.CanvasTexture(canvas);
+        const texture = new THREE.CanvasTexture(atlas);
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.magFilter = THREE.LinearFilter;
         texture.minFilter = THREE.LinearFilter;
