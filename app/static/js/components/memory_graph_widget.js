@@ -47,7 +47,7 @@ import { eventBus } from "../core/event_bus.js";
     let processActive = false, runStartedAt = 0;
     let pointerDown = false, pointerX = 0;
 
-    let nodePoints = null, glowPoints = null, edgeLines = null;
+    let nodePoints = null, glowPoints = null, edgeLines = null, coreLines = null;
     let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
     let positionById = new Map();      // id -> [x, y, z]
     let indexById = new Map();         // node id -> buffer index
@@ -456,10 +456,11 @@ import { eventBus } from "../core/event_bus.js";
     }
 
     function disposeLayers() {
-        [nodePoints, glowPoints, edgeLines].forEach(object => { if (object) graphGroup.remove(object); });
+        [nodePoints, glowPoints, edgeLines, coreLines].forEach(object => { if (object) graphGroup.remove(object); });
         nodePoints?.geometry.dispose();          // glowPoints shares this geometry
         edgeLines?.geometry.dispose();
-        nodePoints = glowPoints = edgeLines = null;
+        coreLines?.geometry.dispose();
+        nodePoints = glowPoints = edgeLines = coreLines = null;
     }
 
     function resetScene() {
@@ -471,6 +472,53 @@ import { eventBus } from "../core/event_bus.js";
         nodeTarget = new Float32Array(0);
         edgeTarget = new Float32Array(0);
         hubIndexes = [];
+    }
+
+    // Draw explicit activity spokes from the central AI model to active runtime objects.
+    // These are activity paths, separate from the stored graph relationships.
+    function updateCoreLinks() {
+        if (coreLines) {
+            graphGroup.remove(coreLines);
+            coreLines.geometry.dispose();
+            coreLines = null;
+        }
+        if (!processActive || !positionById.size) return;
+
+        const active = [...activeIds]
+            .map(id => ({ id, pos: positionById.get(id) }))
+            .filter(item => item.pos);
+        if (!active.length) return;
+
+        const positions = new Float32Array(active.length * 6);
+        const colors = new Float32Array(active.length * 6);
+        const along = new Float32Array(active.length * 2);
+        const act = new Float32Array(active.length * 2);
+        const originColor = rawColor(0x9bffd5);
+
+        active.forEach((item, index) => {
+            const offset = index * 6;
+            const node = nodes[indexById.get(item.id)];
+            const targetColor = nodeColor(node);
+            positions.set([0, 0, 0, ...item.pos], offset);
+            colors.set([
+                originColor.r, originColor.g, originColor.b,
+                targetColor.r, targetColor.g, targetColor.b
+            ], offset);
+            along[index * 2] = 0;
+            along[index * 2 + 1] = 1;
+            act[index * 2] = 1;
+            act[index * 2 + 1] = 1;
+        });
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute("aAlong", new THREE.BufferAttribute(along, 1));
+        geometry.setAttribute("aAct", new THREE.BufferAttribute(act, 1));
+        coreLines = new THREE.LineSegments(geometry, edgeMaterial);
+        coreLines.frustumCulled = false;
+        coreLines.renderOrder = 1;
+        graphGroup.add(coreLines);
     }
 
     // ---- Graph build -----------------------------------------------------
@@ -622,6 +670,10 @@ import { eventBus } from "../core/event_bus.js";
                 activeIds.add(String(edge.target));
             });
         }
+
+        // The central model is the visual source of all live activity paths.
+        updateCoreLinks();
+        if (edgeLines) edgeLines.visible = !processActive;
 
         // Keep only explicitly active nodes and explicitly reported real edges.
         // Endpoints of an active edge are always included to prevent detached lines.
@@ -1065,6 +1117,8 @@ import { eventBus } from "../core/event_bus.js";
         });
 
         edgeMaterial.uniforms.uTime.value = pulseClock;
+        if (edgeLines) edgeLines.visible = !processActive;
+        if (coreLines) coreLines.visible = processActive;
         if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
         if (edgeLines) easeBuffer(edgeLines.geometry.attributes.aAct, edgeTarget, 1 - Math.exp(-delta / 220), 2);
 
