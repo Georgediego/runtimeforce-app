@@ -9,6 +9,28 @@ import { eventBus } from "../core/event_bus.js";
     const statusEl = document.getElementById("rf-memory-widget-status");
     const countEl = document.getElementById("rf-memory-widget-count");
     const edgeCountEl = document.getElementById("rf-memory-widget-edges");
+    const memoryCountEl = document.getElementById("rf-memory-widget-memory");
+    const activityEl = document.getElementById("rf-memory-activity");
+    function recordActivity(label, detail = "") {
+        if (!activityEl || !label) return;
+        const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        const row = document.createElement("div");
+        row.className = "rf-graph-event";
+        const dot = document.createElement("span");
+        dot.className = "rf-graph-event-dot";
+        const copy = document.createElement("div");
+        copy.className = "rf-graph-event-copy";
+        const title = document.createElement("span");
+        title.className = "rf-graph-event-title";
+        title.textContent = String(label).slice(0, 76);
+        const meta = document.createElement("span");
+        meta.className = "rf-graph-event-meta";
+        meta.textContent = [time, detail].filter(Boolean).join(" · ").slice(0, 90);
+        copy.append(title, meta);
+        row.append(dot, copy);
+        activityEl.prepend(row);
+        while (activityEl.children.length > 3) activityEl.lastElementChild.remove();
+    }
     const toggle = document.getElementById("rf-memory-widget-toggle");
     const collapsedKey = "rf_memory_graph_collapsed";
 
@@ -782,7 +804,9 @@ import { eventBus } from "../core/event_bus.js";
             }
 
             const memoryCount = memoryNodes.length;
-            setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS · " + memoryCount + " MEMORY");
+            if (memoryCountEl) memoryCountEl.textContent = memoryCount;
+            setStatus("CONNECTED");
+
         } catch (error) {
             if (version !== requestVersion) return;
             setStatus("Runtime graph unavailable · " + String(error.message || error).slice(0, 64));
@@ -872,6 +896,12 @@ import { eventBus } from "../core/event_bus.js";
 
     function handleMemoryEvent(detail) {
         if (!detail) return;
+        if (detail.phase === "started") recordActivity("Memory operation started", detail.mode || detail.strategy || "orchestrator");
+        else if (detail.phase === "activity" && detail.event) {
+            const item = detail.event;
+            recordActivity(item.label || item.tool_name || item.tool || item.model || "Runtime activity", item.phase || item.status || item.role || "");
+        } else if (detail.phase === "completed") recordActivity("Memory operation completed", detail.model || detail.role || "");
+        else if (detail.phase === "failed") recordActivity("Memory operation failed", detail.error || detail.message || "");
         const eventProject = typeof detail.project_id === "string" ? detail.project_id : "";
         if (eventProject) lastProject = eventProject;
 
@@ -1061,6 +1091,7 @@ import { eventBus } from "../core/event_bus.js";
         generationActive = Boolean(state?.active);
         if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
         if (generationActive) {
+            recordActivity("Generation started", document.getElementById("strategy-select")?.value || "orchestrator");
             if (!processActive) clearPersistentHighlights();
             processActive = true;
             const strategy = document.getElementById("strategy-select")?.value || "auto";
@@ -1068,12 +1099,15 @@ import { eventBus } from "../core/event_bus.js";
             setStatus("Assistant generating · runtime graph active");
             applyActive();
         } else {
+            if (processActive) recordActivity("Generation completed", "runtime idle");
             endRun();
         }
     });
 
     eventBus.on("agent:graph_event", event => {
         if (!event || !generationActive) return;
+        recordActivity(event.label || event.tool_name || event.tool || event.model || event.status || "Agent event",
+            [event.role, event.phase].filter(Boolean).join(" / "));
         processActive = true;
         addActive(event);
         const phaseLabel = event.label || event.tool_name || event.model || event.status;
