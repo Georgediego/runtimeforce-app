@@ -552,6 +552,17 @@ import { eventBus } from "../core/event_bus.js";
         setStatus("RUNTIME GRAPH · " + count + " OBJECTS · " + edges.length + " LINKS" + activeText);
     }
 
+    function clearPersistentHighlights() {
+        activeIds.clear();
+        activeEdgeIds.clear();
+        everActiveIds.clear();
+        const marked = nodePoints?.geometry.attributes.aMarked;
+        if (marked) {
+            marked.array.fill(0);
+            marked.needsUpdate = true;
+        }
+    }
+
     // Targets come only from ids reported by the memory pipeline that exist in the loaded SQLite rows.
     function applyActive() {
         nodeTarget.fill(0);
@@ -918,8 +929,7 @@ import { eventBus } from "../core/event_bus.js";
             if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
             processActive = true;
             runStartedAt = performance.now();
-            activeIds.clear();
-            activeEdgeIds.clear();
+            clearPersistentHighlights();
             addContextActive(detail);
             rememberActiveNodes();
             applyActive();
@@ -1078,10 +1088,7 @@ import { eventBus } from "../core/event_bus.js";
         generationActive = Boolean(state?.active);
         if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
         if (generationActive) {
-            if (!processActive) {
-                activeIds.clear();
-                activeEdgeIds.clear();
-            }
+            if (!processActive) clearPersistentHighlights();
             processActive = true;
             const strategy = document.getElementById("strategy-select")?.value || "auto";
             addActive({ mode: strategy });
