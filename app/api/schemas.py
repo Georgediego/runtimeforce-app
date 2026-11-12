@@ -31,6 +31,7 @@ class SessionCreatePayload(BaseModel):
     """Request body for creating a new chat session."""
     title: str
     id: Optional[str] = None
+    project_id: Optional[str] = None
 
 
 class WorkspaceCreatePayload(BaseModel):
