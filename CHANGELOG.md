@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.17] - 2026-11-13
+
 ### Changed
-- Replace Runtime Graph point markers with object-specific model, file, memory, project, and tool icons; use a less rigid spherical distribution and a cohesive emerald palette.
+- Replace purple and magenta Runtime Graph accents with a cohesive neon emerald and lime palette.
+- Replace placeholder graph markers with distinct hand-drawn vector icons for each object type.
 - Keep real graph relationships highlighted after a run completes until the next run begins.
 - Remove the LIVE MEMORY OPERATIONS overlay so the 3D graph has the full widget area.
 
