@@ -215,11 +215,23 @@ export const projectsUIController = {
     },
 
     async openCreateProjectModal() {
-        const name = await showPrompt("New Project", "Enter project name:", "", "Create", "Cancel");
+        const name = await showPrompt("New Project", "Enter project name:", "", "Next", "Cancel");
         if (!name || !name.trim()) return;
+        const workspacePath = await showPrompt(
+            "Connect Workspace",
+            "Enter the absolute path to the project folder (for example: /home/user/projects/my-app):",
+            "",
+            "Create Project",
+            "Cancel"
+        );
+        if (!workspacePath || !workspacePath.trim()) {
+            showToast("Project creation cancelled: a Workspace is required.", "warning");
+            return;
+        }
         try {
             const res = await projectsApi.create({
                 name: name.trim(),
+                workspace_path: workspacePath.trim(),
                 project_context: "Project architecture and stack guidelines.",
                 rules_of_engagement: "Workflow: Code -> Test -> Changelog -> Release",
                 git_mode: "manual",
@@ -233,7 +245,7 @@ export const projectsUIController = {
             if (res && res.id) {
                 localStorage.setItem("rf_active_project_id", res.id);
                 eventBus.emit("project.activated", res.id);
-                // A new project has no workspace yet. Do not reconnect the previously active Local/SSH workspace.
+                // The project is created with its own required local Workspace path.
             }
             showToast(`Project "${name}" created`, "success");
             this.loadProjectsList();
