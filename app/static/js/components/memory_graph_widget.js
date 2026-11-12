@@ -29,7 +29,7 @@ import { eventBus } from "../core/event_bus.js";
     const IDLE_ROTATION_SPEED = 0.00016;
     const ACTIVE_ROTATION_SPEED = 0.00072;
     let rotationSpeed = IDLE_ROTATION_SPEED;
-    const HOT = 0x68f0b7;
+    const HOT = 0xffc36a;
 
     // ---- State -----------------------------------------------------------
     let nodes = [];
@@ -47,7 +47,7 @@ import { eventBus } from "../core/event_bus.js";
     let processActive = false, runStartedAt = 0;
     let pointerDown = false, pointerX = 0;
 
-    let nodePoints = null, glowPoints = null, edgeLines = null, coreLines = null;
+    let nodePoints = null, glowPoints = null, edgeLines = null;
     let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
     let positionById = new Map();      // id -> [x, y, z]
     let indexById = new Map();         // node id -> buffer index
@@ -108,13 +108,12 @@ import { eventBus } from "../core/event_bus.js";
     // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
     const PALETTE = {
-        project: 0x9fe8c8, conversation: 0x76dcb0, memoryquery: 0x55dca4, decision: 0xb4e7a2,
-        file: 0x8be8c5, code: 0x63d6ae, symbol: 0x7acfb5, memory: 0x42d99a,
-        workspace: 0x9bdcc5, directory: 0x58c9a2, provider: 0x9be6b0, model: 0x4fe0a8,
-        role: 0x76d7a7, tool: 0x3fc99a, mode: 0x9ddbc1
+        project: 0xe5a64b, conversation: 0xd99538, memoryquery: 0xf0b85a, decision: 0xffcf75,
+        file: 0xd99a43, code: 0xf0ad4e, symbol: 0xd9a04b, memory: 0xffbd59,
+        workspace: 0xd9a04b, directory: 0xc78b37, provider: 0xffc56b, model: 0xffd18a,
+        role: 0xe6a84b, tool: 0xffb84d, mode: 0xe5b46c
     };
-    // Inactive objects follow the IDE's green accent; active objects are highlighted HOT by the shader.
-    const INACTIVE_NODE_COLOR = 0x42d99a;
+    const INACTIVE_NODE_COLOR = 0xb98238;
     const nodeColor = node => rawColor(PALETTE[String(node?.type || "memory").toLowerCase()] || PALETTE.memory);
 
     // ---- Shaders ---------------------------------------------------------
@@ -203,41 +202,36 @@ import { eventBus } from "../core/event_bus.js";
     const iconAtlas = createIconAtlas();
 
     function createNodeMaterial() {
-        // Each real graph object is rendered as a small, type-specific icon sprite.
+        // Tiny luminous particles represent actual runtime entities.
         return new THREE.ShaderMaterial({
             transparent: true, depthWrite: false, depthTest: true,
-            uniforms: {
-                uScale: { value: 300 }, uIconAtlas: { value: iconAtlas },
-                uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) }
-            },
+            uniforms: { uScale: { value: 300 } },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aSize, aActive, aMarked, aIcon;
+                attribute float aSize, aActive, aMarked;
                 uniform float uScale;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth, vIcon;
+                varying float vActive, vMarked, vDepth;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(8.0, aSize * (1.0 + aActive * 0.10) * uScale / -mv.z);
-                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
+                    gl_PointSize = max(1.4, aSize * (1.0 + aActive * 0.10) * uScale / -mv.z);
+                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth;
                 }`,
             fragmentShader: `
-                uniform sampler2D uIconAtlas;
-                uniform vec3 uIdleColor;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth, vIcon;
+                varying float vActive, vMarked, vDepth;
                 void main() {
-                    vec2 cell = vec2(mod(vIcon, 4.0), floor(vIcon / 4.0));
-                    vec2 uv = (cell + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y)) / 4.0;
-                    vec4 icon = texture2D(uIconAtlas, uv);
-                    if (icon.a < 0.18) discard;
-                    vec3 base = mix(uIdleColor, vColor, vMarked);
-                    vec3 col = base * (0.92 + 0.08 * vActive);
-                    col *= icon.rgb;
-                    col *= mix(1.0, 0.48, vDepth);
-                    gl_FragColor = vec4(col, icon.a);
+                    vec2 p = gl_PointCoord - 0.5;
+                    float d = length(p);
+                    if (d > 0.5) discard;
+                    float core = 1.0 - smoothstep(0.06, 0.5, d);
+                    float alpha = mix(0.32, 0.68, vMarked);
+                    alpha = mix(alpha, 1.0, vActive);
+                    vec3 col = mix(vColor, vec3(1.0, 0.72, 0.38), vActive * 0.86);
+                    col *= mix(1.0, 0.38, vDepth);
+                    gl_FragColor = vec4(col, core * alpha);
                 }`
         });
     }
@@ -256,7 +250,7 @@ import { eventBus } from "../core/event_bus.js";
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = aSize * (1.35 + aActive * 0.45) * uScale / -mv.z;
+                    gl_PointSize = aSize * (1.6 + aActive * 1.0) * uScale / -mv.z;
                     if (aActive < 0.02) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; }
                     vColor = aColor; vActive = aActive; vMarked = aMarked;
                 }`,
@@ -315,10 +309,10 @@ import { eventBus } from "../core/event_bus.js";
     const labelStyle = document.createElement("style");
     labelStyle.textContent =
         ".rf-memory-label{position:absolute;left:0;top:0;white-space:nowrap;font:600 8px 'JetBrains Mono',monospace;" +
-        "padding:1px 5px;border-radius:3px;color:#d8ffe9;background:rgba(7,30,21,.88);border:1px solid rgba(93,235,171,.30);" +
+        "padding:1px 5px;border-radius:3px;color: #e8c58f;background:rgba(18,12,5,.88);border:1px solid rgba(213,151,63,.28);" +
         "transition:opacity .15s;will-change:transform}" +
-        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#f1fff7;background:rgba(18,105,69,.96);border-color:#68f0b7;" +
-        "box-shadow:0 0 12px rgba(72,220,150,.48)}";
+        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff0d4;background:rgba(92,53,12,.94);border-color:#f2b75d;" +
+        "box-shadow:0 0 12px rgba(235,164,67,.38)}";
     document.head.appendChild(labelStyle);
     const labelPool = [];
     const labelVec = new THREE.Vector3();
@@ -370,54 +364,7 @@ import { eventBus } from "../core/event_bus.js";
         for (let k = used; k < labelPool.length; k++) labelPool[k].style.opacity = "0";
     }
 
-    // ---- AI core and outward activity waves ------------------------------
-    const neuralRings = [];
-    const activityWaves = [];
-    let coreMesh = null;
-
-    function createNeuralSphere() {
-        // A compact nucleus is the only permanent central light source.
-        coreMesh = new THREE.Group();
-        coreMesh.name = "runtime-ai-core";
-
-        const core = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(0.055, 1),
-            new THREE.MeshBasicMaterial({
-                color: 0x9bffd5, wireframe: true, transparent: true,
-                opacity: 0.9, depthWrite: false
-            })
-        );
-        coreMesh.add(core);
-
-        const nucleus = new THREE.Mesh(
-            new THREE.SphereGeometry(0.022, 10, 8),
-            new THREE.MeshBasicMaterial({
-                color: 0xd7ffec, transparent: true, opacity: 0.95,
-                depthWrite: false
-            })
-        );
-        coreMesh.add(nucleus);
-
-        // Expanding translucent wavefronts appear only while the runtime is active.
-        // They represent activity radiating from the AI core; graph links remain real.
-        for (let i = 0; i < 3; i++) {
-            const wave = new THREE.Mesh(
-                new THREE.SphereGeometry(1, 20, 14),
-                new THREE.MeshBasicMaterial({
-                    color: 0x62edb1, transparent: true, opacity: 0,
-                    wireframe: false, side: THREE.BackSide, depthWrite: false,
-                    blending: THREE.AdditiveBlending
-                })
-            );
-            wave.scale.setScalar(0.08);
-            wave.userData.phase = i / 3;
-            wave.userData.maxRadius = RADIUS * 0.96;
-            wave.visible = false;
-            graphGroup.add(wave);
-            activityWaves.push(wave);
-        }
-        graphGroup.add(coreMesh);
-    }
+    // Runtime visualization contains only real graph entities and relationships.
 
     // ---- Three.js setup --------------------------------------------------
     function initThree() {
@@ -432,7 +379,6 @@ import { eventBus } from "../core/event_bus.js";
         camera.position.set(0, 0, CAM_Z);
         graphGroup = new THREE.Group();
         scene.add(graphGroup);
-        createNeuralSphere();
 
         nodeMaterial = createNodeMaterial();
         glowMaterial = createGlowMaterial();
@@ -456,11 +402,10 @@ import { eventBus } from "../core/event_bus.js";
     }
 
     function disposeLayers() {
-        [nodePoints, glowPoints, edgeLines, coreLines].forEach(object => { if (object) graphGroup.remove(object); });
-        nodePoints?.geometry.dispose();          // glowPoints shares this geometry
+        [nodePoints, glowPoints, edgeLines].forEach(object => { if (object) graphGroup.remove(object); });
+        nodePoints?.geometry.dispose();
         edgeLines?.geometry.dispose();
-        coreLines?.geometry.dispose();
-        nodePoints = glowPoints = edgeLines = coreLines = null;
+        nodePoints = glowPoints = edgeLines = null;
     }
 
     function resetScene() {
@@ -472,53 +417,6 @@ import { eventBus } from "../core/event_bus.js";
         nodeTarget = new Float32Array(0);
         edgeTarget = new Float32Array(0);
         hubIndexes = [];
-    }
-
-    // Draw explicit activity spokes from the central AI model to active runtime objects.
-    // These are activity paths, separate from the stored graph relationships.
-    function updateCoreLinks() {
-        if (coreLines) {
-            graphGroup.remove(coreLines);
-            coreLines.geometry.dispose();
-            coreLines = null;
-        }
-        if (!processActive || !positionById.size) return;
-
-        const active = [...activeIds]
-            .map(id => ({ id, pos: positionById.get(id) }))
-            .filter(item => item.pos);
-        if (!active.length) return;
-
-        const positions = new Float32Array(active.length * 6);
-        const colors = new Float32Array(active.length * 6);
-        const along = new Float32Array(active.length * 2);
-        const act = new Float32Array(active.length * 2);
-        const originColor = rawColor(0x9bffd5);
-
-        active.forEach((item, index) => {
-            const offset = index * 6;
-            const node = nodes[indexById.get(item.id)];
-            const targetColor = nodeColor(node);
-            positions.set([0, 0, 0, ...item.pos], offset);
-            colors.set([
-                originColor.r, originColor.g, originColor.b,
-                targetColor.r, targetColor.g, targetColor.b
-            ], offset);
-            along[index * 2] = 0;
-            along[index * 2 + 1] = 1;
-            act[index * 2] = 1;
-            act[index * 2 + 1] = 1;
-        });
-
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
-        geometry.setAttribute("aAlong", new THREE.BufferAttribute(along, 1));
-        geometry.setAttribute("aAct", new THREE.BufferAttribute(act, 1));
-        coreLines = new THREE.LineSegments(geometry, edgeMaterial);
-        coreLines.frustumCulled = false;
-        coreLines.renderOrder = 1;
-        graphGroup.add(coreLines);
     }
 
     // ---- Graph build -----------------------------------------------------
@@ -660,24 +558,25 @@ import { eventBus } from "../core/event_bus.js";
     function applyActive() {
         nodeTarget.fill(0);
         edgeTarget.fill(0);
+        const activeSet = new Set(activeIds);
+
         if (processActive) {
-            // Active edge IDs always resolve to real edges; keep both endpoint
-            // objects visibly engaged so no highlighted line appears detached.
             activeEdgeIds.forEach(edgeId => {
                 const edge = edges.find(item => String(item.id) === edgeId);
                 if (!edge) return;
-                activeIds.add(String(edge.source));
-                activeIds.add(String(edge.target));
+                activeSet.add(String(edge.source));
+                activeSet.add(String(edge.target));
+            });
+            // Only stored relationships are illuminated; no synthetic spokes are created.
+            edges.forEach(edge => {
+                if (activeSet.has(String(edge.source)) && activeSet.has(String(edge.target))) {
+                    activeEdgeIds.add(String(edge.id));
+                }
             });
         }
 
-        // The central model is the visual source of all live activity paths.
-        updateCoreLinks();
-        if (edgeLines) edgeLines.visible = !processActive;
-
-        // Keep only explicitly active nodes and explicitly reported real edges.
-        // Endpoints of an active edge are always included to prevent detached lines.
-        activeIds.forEach(nodeId => {
+        if (edgeLines) edgeLines.visible = true;
+        activeSet.forEach(nodeId => {
             const i = indexById.get(nodeId);
             if (i === undefined) return;
             everActiveIds.add(nodeId);
@@ -689,23 +588,8 @@ import { eventBus } from "../core/event_bus.js";
             }
         });
         activeEdgeIds.forEach(edgeId => {
-            const edge = edges.find(item => String(item.id) === edgeId);
-            if (edge) {
-                [String(edge.source), String(edge.target)].forEach(nodeId => {
-                    everActiveIds.add(nodeId);
-                    const i = indexById.get(nodeId);
-                    if (i !== undefined) {
-                        nodeTarget[i] = processActive ? 1 : 0;
-                        const marked = nodePoints?.geometry.attributes.aMarked;
-                        if (marked && marked.array[i] !== 1) {
-                            marked.array[i] = 1;
-                            marked.needsUpdate = true;
-                        }
-                    }
-                });
-            }
             const k = edgeIndexById.get(edgeId);
-            if (k !== undefined) edgeTarget[k] = 1;
+            if (k !== undefined) edgeTarget[k] = processActive ? 1 : 0;
         });
     }
 
@@ -1098,27 +982,7 @@ import { eventBus } from "../core/event_bus.js";
         graphGroup.rotation.y += rotationSpeed * delta;
         graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
 
-        if (coreMesh) {
-            const beat = processActive ? 1 + Math.sin(pulseClock * 0.012) * 0.12 : 1 + Math.sin(pulseClock * 0.002) * 0.035;
-            coreMesh.scale.setScalar(beat);
-            coreMesh.rotation.y += delta * (processActive ? 0.0018 : 0.00045);
-            coreMesh.rotation.x += delta * 0.00022;
-        }
-        activityWaves.forEach(wave => {
-            if (!processActive) {
-                wave.visible = false;
-                return;
-            }
-            wave.visible = true;
-            const phase = (wave.userData.phase + (pulseClock * 0.00042)) % 1;
-            const radius = 0.08 + phase * wave.userData.maxRadius;
-            wave.scale.setScalar(radius);
-            wave.material.opacity = (1 - phase) * 0.12;
-        });
-
         edgeMaterial.uniforms.uTime.value = pulseClock;
-        if (edgeLines) edgeLines.visible = !processActive;
-        if (coreLines) coreLines.visible = processActive;
         if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
         if (edgeLines) easeBuffer(edgeLines.geometry.attributes.aAct, edgeTarget, 1 - Math.exp(-delta / 220), 2);
 
