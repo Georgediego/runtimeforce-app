@@ -74,8 +74,9 @@ async def create_project(
     if max_projects <= 0:
         raise HTTPException(403, detail="Project creation is not enabled for this plan")
     res = service.create_project(user_id, payload.dict(), plan=entitlements.get("plan", "free"), max_projects=max_projects)
-    if "error" in res and res.get("status") == "limit_reached":
-        raise HTTPException(403, detail=res["error"])
+    if "error" in res:
+        status_code = 403 if res.get("status") == "limit_reached" else 500
+        raise HTTPException(status_code, detail=res["error"])
     return res
 
 @router.get("/{project_id}")
