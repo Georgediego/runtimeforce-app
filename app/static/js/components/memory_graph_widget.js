@@ -26,9 +26,6 @@ import { eventBus } from "../core/event_bus.js";
     const FOV = 38, CAM_Z = 4.85, RADIUS = 1.48;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
     const EDGE_IDLE_ALPHA = 0.075;       // faint real links keep the entity field readable at rest
-    const IDLE_ROTATION_SPEED = 0.00016;
-    const ACTIVE_ROTATION_SPEED = 0.00072;
-    let rotationSpeed = IDLE_ROTATION_SPEED;
     const HOT = 0xffc36a;
 
     // ---- State -----------------------------------------------------------
@@ -246,7 +243,7 @@ import { eventBus } from "../core/event_bus.js";
     }
 
     function createGlowMaterial() {
-        // Bloom + star rays, drawn only for nodes with aActive > 0.
+        // Soft local bloom, drawn only for nodes with aActive > 0.
         return new THREE.ShaderMaterial({
             transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
             uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) } },
@@ -352,7 +349,7 @@ import { eventBus } from "../core/event_bus.js";
             const pos = positionById.get(String(node.id));
             if (!node || !pos) return;
             labelVec.set(pos[0], pos[1], pos[2]).applyMatrix4(graphGroup.matrixWorld);
-            if (labelVec.z < -0.15 * RADIUS) return;                       // far half of the sphere
+            if (labelVec.z < -0.15 * RADIUS) return;                       // avoid labels behind the camera
             labelVec.project(camera);
             const x = (labelVec.x * 0.5 + 0.5) * w, y = (-labelVec.y * 0.5 + 0.5) * h;
             if (x < 0 || y < 0 || x > w || y > h) return;
