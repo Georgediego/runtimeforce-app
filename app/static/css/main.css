@@ -1935,9 +1935,19 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-memory-sphere{display:block;width:100%;height:clamp(94px,13vh,145px);min-height:94px;flex:0 0 auto}
 .rf-memory-widget-stats{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
 #rf-memory-widget-status{font:8px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-memory-activity-heading{font:700 8px 'Inter',sans-serif;letter-spacing:.08em;color:var(--ide-text-muted);padding-top:4px;border-top:1px solid rgba(120,180,160,.12)}
+.rf-memory-activity{display:flex;flex-direction:column;gap:3px;min-height:0;overflow:hidden}
+.rf-memory-activity-row{display:flex;align-items:center;gap:6px;min-width:0;min-height:17px;color:var(--ide-text-secondary)}
+.rf-memory-activity-pulse{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#47dcb5;box-shadow:0 0 7px rgba(7,247,122,.65)}
+.rf-memory-activity-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:1px}
+.rf-memory-activity-copy b{font:600 8px 'Inter',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-memory-activity-copy small{font:7px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-memory-activity-row time{font:7px 'JetBrains Mono',monospace;color:var(--ide-text-muted);white-space:nowrap}
+.rf-memory-activity-empty{font:8px 'JetBrains Mono',monospace;color:var(--ide-accent);padding:4px 0}
 @media(max-height:760px){
     #rf-memory-widget.rf-memory-widget{min-height:234px;flex-basis:40.8%;padding:8px 10px 6px}
     #rf-memory-sphere{height:94px;min-height:94px}
+    .rf-memory-activity-row{min-height:17px}
 }
 @media(max-width:900px){#rf-memory-widget.rf-memory-widget{min-height:170px}}
 
@@ -1989,13 +1999,25 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
     align-self:stretch;
 }
 #rf-memory-widget .rf-memory-widget-stats,
+#rf-memory-widget .rf-memory-activity-heading{flex:0 0 auto}
+#rf-memory-activity{
+    flex:0 1 76px;
+    min-height:22px;
+    max-height:76px;
+    overflow-y:auto;
+    overflow-x:hidden;
+    scrollbar-width:thin;
+}
+#rf-memory-activity .rf-memory-activity-row{min-height:17px}
 @media(max-height:760px){
     #rf-memory-widget.rf-memory-widget{flex-basis:41%;min-height:190px;max-height:48%;padding:7px 9px 6px}
     #rf-memory-sphere{min-height:92px!important;flex-basis:100px!important}
+    #rf-memory-activity{flex-basis:55px;max-height:55px}
 }
 @media(max-height:620px){
     #rf-memory-widget.rf-memory-widget{min-height:168px}
     #rf-memory-sphere{min-height:78px!important;flex-basis:82px!important}
+    #rf-memory-activity{flex-basis:38px;max-height:38px}
 }
 
 
@@ -2015,7 +2037,8 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-memory-widget-body{position:relative;display:block!important;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important}
 #rf-memory-sphere{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;max-height:none!important;flex:none!important;z-index:0}
 #rf-memory-widget .rf-memory-widget-stats{position:absolute;left:8px;right:8px;top:4px;z-index:4;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.9)}
-
-/* Runtime Graph: emerald icon labels and highlights. */
-.rf-memory-label{color:#d8ffe9!important;background:rgba(7,30,21,.86)!important;border-color:rgba(93,235,171,.30)!important}
-.rf-memory-label.hot{color:#f1fff7!important;background:rgba(18,105,69,.94)!important;border-color:#68f0b7!important;box-shadow:0 0 12px rgba(72,220,150,.48)!important}
+#rf-memory-widget .rf-memory-activity-heading{position:absolute;left:8px;bottom:82px;z-index:4;padding:2px 5px;border-radius:4px;background:rgba(5,12,20,.48);pointer-events:none}
+#rf-memory-activity{position:absolute;left:7px;right:7px;bottom:5px;z-index:4;flex:none!important;width:auto;max-height:72px!important;min-height:0!important;padding:3px 5px;border:1px solid rgba(130,155,190,.12);border-radius:6px;background:rgba(5,12,20,.42);backdrop-filter:blur(3px);overflow-y:auto}
+#rf-memory-activity .rf-memory-activity-row{background:transparent}
+@media(max-height:760px){#rf-memory-activity{max-height:52px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:60px}}
+@media(max-height:620px){#rf-memory-activity{max-height:36px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:44px}}
