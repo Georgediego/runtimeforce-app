@@ -569,19 +569,18 @@ import { eventBus } from "../core/event_bus.js";
                 const i = indexById.get(id);
                 if (i !== undefined) nodeTarget[i] = 1;
             });
+            // Persist every real relationship reached through an active object.
+            edges.forEach(edge => {
+                const source = String(edge.source);
+                const target = String(edge.target);
+                if (activeIds.has(source) || activeIds.has(target)) {
+                    activeEdgeIds.add(String(edge.id));
+                }
+            });
         }
         // Completed real relationships remain highlighted until the next run starts.
         activeEdgeIds.forEach(id => {
             const k = edgeIndexById.get(id);
-            if (k !== undefined) edgeTarget[k] = 1;
-        });
-        if (!processActive) return;
-        // Only real stored/configured relationships touching an active object are added.
-        edges.forEach(edge => {
-            const source = String(edge.source);
-            const target = String(edge.target);
-            if (!activeIds.has(source) && !activeIds.has(target)) return;
-            const k = edgeIndexById.get(String(edge.id));
             if (k !== undefined) edgeTarget[k] = 1;
         });
     }
