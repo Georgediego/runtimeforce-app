@@ -9,7 +9,6 @@ import { eventBus } from "../core/event_bus.js";
     const statusEl = document.getElementById("rf-memory-widget-status");
     const countEl = document.getElementById("rf-memory-widget-count");
     const edgeCountEl = document.getElementById("rf-memory-widget-edges");
-    const feedEl = document.getElementById("rf-memory-activity");
     const toggle = document.getElementById("rf-memory-widget-toggle");
     const collapsedKey = "rf_memory_graph_collapsed";
 
@@ -24,13 +23,13 @@ import { eventBus } from "../core/event_bus.js";
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
 
     // ---- Scene constants -------------------------------------------------
-    const FOV = 38, CAM_Z = 4.85, RADIUS = 1.42;
+    const FOV = 38, CAM_Z = 4.85, RADIUS = 1.48;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
     const EDGE_IDLE_ALPHA = 0;           // real edges are visible only during actual memory activity
     const IDLE_ROTATION_SPEED = 0.00010;
     const ACTIVE_ROTATION_SPEED = 0.00058;
     let rotationSpeed = IDLE_ROTATION_SPEED;
-    const HOT = 0xff3fa4;
+    const HOT = 0x68f0b7;
 
     // ---- State -----------------------------------------------------------
     let nodes = [];
@@ -60,28 +59,7 @@ import { eventBus } from "../core/event_bus.js";
 
     const setStatus = value => { if (statusEl) statusEl.textContent = value; };
 
-    function activity(item) {
-        if (!feedEl) return;
-        feedEl.querySelector(".rf-memory-activity-empty")?.remove();
-        const row = document.createElement("div");
-        row.className = "rf-memory-activity-row";
-        const dot = document.createElement("span");
-        dot.className = "rf-memory-activity-pulse";
-        const copy = document.createElement("div");
-        copy.className = "rf-memory-activity-copy";
-        const label = document.createElement("b");
-        label.textContent = String(item.label || item.operation || "Memory operation");
-        const detail = document.createElement("small");
-        detail.textContent = String(item.detail || "");
-        copy.append(label, detail);
-        const time = document.createElement("time");
-        time.textContent = Number.isFinite(Number(item.duration_ms)) ? Math.round(Number(item.duration_ms)) + " ms" : "";
-        row.append(dot, copy, time);
-        feedEl.prepend(row);
-        while (feedEl.children.length > 5) feedEl.lastElementChild.remove();
-    }
-
-    // ---- Stable clustered layout (pure functions) ------------------------
+     // ---- Stable clustered layout (pure functions) ------------------------
     // LAYOUT-BEGIN
     function hash01(value, salt) {
         let h = (2166136261 ^ salt) >>> 0;
@@ -134,11 +112,13 @@ import { eventBus } from "../core/event_bus.js";
             const y = total <= 1 ? 0 : 1 - 2 * (i + 0.5) / total;
             const ring = Math.sqrt(Math.max(0, 1 - y * y));
             const theta = goldenAngle * i;
-            cache.set(id, [
-                Math.cos(theta) * ring * radius,
-                y * radius,
-                Math.sin(theta) * ring * radius
-            ]);
+            // Deterministic angular jitter breaks rigid Fibonacci rows while
+            // keeping every real object on the same spherical surface.
+            const x = Math.cos(theta) * ring + (hash01(id, 0x31a7) - 0.5) * 0.20;
+            const yy = y + (hash01(id, 0x52c9) - 0.5) * 0.20;
+            const z = Math.sin(theta) * ring + (hash01(id, 0x74eb) - 0.5) * 0.20;
+            const length = Math.hypot(x, yy, z) || 1;
+            cache.set(id, [x / length * radius, yy / length * radius, z / length * radius]);
         });
     }
         // LAYOUT-END
@@ -146,10 +126,10 @@ import { eventBus } from "../core/event_bus.js";
     // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
     const PALETTE = {
-        project: 0xbfe9ff, conversation: 0x8f6bff, memoryquery: 0x9b94c9, decision: 0xf0bd55,
-        file: 0x4fe0c0, code: 0x4fe0c0, symbol: 0x6aa8ff, memory: 0x9a74ff,
-        workspace: 0x73d9ff, directory: 0x36c9a8, provider: 0xffc36b, model: 0xff9a56,
-        role: 0xf47fb2, tool: 0xd78cff, mode: 0x9bafff
+        project: 0x9fe8c8, conversation: 0x76dcb0, memoryquery: 0x55dca4, decision: 0xb4e7a2,
+        file: 0x8be8c5, code: 0x63d6ae, symbol: 0x7acfb5, memory: 0x42d99a,
+        workspace: 0x9bdcc5, directory: 0x58c9a2, provider: 0x9be6b0, model: 0x4fe0a8,
+        role: 0x76d7a7, tool: 0x3fc99a, mode: 0x9ddbc1
     };
     // Inactive objects follow the IDE's green accent; active objects are highlighted HOT by the shader.
     const INACTIVE_NODE_COLOR = 0x42d99a;
@@ -158,45 +138,121 @@ import { eventBus } from "../core/event_bus.js";
     // ---- Shaders ---------------------------------------------------------
     const DEPTH_GLSL = "float depth = clamp((-mv.z - 4.0) / 3.6, 0.0, 1.0);";
 
+    const ICON_INDEX = {
+        model: 0, provider: 0, file: 1, code: 1, memory: 2, memoryquery: 2,
+        project: 3, workspace: 3, directory: 3, conversation: 4, decision: 5,
+        symbol: 6, role: 7, tool: 8, mode: 9
+    };
+
+    function createIconAtlas() {
+        const cell = 32, columns = 4;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = cell * columns;
+        const ctx = canvas.getContext("2d");
+        const types = ["model", "file", "memory", "project", "conversation", "decision", "symbol", "role", "tool", "mode"];
+        types.forEach((type, index) => {
+            const x = (index % columns) * cell, y = Math.floor(index / columns) * cell;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.strokeStyle = "#ffffff";
+            ctx.fillStyle = "#ffffff";
+            ctx.lineWidth = 2.3;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            if (type === "model") {
+                ctx.strokeRect(9, 9, 14, 14);
+                for (let k = 0; k < 4; k++) {
+                    const q = 11 + k * 3.4;
+                    ctx.beginPath(); ctx.moveTo(q, 5); ctx.lineTo(q, 9); ctx.moveTo(q, 23); ctx.lineTo(q, 27);
+                    ctx.moveTo(5, q); ctx.lineTo(9, q); ctx.moveTo(23, q); ctx.lineTo(27, q); ctx.stroke();
+                }
+                ctx.strokeRect(13, 13, 6, 6);
+            } else if (type === "file") {
+                ctx.beginPath(); ctx.moveTo(9, 5); ctx.lineTo(19, 5); ctx.lineTo(24, 10); ctx.lineTo(24, 27);
+                ctx.lineTo(9, 27); ctx.closePath(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(19, 5); ctx.lineTo(19, 10); ctx.lineTo(24, 10);
+                ctx.moveTo(12, 16); ctx.lineTo(21, 16); ctx.moveTo(12, 21); ctx.lineTo(21, 21); ctx.stroke();
+            } else if (type === "memory") {
+                ctx.beginPath(); ctx.moveTo(16, 26);
+                ctx.bezierCurveTo(12, 29, 8, 25, 9, 21); ctx.bezierCurveTo(5, 18, 7, 12, 11, 11);
+                ctx.bezierCurveTo(11, 6, 16, 5, 18, 9); ctx.bezierCurveTo(23, 6, 27, 11, 25, 15);
+                ctx.bezierCurveTo(29, 19, 26, 25, 22, 25); ctx.bezierCurveTo(20, 28, 17, 27, 16, 26); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(16, 9); ctx.lineTo(16, 26); ctx.moveTo(11, 14); ctx.lineTo(14, 16);
+                ctx.moveTo(21, 13); ctx.lineTo(18, 16); ctx.moveTo(11, 21); ctx.lineTo(14, 20);
+                ctx.moveTo(21, 20); ctx.lineTo(18, 22); ctx.stroke();
+            } else if (type === "project") {
+                ctx.beginPath(); ctx.moveTo(5, 11); ctx.lineTo(13, 11); ctx.lineTo(16, 14); ctx.lineTo(27, 14);
+                ctx.lineTo(25, 26); ctx.lineTo(6, 26); ctx.closePath(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(5, 11); ctx.lineTo(7, 7); ctx.lineTo(15, 7); ctx.lineTo(18, 11); ctx.stroke();
+            } else if (type === "conversation") {
+                ctx.beginPath(); ctx.moveTo(7, 8); ctx.lineTo(25, 8); ctx.lineTo(25, 21); ctx.lineTo(16, 21);
+                ctx.lineTo(10, 26); ctx.lineTo(10, 21); ctx.lineTo(7, 21); ctx.closePath(); ctx.stroke();
+                [12, 16, 20].forEach(q => { ctx.beginPath(); ctx.arc(q, 14.5, 0.8, 0, Math.PI * 2); ctx.fill(); });
+            } else if (type === "decision") {
+                ctx.beginPath(); ctx.arc(16, 16, 10, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(10, 16); ctx.lineTo(14, 20); ctx.lineTo(22, 11); ctx.stroke();
+            } else if (type === "symbol") {
+                ctx.font = "bold 23px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("{ }", 16, 16);
+            } else if (type === "role") {
+                ctx.beginPath(); ctx.arc(16, 11, 4, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(7, 26); ctx.bezierCurveTo(7, 17, 25, 17, 25, 26); ctx.stroke();
+            } else if (type === "tool") {
+                ctx.beginPath(); ctx.arc(10, 10, 4, 0, Math.PI * 2); ctx.moveTo(13, 13); ctx.lineTo(24, 24);
+                ctx.moveTo(19, 23); ctx.lineTo(23, 19); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(7, 7); ctx.lineTo(11, 11); ctx.stroke();
+            } else if (type === "mode") {
+                [10, 16, 22].forEach((q, i) => {
+                    ctx.beginPath(); ctx.moveTo(6, q); ctx.lineTo(26, q); ctx.stroke();
+                    ctx.beginPath(); ctx.arc([12, 21, 15][i], q, 2, 0, Math.PI * 2); ctx.fill();
+                });
+            }
+            ctx.restore();
+        });
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+        return texture;
+    }
+    const iconAtlas = createIconAtlas();
+
     function createNodeMaterial() {
-        // Point-sprite impostor: each point is shaded as a lit 3D ball.
+        // Each real graph object is rendered as a small, type-specific icon sprite.
         return new THREE.ShaderMaterial({
-            transparent: true, depthWrite: true, depthTest: true,
-            uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) }, uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) } },
+            transparent: true, depthWrite: false, depthTest: true,
+            uniforms: {
+                uScale: { value: 300 }, uIconAtlas: { value: iconAtlas },
+                uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) }
+            },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aSize, aActive, aMarked;
-                uniform float uScale, uTime;
+                attribute float aSize, aActive, aMarked, aIcon;
+                uniform float uScale;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth;
+                varying float vActive, vMarked, vDepth, vIcon;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
-                    float pulse = 1.0 + aActive * 0.18 * sin(uTime * 0.009 + position.x * 5.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(3.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z);
-                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth;
+                    gl_PointSize = max(8.0, aSize * (1.0 + aActive * 0.12) * uScale / -mv.z);
+                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
                 }`,
             fragmentShader: `
-                uniform vec3 uHot, uIdleColor;
+                uniform sampler2D uIconAtlas;
+                uniform vec3 uIdleColor;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth;
+                varying float vActive, vMarked, vDepth, vIcon;
                 void main() {
-                    vec2 p = (gl_PointCoord - 0.5) * 2.0;
-                    p.y = -p.y;
-                    float r2 = dot(p, p);
-                    if (r2 > 1.0) discard;
-                    vec3 n = vec3(p, sqrt(1.0 - r2));
-                    vec3 L = normalize(vec3(-0.45, 0.55, 0.7));
-                    float diff = max(dot(n, L), 0.0);
-                    float rim = pow(1.0 - n.z, 2.5);
-                    float spec = pow(max(dot(n, normalize(L + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
+                    vec2 cell = vec2(mod(vIcon, 4.0), floor(vIcon / 4.0));
+                    vec2 uv = (cell + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y)) / 4.0;
+                    vec4 icon = texture2D(uIconAtlas, uv);
+                    if (icon.a < 0.18) discard;
                     vec3 base = mix(uIdleColor, vColor, vMarked);
-                    vec3 col = base * (0.30 + 0.85 * diff) + base * rim * 0.35;
-                    col += vec3(1.0) * spec * (0.55 + 0.4 * vActive);
-                    col += vColor * vActive * 0.18;
-                    col *= mix(1.0, 0.42, vDepth);
-                    gl_FragColor = vec4(col, 1.0);
+                    vec3 col = base * (0.72 + 0.28 * vActive);
+                    col *= icon.rgb;
+                    col *= mix(1.0, 0.48, vDepth);
+                    gl_FragColor = vec4(col, icon.a);
                 }`
         });
     }
@@ -419,6 +475,7 @@ import { eventBus } from "../core/event_bus.js";
             const sizes = new Float32Array(count);
             const active = new Float32Array(count);
             const marked = new Float32Array(count);
+            const icons = new Float32Array(count);
             const colorById = new Map();
             nodes.forEach((node, i) => {
                 const id = String(node.id);
@@ -427,7 +484,8 @@ import { eventBus } from "../core/event_bus.js";
                 positions.set(pos, i * 3);
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
-                sizes[i] = 0.075 + 0.085 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                sizes[i] = 0.13 + 0.055 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                icons[i] = ICON_INDEX[String(node.type || "").toLowerCase()] ?? 15;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
                 positionById.set(id, pos);
@@ -440,6 +498,7 @@ import { eventBus } from "../core/event_bus.js";
             geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
             geometry.setAttribute("aActive", new THREE.BufferAttribute(active, 1));
             geometry.setAttribute("aMarked", new THREE.BufferAttribute(marked, 1));
+            geometry.setAttribute("aIcon", new THREE.BufferAttribute(icons, 1));
 
             // Real SQLite edges only: both endpoints must exist in the loaded node set.
             const rows = edges.filter(edge => positionById.has(String(edge.source)) && positionById.has(String(edge.target)));
@@ -501,18 +560,19 @@ import { eventBus } from "../core/event_bus.js";
     function applyActive() {
         nodeTarget.fill(0);
         edgeTarget.fill(0);
-        if (!processActive) return;
-        activeIds.forEach(id => {
-            const i = indexById.get(id);
-            if (i !== undefined) nodeTarget[i] = 1;
-        });
+        if (processActive) {
+            activeIds.forEach(id => {
+                const i = indexById.get(id);
+                if (i !== undefined) nodeTarget[i] = 1;
+            });
+        }
+        // Completed real relationships remain highlighted until the next run starts.
         activeEdgeIds.forEach(id => {
             const k = edgeIndexById.get(id);
             if (k !== undefined) edgeTarget[k] = 1;
         });
-        // Real relationships connected to an active object light up during its operation.
-        // Illuminate only real stored/configured relationships that touch an active object.
-        // This keeps the network meaningful: no synthetic all-to-all links are drawn.
+        if (!processActive) return;
+        // Only real stored/configured relationships touching an active object are added.
         edges.forEach(edge => {
             const source = String(edge.source);
             const target = String(edge.target);
@@ -772,8 +832,7 @@ import { eventBus } from "../core/event_bus.js";
         if (generationActive) return;
         processActive = false;
         activeIds.clear();
-        activeEdgeIds.clear();
-        applyActive();     // targets fall to 0 -> smooth fade; every node and edge stays on screen
+        applyActive();     // keep the completed run's real relationships highlighted
         if (nodes.length) setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
     }
 
@@ -849,7 +908,6 @@ import { eventBus } from "../core/event_bus.js";
             rememberActiveNodes();
             applyActive();
             setStatus("Runtime operation running · tracing active graph objects");
-            activity({ label: "Memory query started", detail: (detail.mode || "AUTO") + " · " + (detail.model || "orchestrator") });
             loadGraph(eventProject || lastProject);
             return;
         }
@@ -859,10 +917,6 @@ import { eventBus } from "../core/event_bus.js";
             if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
             processActive = true;
             addActive(item);
-            activity({
-                label: (item.phase === "started" ? "Running · " : "Completed · ") + (item.label || item.operation || "Memory operation"),
-                detail: item.detail || "", duration_ms: item.duration_ms
-            });
             if (hasUnknown()) loadGraph(lastProject);   // buildGraph() re-applies the active state after loading
             else applyActive();
             return;
@@ -871,7 +925,6 @@ import { eventBus } from "../core/event_bus.js";
         if (detail.phase === "completed") {
             processActive = true;
             addActive(detail);
-            activity({ label: "Memory context ready", detail: "SQLite graph updated" });
             if (hasUnknown()) loadGraph(eventProject || lastProject);
             else applyActive();
             // Keep the graph alive for the full assistant generation, not just the memory event.
@@ -887,7 +940,6 @@ import { eventBus } from "../core/event_bus.js";
             if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
             endRun();
             setStatus("Memory query failed");
-            activity({ label: "Memory query failed", detail: detail.error || "See Agent Trace" });
         }
     }
 
@@ -1001,6 +1053,10 @@ import { eventBus } from "../core/event_bus.js";
         generationActive = Boolean(state?.active);
         if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
         if (generationActive) {
+            if (!processActive) {
+                activeIds.clear();
+                activeEdgeIds.clear();
+            }
             processActive = true;
             const strategy = document.getElementById("strategy-select")?.value || "auto";
             addActive({ mode: strategy });
@@ -1051,6 +1107,7 @@ import { eventBus } from "../core/event_bus.js";
         nodeMaterial?.dispose();
         glowMaterial?.dispose();
         edgeMaterial?.dispose();
+        iconAtlas?.dispose();
         labelLayer.remove();
         renderer?.dispose();
     }, { once: true });
