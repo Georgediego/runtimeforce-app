@@ -54,10 +54,6 @@ async def create_project(
     service: ProjectService = Depends(get_project_service),
     license_service: LicenseService = Depends(get_license_service),
 ):
-    workspace_path = (payload.workspace_path or "").strip()
-    ssh_host = (payload.ssh_host or "").strip()
-    if not workspace_path and not ssh_host:
-        raise HTTPException(400, detail="A Workspace is required. Provide a local workspace path or an SSH host.")
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
     entitlements = await license_service.get_entitlements(token)
     if not entitlements.get("valid"):
