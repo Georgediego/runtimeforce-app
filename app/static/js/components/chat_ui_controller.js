@@ -393,6 +393,7 @@ export const chatUIController = {
                     const confirmed = await showConfirm("Delete Session", "Delete this chat?", "Delete", "Cancel");
                     if (confirmed) {
                         await sessionsApi.delete(btn.dataset.id);
+                        eventBus.emit("session:deleted", { session_id: btn.dataset.id });
                         showToast("Session deleted", "info");
                         if (currentSessionId === btn.dataset.id) this.newChat();
                         else this.loadSessionsList();
