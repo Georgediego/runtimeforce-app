@@ -454,7 +454,11 @@ import { eventBus } from "../core/event_bus.js";
 
         // Drop cached positions of nodes that no longer exist.
         const present = new Set(nodes.map(node => String(node.id)));
+        const presentEdges = new Set(edges.map(edge => String(edge.id)));
         [...layoutCache.keys()].forEach(id => { if (!present.has(id)) layoutCache.delete(id); });
+        [...everActiveIds].forEach(id => { if (!present.has(id)) everActiveIds.delete(id); });
+        [...activeIds].forEach(id => { if (!present.has(id)) activeIds.delete(id); });
+        [...activeEdgeIds].forEach(id => { if (!presentEdges.has(id)) activeEdgeIds.delete(id); });
         layoutGraph(nodes, edges, layoutCache, RADIUS);
 
         positionById = new Map();
@@ -485,7 +489,7 @@ import { eventBus } from "../core/event_bus.js";
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
                 sizes[i] = 0.13 + 0.055 * Math.min(1, Math.log1p(deg) / Math.log(14));
-                icons[i] = ICON_INDEX[String(node.type || "").toLowerCase()] ?? 15;
+                icons[i] = ICON_INDEX[String(node.type || "").toLowerCase()] ?? ICON_INDEX.symbol;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
                 positionById.set(id, pos);
@@ -1046,6 +1050,11 @@ import { eventBus } from "../core/event_bus.js";
 
     window.addEventListener("rf:memory-graph", event => {
         if (event.detail?.status === "memory_graph") handleMemoryEvent(event.detail);
+    });
+
+    eventBus.on("session:deleted", () => {
+        // Refresh SQLite-backed nodes immediately after the server removes a chat's memory.
+        loadGraph(lastProject);
     });
 
     eventBus.on("generation:state", state => {
