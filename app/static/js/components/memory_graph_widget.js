@@ -227,7 +227,7 @@ import { eventBus } from "../core/event_bus.js";
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(15.0, aSize * (1.0 + aActive * 0.62 + aMarked * 0.28) * uScale / -mv.z);
+                    gl_PointSize = max(8.0, aSize * (1.0 + aActive * 0.10) * uScale / -mv.z);
                     vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
                 }`,
             fragmentShader: `
@@ -241,7 +241,7 @@ import { eventBus } from "../core/event_bus.js";
                     vec4 icon = texture2D(uIconAtlas, uv);
                     if (icon.a < 0.18) discard;
                     vec3 base = mix(uIdleColor, vColor, vMarked);
-                    vec3 col = base * (0.72 + 0.28 * vActive);
+                    vec3 col = base * (0.92 + 0.08 * vActive);
                     col *= icon.rgb;
                     col *= mix(1.0, 0.48, vDepth);
                     gl_FragColor = vec4(col, icon.a);
@@ -263,8 +263,8 @@ import { eventBus } from "../core/event_bus.js";
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = aSize * (2.4 + aActive * 4.8 + aMarked * 0.65) * uScale / -mv.z;
-                    if (aActive < 0.02 && aMarked < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; }
+                    gl_PointSize = aSize * (1.35 + aActive * 0.45) * uScale / -mv.z;
+                    if (aActive < 0.02) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; }
                     vColor = aColor; vActive = aActive; vMarked = aMarked;
                 }`,
             fragmentShader: `
@@ -277,7 +277,7 @@ import { eventBus } from "../core/event_bus.js";
                     float glow = exp(-d * d * 5.0);
                     float star = exp(-abs(p.x) * 14.0) * exp(-abs(p.y) * 3.0)
                                + exp(-abs(p.y) * 14.0) * exp(-abs(p.x) * 3.0);
-                    float a = clamp(glow * 0.85 + star * 0.6, 0.0, 1.0) * max(vActive, vMarked * 0.12);
+                    float a = clamp(glow * 0.34 + star * 0.12, 0.0, 0.45) * vActive;
                     gl_FragColor = vec4(mix(vColor, vec3(1.0), glow * 0.35), a);
                 }`
         });
@@ -480,7 +480,7 @@ import { eventBus } from "../core/event_bus.js";
                 positions.set(pos, i * 3);
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
-                sizes[i] = 0.52 + 0.10 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                sizes[i] = 0.27;
                 icons[i] = ICON_INDEX[String(node.type || "").toLowerCase()] ?? ICON_INDEX.symbol;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
@@ -576,18 +576,21 @@ import { eventBus } from "../core/event_bus.js";
                 activeIds.add(String(edge.source));
                 activeIds.add(String(edge.target));
             });
-            // Persist every real relationship reached through an active object.
-            edges.forEach(edge => {
-                const source = String(edge.source);
-                const target = String(edge.target);
-                if (activeIds.has(source) || activeIds.has(target)) {
-                    activeEdgeIds.add(String(edge.id));
-                }
-            });
         }
 
-        // Keep both endpoints marked even after the run ends; edges and their
-        // endpoint icons remain visible until a new process starts.
+        // Keep only explicitly active nodes and explicitly reported real edges.
+        // Endpoints of an active edge are always included to prevent detached lines.
+        activeIds.forEach(nodeId => {
+            const i = indexById.get(nodeId);
+            if (i === undefined) return;
+            everActiveIds.add(nodeId);
+            nodeTarget[i] = processActive ? 1 : 0;
+            const marked = nodePoints?.geometry.attributes.aMarked;
+            if (marked && marked.array[i] !== 1) {
+                marked.array[i] = 1;
+                marked.needsUpdate = true;
+            }
+        });
         activeEdgeIds.forEach(edgeId => {
             const edge = edges.find(item => String(item.id) === edgeId);
             if (edge) {
