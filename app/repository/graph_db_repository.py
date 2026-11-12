@@ -101,6 +101,10 @@ class GraphDBRepository(IGraphMemory):
         if not node_ids:
             return 0
         placeholders = ",".join("?" for _ in node_ids)
+        conn.execute(
+            f"DELETE FROM graph_edges WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})",
+            [*node_ids, *node_ids],
+        )
         conn.execute(f"DELETE FROM node_embeddings WHERE node_id IN ({placeholders})", node_ids)
         conn.execute(f"DELETE FROM graph_nodes WHERE id IN ({placeholders})", node_ids)
         conn.commit()
