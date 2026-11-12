@@ -51,7 +51,6 @@ import { eventBus } from "../core/event_bus.js";
     let edgeIndexById = new Map();     // edge id -> segment index
     let nodeTarget = new Float32Array(0);
     let edgeTarget = new Float32Array(0);
-    let hubIndexes = [];
     const layoutCache = new Map();     // id -> [x, y, z], survives data refreshes
 
     const setStatus = value => { if (statusEl) statusEl.textContent = value; };
@@ -92,22 +91,73 @@ import { eventBus } from "../core/event_bus.js";
 
     // Organic clustered layout: related entity types form loose neighborhoods.
     // Each entity keeps a stable position; no radial spokes or spherical shell.
+    // Organic 3D force layout: no core, no radial spokes, no type-based center.
+    // Real edges gently pull their endpoints together; repulsion distributes every node.
     function layoutGraph(nodeList, edgeList, cache, radius) {
-        const spread = radius * 0.34;
-        nodeList.forEach(node => {
-            const id = String(node.id);
-            if (cache.has(id)) return;
-            const type = String(node.type || "memory").toLowerCase();
-            const anchor = typeAnchor(type, radius * 0.58);
-            const jitter = unitVector(id, 0x73a91d);
-            const depth = (hash01(id, 0x4c2b17) - 0.5) * radius * 0.52;
-            const local = [
-                jitter[0] * spread * (0.35 + hash01(id, 11) * 0.65),
-                jitter[1] * spread * (0.35 + hash01(id, 23) * 0.65),
-                jitter[2] * spread * (0.35 + hash01(id, 37) * 0.65) + depth
-            ];
-            cache.set(id, anchor.map((value, axis) => THREE.MathUtils.clamp(value + local[axis], -radius * 0.94, radius * 0.94)));
+        const count = nodeList.length;
+        if (!count) return;
+        const ids = nodeList.map(node => String(node.id));
+        const index = new Map(ids.map((id, i) => [id, i]));
+        const degree = new Float32Array(count);
+        const links = [];
+        edgeList.forEach(edge => {
+            const a = index.get(String(edge.source)), b = index.get(String(edge.target));
+            if (a === undefined || b === undefined || a === b) return;
+            links.push([a, b]); degree[a]++; degree[b]++;
         });
+        const positions = ids.map(id => {
+            const saved = cache.get(id);
+            if (saved) return saved.slice(0, 3);
+            const direction = unitVector(id, 0x73a91d);
+            const distance = radius * (0.34 + hash01(id, 0x4c2b17) * 0.48);
+            return direction.map(value => value * distance);
+        });
+        const maxRadius = radius * 0.88, minRadius = radius * 0.30;
+        const iterations = count > 500 ? 12 : 20;
+        const repulsion = radius * radius * (count > 500 ? 0.0012 : 0.0018);
+        const spring = 0.010, targetLength = radius * 0.30;
+        for (let step = 0; step < iterations; step++) {
+            const forces = Array.from({ length: count }, () => [0, 0, 0]);
+            const cooling = 1 - step / iterations;
+            for (let a = 0; a < count; a++) {
+                const pa = positions[a];
+                for (let b = a + 1; b < count; b++) {
+                    const pb = positions[b];
+                    let dx = pa[0] - pb[0], dy = pa[1] - pb[1], dz = pa[2] - pb[2];
+                    const d2 = dx * dx + dy * dy + dz * dz + 0.0001;
+                    const force = repulsion / d2, inv = 1 / Math.sqrt(d2);
+                    dx *= inv * force; dy *= inv * force; dz *= inv * force;
+                    forces[a][0] += dx; forces[a][1] += dy; forces[a][2] += dz;
+                    forces[b][0] -= dx; forces[b][1] -= dy; forces[b][2] -= dz;
+                }
+            }
+            links.forEach(([a, b]) => {
+                const pa = positions[a], pb = positions[b];
+                const dx = pb[0] - pa[0], dy = pb[1] - pa[1], dz = pb[2] - pa[2];
+                const distance = Math.hypot(dx, dy, dz) || 0.001;
+                const weight = 1 / Math.sqrt(1 + Math.max(degree[a], degree[b]) * 0.18);
+                const pull = (distance - targetLength) * spring * weight;
+                const fx = dx / distance * pull, fy = dy / distance * pull, fz = dz / distance * pull;
+                forces[a][0] += fx; forces[a][1] += fy; forces[a][2] += fz;
+                forces[b][0] -= fx; forces[b][1] -= fy; forces[b][2] -= fz;
+            });
+            for (let i = 0; i < count; i++) {
+                const p = positions[i], f = forces[i];
+                const length = Math.hypot(f[0], f[1], f[2]) || 1;
+                const scale = Math.min(1, radius * 0.045 * cooling / length);
+                p[0] += f[0] * scale; p[1] += f[1] * scale; p[2] += f[2] * scale;
+                const radial = Math.hypot(p[0], p[1], p[2]) || 0.001;
+                const bias = Math.min(1, degree[i] / 8) * radius * 0.0025 * cooling;
+                p[0] += p[0] / radial * bias; p[1] += p[1] / radial * bias; p[2] += p[2] / radial * bias;
+                const nextRadius = Math.hypot(p[0], p[1], p[2]) || 0.001;
+                if (nextRadius > maxRadius) {
+                    const k = maxRadius / nextRadius; p[0] *= k; p[1] *= k; p[2] *= k;
+                } else if (nextRadius < minRadius * 0.55) {
+                    const k = (minRadius * 0.55) / nextRadius; p[0] *= k; p[1] *= k; p[2] *= k;
+                }
+            }
+        }
+        ids.forEach((id, i) => cache.set(id, positions[i]));
     }
     // LAYOUT-END
 
@@ -421,7 +471,7 @@ import { eventBus } from "../core/event_bus.js";
         edgeIndexById = new Map();
         nodeTarget = new Float32Array(0);
         edgeTarget = new Float32Array(0);
-        hubIndexes = [];
+
     }
 
     // ---- Graph build -----------------------------------------------------
@@ -530,14 +580,9 @@ import { eventBus } from "../core/event_bus.js";
             glowPoints.renderOrder = 3;
             graphGroup.add(nodePoints, glowPoints);
 
-            hubIndexes = nodes
-                .map((node, i) => ({ i, deg: degree.get(String(node.id)) || 0, id: String(node.id) }))
-                .filter(item => item.deg > 0)
-                .sort((a, b) => b.deg - a.deg || (a.id < b.id ? -1 : 1))
-                .slice(0, IDLE_LABELS).map(item => item.i);
         } else {
             edgeTarget = new Float32Array(0);
-            hubIndexes = [];
+
         }
 
         rememberActiveNodes(); // Include events received before an async graph refresh completed.
@@ -1128,7 +1173,7 @@ import { eventBus } from "../core/event_bus.js";
         if (endRunTimer) clearTimeout(endRunTimer);
         resizeObserver?.disconnect();
         resetScene();
-        neuralRings.length = 0;
+
         nodeMaterial?.dispose();
         glowMaterial?.dispose();
         edgeMaterial?.dispose();
