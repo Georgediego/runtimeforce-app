@@ -78,6 +78,8 @@ class ProjectService:
             is_active=payload.get("activate", True)
         )
         if success:
+            # Workspace setup is a separate step in Project Settings.
+            # Never create an implicit "~" workspace or fail project creation because of it.
             if payload.get("activate", True):
                 self.repo.set_active_project(pid, user_id)
             self.repo.record_changelog(pid, initial_version, "Initial project creation", None, payload.get("git_branch_main", "main"))

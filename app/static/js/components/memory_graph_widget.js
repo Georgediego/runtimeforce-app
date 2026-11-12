@@ -30,7 +30,7 @@ import { eventBus } from "../core/event_bus.js";
     const IDLE_ROTATION_SPEED = 0.00010;
     const ACTIVE_ROTATION_SPEED = 0.00058;
     let rotationSpeed = IDLE_ROTATION_SPEED;
-    const HOT = 0xff3fa4;
+    const HOT = 0x8dff4f;
 
     // ---- State -----------------------------------------------------------
     let nodes = [];
@@ -146,57 +146,175 @@ import { eventBus } from "../core/event_bus.js";
     // Shaders do no colour-space conversion, so sRGB values are written as-is.
     const rawColor = hex => new THREE.Color().setHex(hex, THREE.LinearSRGBColorSpace);
     const PALETTE = {
-        project: 0xbfe9ff, conversation: 0x8f6bff, memoryquery: 0x9b94c9, decision: 0xf0bd55,
-        file: 0x4fe0c0, code: 0x4fe0c0, symbol: 0x6aa8ff, memory: 0x9a74ff,
+        project: 0xbfe9ff, conversation: 0x55f2a0, memoryquery: 0x9cff57, decision: 0xf0bd55,
+        file: 0x4fe0c0, code: 0x4fe0c0, symbol: 0x6aa8ff, memory: 0x72ff8a,
         workspace: 0x73d9ff, directory: 0x36c9a8, provider: 0xffc36b, model: 0xff9a56,
-        role: 0xf47fb2, tool: 0xd78cff, mode: 0x9bafff
+        role: 0x8dff5a, tool: 0x48f5a6, mode: 0x9bffbd
     };
     // Inactive objects follow the IDE's green accent; active objects are highlighted HOT by the shader.
     const INACTIVE_NODE_COLOR = 0x42d99a;
     const nodeColor = node => rawColor(PALETTE[String(node?.type || "memory").toLowerCase()] || PALETTE.memory);
 
+    // Hand-drawn vector-style icons: no font glyphs or placeholder symbols.
+    const ICON_TYPES = [
+        "project", "conversation", "memoryquery", "decision", "file", "code", "symbol",
+        "memory", "workspace", "directory", "provider", "model", "role", "tool", "mode"
+    ];
+    const ICON_INDEX = Object.fromEntries(ICON_TYPES.map((type, index) => [type, index]));
+
+    function drawNodeIcon(ctx, type, cx, cy) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.strokeStyle = "#ffffff";
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.lineWidth = 3.2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        const path = (points, close = false) => {
+            ctx.beginPath();
+            points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+            if (close) ctx.closePath();
+            ctx.stroke();
+        };
+        const circle = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); };
+        const rect = (x, y, w, h, r = 4) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.stroke(); };
+        switch (type) {
+            case "project": // folder with tab
+                path([[-19,-10],[-7,-10],[-2,-15],[18,-15],[18,15],[-19,15],[-19,-10]], true);
+                path([[-18,-5],[18,-5]]);
+                break;
+            case "conversation": // message bubble
+                path([[-17,-13],[17,-13],[17,9],[-2,9],[-12,17],[-10,9],[-17,9],[-17,-13]], true);
+                [-6, 1, 8].forEach(x => circle(x, -2, 1.1));
+                break;
+            case "memoryquery": // magnifier
+                circle(-4, -4, 11); path([[4,4],[17,17]]);
+                break;
+            case "decision": // branching decision
+                path([[-13,-15],[0,-15],[0,0],[13,0],[13,15]], false);
+                path([[0,0],[-13,0],[-13,15]], false);
+                circle(0,-15,3); circle(13,15,3); circle(-13,15,3);
+                break;
+            case "file": // document
+                path([[-12,-18],[5,-18],[15,-8],[15,18],[-12,18],[-12,-18]], true);
+                path([[5,-18],[5,-8],[15,-8]]);
+                path([[-6,1],[9,1]]); path([[-6,9],[9,9]]);
+                break;
+            case "code": // code brackets and slash
+                path([[-7,-13],[-17,0],[-7,13]]);
+                path([[7,-13],[17,0],[7,13]]);
+                path([[4,-17],[-4,17]]);
+                break;
+            case "symbol": // connected graph nodes
+                path([[-12,-10],[12,-10],[0,13],[-12,-10]]);
+                circle(-12,-10,4); circle(12,-10,4); circle(0,13,4);
+                break;
+            case "memory": // database stack
+                ctx.beginPath(); ctx.ellipse(0,-12,15,6,0,0,Math.PI*2); ctx.stroke();
+                path([[-15,-12],[-15,12]]); path([[15,-12],[15,12]]);
+                ctx.beginPath(); ctx.ellipse(0,12,15,6,0,0,Math.PI); ctx.stroke();
+                ctx.beginPath(); ctx.ellipse(0,0,15,6,0,0,Math.PI); ctx.stroke();
+                break;
+            case "workspace": // monitor
+                rect(-18,-14,36,25,4); path([[0,11],[0,18]]); path([[-9,18],[9,18]]);
+                break;
+            case "directory": // open folder
+                path([[-19,-9],[-6,-9],[0,-3],[19,-3],[15,15],[-17,15],[-19,-9]], true);
+                path([[-17,-3],[17,-3]]);
+                break;
+            case "provider": // cloud
+                ctx.beginPath(); ctx.arc(-8,2,8,Math.PI*0.7,Math.PI*1.8);
+                ctx.arc(1,-6,10,Math.PI*1.0,Math.PI*1.95);
+                ctx.arc(11,2,8,Math.PI*1.25,Math.PI*0.3);
+                ctx.lineTo(-8,10); ctx.stroke();
+                break;
+            case "model": // processor chip
+                rect(-12,-12,24,24,4); rect(-5,-5,10,10,2);
+                for (let n=-8;n<=8;n+=8) {
+                    path([[n,-18],[n,-12]]); path([[n,12],[n,18]]);
+                    path([[-18,n],[-12,n]]); path([[12,n],[18,n]]);
+                }
+                break;
+            case "role": // user silhouette
+                circle(0,-8,7);
+                ctx.beginPath(); ctx.arc(0,15,14,Math.PI,0); ctx.stroke();
+                break;
+            case "tool": // wrench
+                path([[-13,14],[3,-2]]);
+                ctx.beginPath(); ctx.arc(8,-8,10,-0.8,1.1); ctx.stroke();
+                circle(-13,14,4);
+                break;
+            case "mode": // adjustment sliders
+                path([[-15,-12],[15,-12]]); path([[-15,0],[15,0]]); path([[-15,12],[15,12]]);
+                circle(-5,-12,4); circle(8,0,4); circle(-9,12,4);
+                break;
+        }
+        ctx.restore();
+    }
+
+    function createIconAtlas() {
+        const cell = 64, columns = 4;
+        const atlas = document.createElement("canvas");
+        atlas.width = cell * columns;
+        atlas.height = cell * Math.ceil(ICON_TYPES.length / columns);
+        const ctx = atlas.getContext("2d");
+        ICON_TYPES.forEach((type, index) => {
+            const x = (index % columns) * cell + cell / 2;
+            const y = Math.floor(index / columns) * cell + cell / 2;
+            drawNodeIcon(ctx, type, x, y);
+        });
+        const texture = new THREE.CanvasTexture(atlas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+        return texture;
+    }
+    const iconAtlas = createIconAtlas();
+
     // ---- Shaders ---------------------------------------------------------
     const DEPTH_GLSL = "float depth = clamp((-mv.z - 4.0) / 3.6, 0.0, 1.0);";
 
     function createNodeMaterial() {
-        // Point-sprite impostor: each point is shaded as a lit 3D ball.
+        // Flat type icons instead of shaded spherical points.
         return new THREE.ShaderMaterial({
-            transparent: true, depthWrite: true, depthTest: true,
-            uniforms: { uScale: { value: 300 }, uTime: { value: 0 }, uHot: { value: rawColor(HOT) }, uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) } },
+            transparent: true, depthWrite: false, depthTest: true,
+            uniforms: {
+                uScale: { value: 300 },
+                uTime: { value: 0 },
+                uIconAtlas: { value: iconAtlas },
+                uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) }
+            },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aSize, aActive, aMarked;
+                attribute float aSize, aActive, aMarked, aIcon;
                 uniform float uScale, uTime;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth;
+                varying float vActive, vMarked, vDepth, vIcon;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
                     float pulse = 1.0 + aActive * 0.18 * sin(uTime * 0.009 + position.x * 5.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(3.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z);
-                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth;
+                    gl_PointSize = max(9.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z * 2.0);
+                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
                 }`,
             fragmentShader: `
-                uniform vec3 uHot, uIdleColor;
+                uniform sampler2D uIconAtlas;
+                uniform vec3 uIdleColor;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth;
+                varying float vActive, vMarked, vDepth, vIcon;
                 void main() {
-                    vec2 p = (gl_PointCoord - 0.5) * 2.0;
-                    p.y = -p.y;
-                    float r2 = dot(p, p);
-                    if (r2 > 1.0) discard;
-                    vec3 n = vec3(p, sqrt(1.0 - r2));
-                    vec3 L = normalize(vec3(-0.45, 0.55, 0.7));
-                    float diff = max(dot(n, L), 0.0);
-                    float rim = pow(1.0 - n.z, 2.5);
-                    float spec = pow(max(dot(n, normalize(L + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
+                    float columns = 4.0;
+                    float rows = ${Math.ceil(ICON_TYPES.length / 4)}.0;
+                    vec2 cell = vec2(mod(vIcon, columns), floor(vIcon / columns));
+                    vec2 uv = (cell + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y)) / vec2(columns, rows);
+                    vec4 glyph = texture2D(uIconAtlas, uv);
+                    if (glyph.a < 0.16 || max(glyph.r, max(glyph.g, glyph.b)) < 0.12) discard;
                     vec3 base = mix(uIdleColor, vColor, vMarked);
-                    vec3 col = base * (0.30 + 0.85 * diff) + base * rim * 0.35;
-                    col += vec3(1.0) * spec * (0.55 + 0.4 * vActive);
-                    col += vColor * vActive * 0.18;
-                    col *= mix(1.0, 0.42, vDepth);
-                    gl_FragColor = vec4(col, 1.0);
+                    vec3 col = mix(base, vec3(1.0), vActive * 0.32);
+                    col *= mix(1.0, 0.55, vDepth);
+                    gl_FragColor = vec4(col, glyph.a);
                 }`
         });
     }
@@ -272,9 +390,9 @@ import { eventBus } from "../core/event_bus.js";
     const labelStyle = document.createElement("style");
     labelStyle.textContent =
         ".rf-memory-label{position:absolute;left:0;top:0;white-space:nowrap;font:600 8px 'JetBrains Mono',monospace;" +
-        "padding:1px 5px;border-radius:3px;color:#e9e4ff;background:rgba(10,8,22,.72);border:1px solid rgba(160,140,255,.25);" +
+        "padding:1px 5px;border-radius:3px;color:#e6fff0;background:rgba(7,18,13,.78);border:1px solid rgba(110,255,150,.28);" +
         "transition:opacity .15s;will-change:transform}" +
-        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff;background:#ff3fa4;border-color:#ff8fcb;" +
+        ".rf-memory-label.hot{font-size:10px;font-weight:700;color:#fff;background:#78ed43;border-color:#c1ff9b;" +
         "box-shadow:0 0 12px rgba(255,63,164,.65)}";
     document.head.appendChild(labelStyle);
     const labelPool = [];
@@ -419,6 +537,7 @@ import { eventBus } from "../core/event_bus.js";
             const sizes = new Float32Array(count);
             const active = new Float32Array(count);
             const marked = new Float32Array(count);
+            const icons = new Float32Array(count);
             const colorById = new Map();
             nodes.forEach((node, i) => {
                 const id = String(node.id);
@@ -428,6 +547,7 @@ import { eventBus } from "../core/event_bus.js";
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
                 sizes[i] = 0.075 + 0.085 * Math.min(1, Math.log1p(deg) / Math.log(14));
+                icons[i] = ICON_INDEX[String(node.type || "memory").toLowerCase()] ?? ICON_INDEX.memory;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
                 positionById.set(id, pos);
@@ -440,6 +560,7 @@ import { eventBus } from "../core/event_bus.js";
             geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
             geometry.setAttribute("aActive", new THREE.BufferAttribute(active, 1));
             geometry.setAttribute("aMarked", new THREE.BufferAttribute(marked, 1));
+            geometry.setAttribute("aIcon", new THREE.BufferAttribute(icons, 1));
 
             // Real SQLite edges only: both endpoints must exist in the loaded node set.
             const rows = edges.filter(edge => positionById.has(String(edge.source)) && positionById.has(String(edge.target)));

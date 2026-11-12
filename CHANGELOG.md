@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.17] - 2026-11-13
+
+### Changed
+- Replace purple and magenta Runtime Graph accents with a cohesive neon emerald and lime palette.
+- Replace placeholder graph markers with distinct hand-drawn vector icons for each object type.
+- Keep real graph relationships highlighted after a run completes until the next run begins.
+- Remove the LIVE MEMORY OPERATIONS overlay so the 3D graph has the full widget area.
+
+### Fixed
+- Delete session-owned graph nodes, their relationships and embeddings, and invalidate the session context cache when a chat is deleted.
+
 ## [1.1.16] - 2026-11-10
 
 ### Added

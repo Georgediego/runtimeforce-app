@@ -215,7 +215,7 @@ export const projectsUIController = {
     },
 
     async openCreateProjectModal() {
-        const name = await showPrompt("New Project", "Enter project name:", "", "Create", "Cancel");
+        const name = await showPrompt("New Project", "Enter project name:", "", "Next", "Cancel");
         if (!name || !name.trim()) return;
         try {
             const res = await projectsApi.create({
@@ -233,9 +233,9 @@ export const projectsUIController = {
             if (res && res.id) {
                 localStorage.setItem("rf_active_project_id", res.id);
                 eventBus.emit("project.activated", res.id);
-                // A new project has no workspace yet. Do not reconnect the previously active Local/SSH workspace.
+                // Workspace is configured later in Project Settings.
             }
-            showToast(`Project "${name}" created`, "success");
+            showToast(`Project "${name}" created. Configure its Workspace in Project Settings.`, "success");
             this.loadProjectsList();
         } catch (e) {
             const message = String(e?.message || e);

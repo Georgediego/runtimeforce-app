@@ -3,7 +3,7 @@ HTTP API Router for inspecting Graph Memory, Decisions, and Token Budget.
 """
 import logging
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
@@ -147,3 +147,32 @@ async def preview_context(
     session_id = payload.get("session_id", "preview")
     project_id = payload.get("project_id", "default")
     return await builder.build_optimal_context(prompt, session_id, user_id, project_id)
+
+
+@router.get("/runtime-registry")
+async def get_runtime_registry(user_id: str = Depends(require_authenticated_user)):
+    """Read-only registry of roles and tools declared by the local orchestrator."""
+    try:
+        from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
+        from app.services.agent.agent_role_profiles import ROLE_PROFILES
+
+        tools = []
+        for entry in AGENT_TOOLS_MANIFEST:
+            function = entry.get("function") or {}
+            name = function.get("name")
+            if name:
+                tools.append({
+                    "name": str(name),
+                    "description": str(function.get("description") or ""),
+                })
+        roles = [
+            {
+                "name": str(name),
+                "allowed_tools": [str(tool) for tool in (profile.get("allowed_tools") or [])],
+            }
+            for name, profile in ROLE_PROFILES.items()
+        ]
+        return {"tools": tools, "roles": roles}
+    except Exception as exc:
+        logger.exception("Failed to build runtime registry: %s", exc)
+        raise HTTPException(status_code=500, detail="Runtime registry unavailable")

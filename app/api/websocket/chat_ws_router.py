@@ -8,7 +8,6 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.services.workspace.workspace_local_driver import WorkspaceLocalDriver
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
@@ -98,11 +97,11 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
 
             driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
             if not driver:
-                driver = WorkspaceLocalDriver("~")
-                driver.command_approval_service = container.command_approval_service
-                driver.command_approval_metadata = {
-                    "user_id": user_id, "project_id": project_id, "workspace_id": "", "target": "local"
-                }
+                await websocket.send_json({
+                    "status": "error",
+                    "error": "No Workspace is connected to this project. Connect a local folder or SSH Workspace in Project Settings before running AI tasks."
+                })
+                continue
 
             strategy = data.get("strategy") or "auto"
             model_lock = data.get("model_lock")
