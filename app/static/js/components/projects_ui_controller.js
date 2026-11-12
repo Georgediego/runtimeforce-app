@@ -235,7 +235,7 @@ export const projectsUIController = {
                 eventBus.emit("project.activated", res.id);
                 // Workspace is configured later in Project Settings.
             }
-            showToast(`Project "${name}" created`, "success");
+            showToast(`Project "${name}" created. Configure its Workspace in Project Settings.`, "success");
             this.loadProjectsList();
         } catch (e) {
             const message = String(e?.message || e);
