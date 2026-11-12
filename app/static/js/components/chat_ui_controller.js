@@ -2,7 +2,7 @@
  * Chat UI Controller with Interactive Section 15.5 Dangerous Command Approval & Terminal Stream.
  */
 import { ChatWSClient } from "../core/chat_ws_client.js";
-import { sessionsApi, keysApi } from "../core/api_http_client.js";
+import { sessionsApi, keysApi, projectsApi } from "../core/api_http_client.js";
 import { showToast, showConfirm, showPrompt, showMultiLinePrompt, showCommandApprovalModal } from "./toast_ui_controller.js";
 import { terminalUIController } from "./terminal.js";
 import { eventBus } from "../core/event_bus.js";
@@ -472,7 +472,11 @@ export const chatUIController = {
                 await this.loadSessionsList();
             } catch (e) {
                 console.warn("Failed to create initial session entry:", e);
+                currentSessionId = null;
+                localStorage.removeItem(`rf_last_session_${activeProjectId}`);
             }
+        } else {
+            currentSessionId = null;
         }
 
         this.renderAttachedContextBar();
@@ -522,6 +526,48 @@ export const chatUIController = {
         const input = document.getElementById("prompt-input");
         const rawUserPrompt = overrideText !== null ? overrideText : input?.value.trim() || "";
         if (!rawUserPrompt && !attachedFiles.length) return;
+
+        const activeProjectId = this.getActiveProjectId();
+        if (!activeProjectId) {
+            showToast("Create or select a project before sending a message.", "warning");
+            return;
+        }
+
+        // Never let a chat silently fall back to the process home directory.
+        try {
+            const project = await projectsApi.get(activeProjectId);
+            const hasWorkspace = Boolean(
+                project?.workspace ||
+                String(project?.workspace_path || "").trim() ||
+                String(project?.ssh_host || "").trim()
+            );
+            if (!hasWorkspace) {
+                showToast("This project has no Workspace. Connect a local folder or SSH Workspace in Project Settings first.", "warning", 7000);
+                return;
+            }
+        } catch (error) {
+            showToast("Cannot verify the project Workspace: " + (error.message || error), "error", 7000);
+            return;
+        }
+
+        // Projects with no previous chats create a persistent session before any
+        // message is rendered or sent to the WebSocket.
+        if (!currentSessionId) {
+            const newSessionId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            try {
+                const created = await sessionsApi.create("New Chat", newSessionId, activeProjectId);
+                currentSessionId = created.session_id || newSessionId;
+                isFirstMessageOfSession = true;
+                localStorage.setItem(`rf_last_session_${activeProjectId}`, currentSessionId);
+                terminalUIController.setSession(currentSessionId);
+                eventBus.emit("session:selected", currentSessionId);
+                await this.loadSessionsList();
+            } catch (error) {
+                showToast("Could not create chat. Message was not sent: " + (error.message || error), "error", 7000);
+                return;
+            }
+        }
+
         lastUserPrompt = rawUserPrompt;
 
         let agentPayloadPrompt = rawUserPrompt;
