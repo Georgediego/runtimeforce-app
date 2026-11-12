@@ -43,6 +43,10 @@ import { eventBus } from "../core/event_bus.js";
     let lastFrame = 0, pulseClock = 0;
     let processActive = false, runStartedAt = 0;
     let pointerDown = false, pointerX = 0;
+    let focusedNodeId = "";
+    let focusPending = false;
+    let tumbleVelocity = new THREE.Vector3(0.0011, 0.0017, 0.0008);
+    let tumbleChangeAt = 0;
 
     let nodePoints = null, glowPoints = null, edgeLines = null;
     let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
@@ -292,9 +296,9 @@ import { eventBus } from "../core/event_bus.js";
                     float flow = fract(vAlong * 1.5 - uTime * 0.0011);
                     float spark = smoothstep(0.0, 0.15, flow) * (1.0 - smoothstep(0.15, 0.45, flow));
                     float idleFlow = spark * (0.025 + 0.035 * (0.5 + 0.5 * sin(uTime * 0.001 + vAlong * 6.283)));
-                    float activeFlow = 0.30 + 0.58 * spark;
-                    float a = mix(uIdle + idleFlow, activeFlow, vAct) * mix(1.0, 0.42, vDepth);
-                    vec3 col = mix(vColor * 1.08 + 0.12, uHot, vAct);
+                    float activeFlow = 0.48 + 0.50 * spark;
+                    float a = mix(uIdle + idleFlow, activeFlow, vAct) * mix(1.0, 0.68, vDepth);
+                    vec3 col = mix(vColor * 1.35 + 0.20, uHot, vAct);
                     gl_FragColor = vec4(col, a);
                 }`
         });
@@ -540,6 +544,8 @@ import { eventBus } from "../core/event_bus.js";
         activeIds.clear();
         activeEdgeIds.clear();
         everActiveIds.clear();
+        focusedNodeId = "";
+        focusPending = false;
         const marked = nodePoints?.geometry.attributes.aMarked;
         if (marked) {
             marked.array.fill(0);
@@ -554,17 +560,13 @@ import { eventBus } from "../core/event_bus.js";
         const activeSet = new Set(activeIds);
 
         if (processActive) {
-            activeEdgeIds.forEach(edgeId => {
-                const edge = edges.find(item => String(item.id) === edgeId);
-                if (!edge) return;
-                activeSet.add(String(edge.source));
-                activeSet.add(String(edge.target));
-            });
-            // Only stored relationships are illuminated; no synthetic spokes are created.
+            // Reveal only real stored relationships attached to an active entity.
             edges.forEach(edge => {
-                if (activeSet.has(String(edge.source)) && activeSet.has(String(edge.target))) {
-                    activeEdgeIds.add(String(edge.id));
-                }
+                const source = String(edge.source), target = String(edge.target);
+                if (!activeSet.has(source) && !activeSet.has(target)) return;
+                activeEdgeIds.add(String(edge.id));
+                activeSet.add(source);
+                activeSet.add(target);
             });
         }
 
@@ -582,7 +584,8 @@ import { eventBus } from "../core/event_bus.js";
         });
         activeEdgeIds.forEach(edgeId => {
             const k = edgeIndexById.get(edgeId);
-            if (k !== undefined) edgeTarget[k] = processActive ? 1 : 0;
+            // Keep discovered links bright and pulsing until the next iteration clears them.
+            if (k !== undefined) edgeTarget[k] = processActive ? 1 : 0.72;
         });
     }
 
@@ -793,7 +796,7 @@ import { eventBus } from "../core/event_bus.js";
         if (generationActive) return;
         processActive = false;
         activeIds.clear();
-        applyActive();     // keep the completed run's real relationships highlighted
+        applyActive();     // keep completed real relationships visible and pulsing
         if (nodes.length) setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
     }
 
@@ -807,7 +810,11 @@ import { eventBus } from "../core/event_bus.js";
         const roleValue = String(item.role || item.agent_role || item.agent || "").toLowerCase();
         if (roleValue) {
             const roleNode = nodes.find(node => node.type === "role" && String(node.label).toLowerCase() === roleValue);
-            if (roleNode) activeIds.add(String(roleNode.id));
+            if (roleNode) {
+                focusedNodeId = String(roleNode.id);
+                focusPending = true;
+                activeIds.add(focusedNodeId);
+            }
         }
 
         const modelValue = String(item.model || item.model_id || "").toLowerCase().trim();
@@ -819,7 +826,9 @@ import { eventBus } from "../core/event_bus.js";
                  modelValue.includes(String(node.label).toLowerCase()))
             );
             if (modelNode) {
-                activeIds.add(String(modelNode.id));
+                focusedNodeId = String(modelNode.id);
+                focusPending = true;
+                activeIds.add(focusedNodeId);
             }
         }
     }
@@ -838,13 +847,23 @@ import { eventBus } from "../core/event_bus.js";
     }
 
     function addActive(item) {
-        if (Array.isArray(item.active_node_ids)) item.active_node_ids.forEach(id => activeIds.add(String(id)));
+        if (Array.isArray(item.active_node_ids)) {
+            item.active_node_ids.forEach(id => {
+                const value = String(id);
+                activeIds.add(value);
+                if (indexById.has(value)) { focusedNodeId = value; focusPending = true; }
+            });
+        }
         if (Array.isArray(item.active_edge_ids)) item.active_edge_ids.forEach(id => activeEdgeIds.add(String(id)));
         addContextActive(item);
         const toolName = String(item.tool_name || item.tool || "").trim();
         if (toolName) {
             const toolId = "agent-tool:" + toolName;
-            if (indexById.has(toolId)) activeIds.add(toolId);
+            if (indexById.has(toolId)) {
+                activeIds.add(toolId);
+                focusedNodeId = toolId;
+                focusPending = true;
+            }
         }
         rememberActiveNodes();
     }
@@ -923,12 +942,32 @@ import { eventBus } from "../core/event_bus.js";
         lastFrame = now;
         pulseClock += delta;
 
-        // No spinning hedgehog: the entity field stays composed and breathes subtly.
-        // Small camera drift creates depth without rotating the whole graph.
-        const drift = processActive ? 0.018 : 0.008;
-        camera.position.x = Math.sin(pulseClock * 0.00016) * drift;
-        camera.position.y = Math.cos(pulseClock * 0.00013) * drift * 0.55;
-        camera.lookAt(0, 0, 0);
+        // Continuous free tumbling across all three axes.
+        // A real active entity is smoothly brought to the camera-facing side first.
+        if (focusPending && focusedNodeId && positionById.has(focusedNodeId)) {
+            const p = positionById.get(focusedNodeId);
+            const direction = new THREE.Vector3(p[0], p[1], p[2]).normalize();
+            const target = new THREE.Quaternion().setFromUnitVectors(direction, new THREE.Vector3(0, 0, 1));
+            graphGroup.quaternion.slerp(target, 1 - Math.exp(-delta / 430));
+            if (graphGroup.quaternion.angleTo(target) < 0.012) {
+                graphGroup.quaternion.copy(target);
+                focusPending = false;
+                tumbleChangeAt = pulseClock + 700;
+            }
+        } else {
+            if (pulseClock >= tumbleChangeAt) {
+                const sign = () => Math.random() < 0.5 ? -1 : 1;
+                tumbleVelocity.set(
+                    sign() * (0.00045 + Math.random() * 0.00135),
+                    sign() * (0.00055 + Math.random() * 0.00155),
+                    sign() * (0.00035 + Math.random() * 0.00125)
+                );
+                tumbleChangeAt = pulseClock + 1800 + Math.random() * 2600;
+            }
+            graphGroup.rotateX(tumbleVelocity.x * delta);
+            graphGroup.rotateY(tumbleVelocity.y * delta);
+            graphGroup.rotateZ(tumbleVelocity.z * delta);
+        }
         const breathe = 1 + Math.sin(pulseClock * 0.0007) * (processActive ? 0.004 : 0.002);
         graphGroup.scale.setScalar(breathe);
 
@@ -1088,7 +1127,10 @@ import { eventBus } from "../core/event_bus.js";
             drawnEdges: edgeLines ? edgeLines.geometry.attributes.position.count / 2 : 0,
             activeNodes: nodePoints ? [...nodePoints.geometry.attributes.aActive.array].filter(v => v > 0.5).length : 0,
             activeEdges: edgeLines ? [...edgeLines.geometry.attributes.aAct.array].filter(v => v > 0.5).length / 2 : 0,
-            rotationY: graphGroup.rotation.y,
+            rotation: { x: graphGroup.rotation.x, y: graphGroup.rotation.y, z: graphGroup.rotation.z },
+            focusedNodeId,
+            focusPending,
+            highlightedEdgeIds: [...activeEdgeIds],
             positions: Object.fromEntries([...positionById].map(([id, p]) => [id, p.map(v => +v.toFixed(5))]))
         });
     }
