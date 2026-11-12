@@ -47,7 +47,7 @@ import { eventBus } from "../core/event_bus.js";
     let processActive = false, runStartedAt = 0;
     let pointerDown = false, pointerX = 0;
 
-    let nodePoints = null, glowPoints = null, edgeLines = null, ambientPoints = null, shellMesh = null;
+    let nodePoints = null, glowPoints = null, edgeLines = null;
     let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
     let positionById = new Map();      // id -> [x, y, z]
     let indexById = new Map();         // node id -> buffer index
@@ -93,21 +93,14 @@ import { eventBus } from "../core/event_bus.js";
         return raw.map(v => (v / len) * radius * 0.55);
     }
 
-    // All real SQLite nodes share one spherical surface.
-    // Fibonacci distribution spreads the existing points evenly over the globe.
-    // Hash-shuffle IDs before Fibonacci placement. This prevents sorted ID prefixes
-    // (workspace files, models, roles) from occupying separate latitude bands.
-    // Every real object receives a stable, evenly distributed position on the sphere.
+    // Real graph objects occupy a stable 3D volume, not a spherical surface.
+    // This creates depth and avoids the appearance of a globe or latitude bands.
     function layoutGraph(nodeList, edgeList, cache, radius) {
-        // Stable pseudo-random spherical placement: every object keeps its own
-        // position, but the globe avoids rigid latitude bands and visible rows.
-        const ordered = nodeList
-            .map(node => String(node.id))
-            .sort((a, b) => a.localeCompare(b));
+        const ordered = nodeList.map(node => String(node.id)).sort((a, b) => a.localeCompare(b));
         ordered.forEach(id => {
             const direction = unitVector(id, 0x73a91d);
-            const radialJitter = 0.975 + hash01(id, 0x4c2b17) * 0.05;
-            cache.set(id, direction.map(value => value * radius * radialJitter));
+            const radial = radius * (0.18 + Math.cbrt(hash01(id, 0x4c2b17)) * 0.76);
+            cache.set(id, direction.map(value => value * radial));
         });
     }
     // LAYOUT-END
@@ -377,80 +370,53 @@ import { eventBus } from "../core/event_bus.js";
         for (let k = used; k < labelPool.length; k++) labelPool[k].style.opacity = "0";
     }
 
-    // ---- Neural sphere ---------------------------------------------------
-    // The shell and orbital core make the spherical form unmistakable even
-    // when the real graph contains only a handful of nodes.
+    // ---- AI core and outward activity waves ------------------------------
     const neuralRings = [];
+    const activityWaves = [];
+    let coreMesh = null;
 
     function createNeuralSphere() {
-        shellMesh = new THREE.Group();
-        shellMesh.name = "runtime-neural-shell";
+        // A compact nucleus is the only permanent central light source.
+        coreMesh = new THREE.Group();
+        coreMesh.name = "runtime-ai-core";
 
-        const shell = new THREE.Mesh(
-            new THREE.SphereGeometry(RADIUS * 1.025, 28, 20),
-            new THREE.MeshBasicMaterial({
-                color: 0x43d7a0, wireframe: true, transparent: true,
-                opacity: 0.105, depthWrite: false
-            })
-        );
-        shell.renderOrder = 0;
-        shellMesh.add(shell);
-
-        // Three orthogonal orbital circuits reinforce the globe silhouette.
-        const ringSpecs = [
-            [Math.PI / 2, 0, 0],
-            [0, Math.PI / 2, 0],
-            [0.72, 0.72, 0.35]
-        ];
-        ringSpecs.forEach((rotation, index) => {
-            const ring = new THREE.Mesh(
-                new THREE.TorusGeometry(RADIUS * 1.035, 0.0035, 5, 96),
-                new THREE.MeshBasicMaterial({
-                    color: index === 1 ? 0x63e6b2 : 0x2c9d78,
-                    transparent: true, opacity: index === 1 ? 0.20 : 0.12,
-                    depthWrite: false
-                })
-            );
-            ring.rotation.set(...rotation);
-            ring.userData.orbitSpeed = (index % 2 ? -1 : 1) * (0.00012 + index * 0.000035);
-            ring.renderOrder = 0;
-            shellMesh.add(ring);
-            neuralRings.push(ring);
-        });
-        graphGroup.add(shellMesh);
-
-        // A restrained AI nucleus: wireframe icosahedron + rotating signal rings.
-        ambientPoints = new THREE.Group();
-        ambientPoints.name = "runtime-ai-core";
         const core = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(0.19, 1),
+            new THREE.IcosahedronGeometry(0.055, 1),
             new THREE.MeshBasicMaterial({
-                color: 0x68f0b7, wireframe: true, transparent: true,
-                opacity: 0.46, depthWrite: false
+                color: 0x9bffd5, wireframe: true, transparent: true,
+                opacity: 0.9, depthWrite: false
             })
         );
-        ambientPoints.add(core);
+        coreMesh.add(core);
+
         const nucleus = new THREE.Mesh(
-            new THREE.SphereGeometry(0.075, 12, 10),
+            new THREE.SphereGeometry(0.022, 10, 8),
             new THREE.MeshBasicMaterial({
-                color: 0xa5ffda, transparent: true, opacity: 0.24,
+                color: 0xd7ffec, transparent: true, opacity: 0.95,
                 depthWrite: false
             })
         );
-        ambientPoints.add(nucleus);
-        for (let i = 0; i < 2; i++) {
-            const orbit = new THREE.Mesh(
-                new THREE.TorusGeometry(0.27 + i * 0.075, 0.003, 4, 64),
+        coreMesh.add(nucleus);
+
+        // Expanding translucent wavefronts appear only while the runtime is active.
+        // They represent activity radiating from the AI core; graph links remain real.
+        for (let i = 0; i < 3; i++) {
+            const wave = new THREE.Mesh(
+                new THREE.SphereGeometry(1, 20, 14),
                 new THREE.MeshBasicMaterial({
-                    color: 0x58dca8, transparent: true,
-                    opacity: 0.28 - i * 0.07, depthWrite: false
+                    color: 0x62edb1, transparent: true, opacity: 0,
+                    wireframe: false, side: THREE.BackSide, depthWrite: false,
+                    blending: THREE.AdditiveBlending
                 })
             );
-            orbit.rotation.set(0.8 + i * 0.9, 0.45 + i * 0.7, i * 0.6);
-            ambientPoints.add(orbit);
-            neuralRings.push(orbit);
+            wave.scale.setScalar(0.08);
+            wave.userData.phase = i / 3;
+            wave.userData.maxRadius = RADIUS * 0.96;
+            wave.visible = false;
+            graphGroup.add(wave);
+            activityWaves.push(wave);
         }
-        graphGroup.add(ambientPoints);
+        graphGroup.add(coreMesh);
     }
 
     // ---- Three.js setup --------------------------------------------------
@@ -1080,19 +1046,22 @@ import { eventBus } from "../core/event_bus.js";
         graphGroup.rotation.y += rotationSpeed * delta;
         graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
 
-        if (shellMesh) {
-            shellMesh.rotation.y -= delta * (processActive ? 0.00011 : 0.000045);
-            shellMesh.rotation.x = Math.sin(pulseClock * 0.00009) * 0.035;
+        if (coreMesh) {
+            const beat = processActive ? 1 + Math.sin(pulseClock * 0.012) * 0.12 : 1 + Math.sin(pulseClock * 0.002) * 0.035;
+            coreMesh.scale.setScalar(beat);
+            coreMesh.rotation.y += delta * (processActive ? 0.0018 : 0.00045);
+            coreMesh.rotation.x += delta * 0.00022;
         }
-        if (ambientPoints) {
-            const beat = processActive ? 0.055 : 0.022;
-            const breath = 1 + Math.sin(pulseClock * (processActive ? 0.0042 : 0.0018)) * beat;
-            ambientPoints.scale.setScalar(breath);
-            ambientPoints.rotation.y += delta * (processActive ? 0.0015 : 0.00045);
-            ambientPoints.rotation.x += delta * 0.00022;
-        }
-        neuralRings.forEach((ring, index) => {
-            ring.rotation.z += delta * (ring.userData.orbitSpeed || 0.0001) * (processActive ? 2.2 : 1);
+        activityWaves.forEach(wave => {
+            if (!processActive) {
+                wave.visible = false;
+                return;
+            }
+            wave.visible = true;
+            const phase = (wave.userData.phase + (pulseClock * 0.00042)) % 1;
+            const radius = 0.08 + phase * wave.userData.maxRadius;
+            wave.scale.setScalar(radius);
+            wave.material.opacity = (1 - phase) * 0.12;
         });
 
         edgeMaterial.uniforms.uTime.value = pulseClock;
