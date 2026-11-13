@@ -178,6 +178,11 @@ class AgentLoopCoordinator:
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
+        if strict_enabled is not None:
+            strict_enabled = [
+                model_id for model_id in strict_enabled
+                if plan_features.get(provider_feature_key(model_id.split("/", 1)[0])) is True
+            ]
         db_allowed_all = []
         if self._provider_keys_repo:
             selected_map = self._provider_keys_repo.get_all_selected_models(user_id)
@@ -348,7 +353,11 @@ class AgentLoopCoordinator:
         )
 
         architect_guidance = ""
-        if strategy_upper in ("CODING", "ATM") and self._architect_agent:
+        architect_has_entitled_models = (
+            bool(strict_enabled) if strict_enabled is not None
+            else plan_features.get("local_byok") is True and plan_features.get("local_models") is True
+        )
+        if strategy_upper in ("CODING", "ATM") and self._architect_agent and architect_has_entitled_models:
             yield {
                 "status": "phase",
                 "label": "ATM Planning: Architect analyzing...",
