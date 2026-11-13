@@ -143,6 +143,10 @@ async def autoselect_all_providers(
     if "lm_studio" not in decrypted_keys:
         decrypted_keys["lm_studio"] = "http://localhost:1234"
 
+    decrypted_keys = {
+        provider: key for provider, key in decrypted_keys.items()
+        if feature_enabled(entitlements, provider_feature_key(provider))
+    }
     await discovery.discover_all(decrypted_keys)
 
     connected_providers = {
