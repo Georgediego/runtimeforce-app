@@ -286,6 +286,12 @@ import { eventBus } from "../core/event_bus.js";
       line.userData.edgeId = edge.id;
       state.edgeRoot.add(line);
     });
+    state.pulses.forEach((pulse, edgeId) => {
+      const edge = state.edges.get(edgeId);
+      const a = edge && state.nodes.get(edge.source)?.cell;
+      const b = edge && state.nodes.get(edge.target)?.cell;
+      if (a && b) { pulse.from.copy(a.position); pulse.to.copy(b.position); }
+    });
     if (edgeCountEl) edgeCountEl.textContent = state.edges.size + " LINKS";
     state.dirty = true;
   }
@@ -298,6 +304,7 @@ import { eventBus } from "../core/event_bus.js";
     put("rf-cube-provider", state.current.provider);
     put("rf-cube-agent", state.current.agent);
     put("rf-cube-tool", state.current.tool);
+    put("rf-cube-mode", state.current.mode);
     put("rf-cube-inspector-title", state.selectedNode ? state.nodes.get(state.selectedNode)?.label : "Select a segment");
     const selected = state.selectedNode ? state.nodes.get(state.selectedNode) : null;
     put("rf-cube-inspector-detail", selected ? selected.detail + " · " + selected.kind.toUpperCase() : "Hover or click a real object to inspect it");
@@ -418,12 +425,13 @@ import { eventBus } from "../core/event_bus.js";
             completedIds.forEach(id => state.activeNodes.delete(id));
             state.dirty = true;
           }, 850);
-          loadMemory();
+          window.setTimeout(loadMemory, 1300);
         }
       }
     } else if (status === "phase") {
       if (event.role) {
         const agent = String(event.role);
+        state.activeNodes.forEach(id => { if (id.startsWith("role:")) state.activeNodes.delete(id); });
         state.current.agent = agent;
         const id = "role:" + agent.toLowerCase();
         if (state.nodes.has(id)) {
