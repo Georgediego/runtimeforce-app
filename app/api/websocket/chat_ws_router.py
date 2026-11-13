@@ -171,6 +171,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     strategy=strategy,
                     model_lock=model_lock,
                     plan=plan,
+                    features=entitlements.get("features") or {},
                     user_id=user_id,
                     enabled_models=enabled_models,
                     project_id=project_id,
