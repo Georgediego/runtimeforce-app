@@ -1,5 +1,5 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+import * as THREE from "https://esm.sh/three@0.160.0";
+import { OrbitControls } from "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { eventBus } from "../core/event_bus.js";
 
 (() => {
@@ -154,6 +154,23 @@ import { eventBus } from "../core/event_bus.js";
     updateHud();
   }
 
+  function clearGroup(group) {
+    while (group.children.length) {
+      const child = group.children[0];
+      group.remove(child);
+      child.traverse(object => {
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach(material => {
+            if (material.map) material.map.dispose();
+            material.dispose();
+          });
+        }
+      });
+    }
+  }
+
   function makeIconTexture(kind) {
     const canvas = document.createElement("canvas");
     canvas.width = 96; canvas.height = 96;
@@ -207,10 +224,13 @@ import { eventBus } from "../core/event_bus.js";
 
   function buildCube() {
     if (!state.cubeRoot) return;
-    while (state.cubeRoot.children.length) {
-      const child = state.cubeRoot.children.pop();
-      if (child.parent) child.parent.remove(child);
+    if (state.rotation) {
+      state.rotation.members.forEach(cell => state.cubeRoot.attach(cell));
+      state.cubeRoot.remove(state.rotation.pivot);
+      state.rotation = null;
     }
+    state.rotationQueue.length = 0;
+    clearGroup(state.cubeRoot);
     state.cells = [];
     state.pulses.forEach(pulse => {
       state.scene.remove(pulse.mesh);
@@ -253,12 +273,7 @@ import { eventBus } from "../core/event_bus.js";
 
   function rebuildEdges() {
     if (!state.edgeRoot) return;
-    while (state.edgeRoot.children.length) {
-      const child = state.edgeRoot.children.pop();
-      if (child.parent) child.parent.remove(child);
-      child.geometry?.dispose();
-      child.material?.dispose();
-    }
+    clearGroup(state.edgeRoot);
     state.edges.forEach(edge => {
       const a = state.nodes.get(edge.source)?.cell;
       const b = state.nodes.get(edge.target)?.cell;
@@ -397,7 +412,12 @@ import { eventBus } from "../core/event_bus.js";
         activateMemoryEvent(item);
         if (event.phase === "activity") addLog(item.label || item.operation || "Memory activity", item.detail || item.phase || "");
         if (event.phase === "completed") {
-          addLog("Memory context ready", (item.active_node_ids || []).length + " nodes selected");
+          const completedIds = (item.active_node_ids || []).map(id => "mem:" + id);
+          addLog("Memory context ready", completedIds.length + " nodes selected");
+          window.setTimeout(() => {
+            completedIds.forEach(id => state.activeNodes.delete(id));
+            state.dirty = true;
+          }, 850);
           loadMemory();
         }
       }
@@ -414,6 +434,7 @@ import { eventBus } from "../core/event_bus.js";
       setStatus(event.label || "PROCESSING");
       addLog("Agent phase", event.label || event.role || "");
     } else if (status === "model_try") {
+      state.activeNodes.forEach(id => { if (id.startsWith("model:") || id.startsWith("provider:")) state.activeNodes.delete(id); });
       const model = String(event.model || "");
       const provider = String(event.provider || model.split("/")[0] || "");
       state.current.model = model;
@@ -446,6 +467,7 @@ import { eventBus } from "../core/event_bus.js";
       setStatus("TOOL EXECUTION");
       addLog("Tool invoked", name);
     } else if (status === "tool_end") {
+      state.activeNodes.delete("tool:" + String(event.tool_name || state.current.tool || ""));
       state.current.tool = "";
       setStatus("TOOL COMPLETED");
       addLog("Tool completed", event.tool_name || "");
@@ -642,6 +664,14 @@ import { eventBus } from "../core/event_bus.js";
     if (now - state.lastRender >= interval || state.dirty) {
       state.lastRender = now;
       if (state.controls) state.controls.update();
+      state.nodes.forEach(node => {
+        const cell = node.cell;
+        if (!cell || !cell.userData.body || !cell.userData.outline) return;
+        const activeNode = state.activeNodes.has(node.id);
+        cell.userData.body.material.opacity = activeNode ? 0.42 : 0.13;
+        cell.userData.outline.material.color.setHex(state.failed ? 0xff6258 : (activeNode ? 0xa6ffc9 : (palette[node.kind] || 0x39f5a0)));
+        cell.userData.outline.material.opacity = activeNode ? 1 : 0.9;
+      });
       if (state.rotation) {
         const turn = state.rotation;
         const t = Math.min(1, (now - turn.started) / turn.duration);
@@ -664,6 +694,18 @@ import { eventBus } from "../core/event_bus.js";
     }
     state.raf = requestAnimationFrame(renderLoop);
   }
+
+  function disposeScene() {
+    state.disposed = true;
+    if (state.raf) cancelAnimationFrame(state.raf);
+    state.resizeObserver?.disconnect();
+    state.controls?.dispose();
+    if (state.scene) clearGroup(state.scene);
+    state.renderer?.dispose();
+    state.renderer?.forceContextLoss?.();
+  }
+
+  window.addEventListener("pagehide", disposeScene, {once: true});
 
   function setCollapsed(value) {
     root.classList.toggle("is-collapsed", value);
