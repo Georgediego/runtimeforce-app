@@ -32,6 +32,11 @@ def tool_feature_key(tool_name: str) -> str | None:
     return TOOL_FEATURES.get(str(tool_name or "").strip())
 
 
+def provider_feature_key(provider: str) -> str:
+    normalized = str(provider or "").strip().lower()
+    return "local_models" if normalized in {"ollama", "lm_studio"} else "local_byok"
+
+
 def chat_strategy_feature(strategy: str) -> str | None:
     """Map the public chat strategy to its Admin-managed plan feature."""
     return CHAT_STRATEGY_FEATURES.get(str(strategy or "auto").strip().lower())
