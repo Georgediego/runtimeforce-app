@@ -27,6 +27,26 @@ class SelectedModelsPayload(BaseModel):
 class AutoselectPayload(BaseModel):
     provider_id: str
 
+async def _verified_entitlements(
+    request: Request,
+    license_service: LicenseService,
+    provider: Optional[str] = None,
+):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    token = token or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
+    entitlements = await license_service.get_entitlements(token)
+    if not entitlements.get("valid"):
+        raise HTTPException(status_code=403, detail="Account entitlements could not be verified")
+    if provider is not None:
+        feature_key = provider_feature_key(provider)
+        if not feature_enabled(entitlements, feature_key):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Provider access requires the '{feature_key}' plan feature",
+            )
+    return entitlements
+
+
 @router.post("/update")
 async def update_keys(
     payload: KeysUpdatePayload,
