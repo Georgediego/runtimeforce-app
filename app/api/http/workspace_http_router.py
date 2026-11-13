@@ -119,6 +119,8 @@ async def get_workspace_tree(
     except PermissionError as e:
         logger.error(f"Workspace permission denied: {e}")
         raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting workspace tree: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -181,6 +183,8 @@ async def read_workspace_file(
             raise HTTPException(status_code=404, detail="No workspace connected for this project")
         content = await WorkspaceFileService.read_file(driver, path)
         return {"path": path, "content": content}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error reading file {path}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -203,6 +207,8 @@ async def save_workspace_file(
             raise HTTPException(status_code=404, detail="No workspace connected for this project")
         await WorkspaceFileService.write_file(driver, path, content)
         return {"status": "success", "path": path}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error writing file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -222,6 +228,8 @@ async def execute_command(
         with container.command_approval_service.context(session_id=payload.session_id or "", project_id=target_project_id):
             res = await driver.execute_command(payload.command, cwd=payload.cwd, password=payload.password)
         return res
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error executing command '{payload.command}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -277,6 +285,8 @@ async def create_workspace(
 
         success = container.workspace_repo.create_workspace(ws_id, user_id, **payload)
         return {"status": "created" if success else "failed", "workspace_id": ws_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating workspace: {e}")
         raise HTTPException(status_code=500, detail=str(e))
