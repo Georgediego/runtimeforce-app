@@ -27,7 +27,12 @@ import { eventBus } from "../core/event_bus.js";
   const projectId=()=>localStorage.getItem("rf_active_project_id")||"";
   function api(url){const headers={};const jwt=token();if(jwt)headers.Authorization="Bearer "+jwt;return fetch(url,{headers,credentials:"same-origin",cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();});}
   function txt(id,value){const el=$(id);if(el)el.textContent=String(value||"—");}
-  function status(value){state.status=String(value||"IDLE").toUpperCase();txt("rf-astrolabe-status",state.status);root.dataset.state=state.failed?"failed":state.running?"active":"idle";}
+  function status(value){
+    state.status=String(value||"IDLE").toUpperCase();
+    txt("rf-astrolabe-status",state.status);
+    root.dataset.state=state.failed?"failed":state.running?"active":"idle";
+    if(state.coreGlow&&state.coreGlow.material)state.coreGlow.material.color.setHex(state.failed?0xff665b:0xc5ffdc);
+  }
   function hud(){txt("rf-astrolabe-model",state.current.model);txt("rf-astrolabe-provider",state.current.provider);txt("rf-astrolabe-agent",state.current.agent);txt("rf-astrolabe-tool",state.current.tool);txt("rf-astrolabe-mode",state.current.mode);status(state.status);}
   function log(title,detail,tone){
     const feed=$("rf-astrolabe-events");if(!feed)return;
