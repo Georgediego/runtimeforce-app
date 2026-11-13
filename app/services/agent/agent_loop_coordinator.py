@@ -167,6 +167,7 @@ class AgentLoopCoordinator:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
+        plan_features = features if isinstance(features, dict) else {}
         workspace_task_requested = bool(re.search(
             r"\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\b|"
             r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|команд(у|ы|ой|ами)?|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
@@ -391,8 +392,22 @@ class AgentLoopCoordinator:
                 route_error = str(e)
                 logger.warning(f"[AgentCoordinator] LLM route failed: {e}")
 
+        local_providers = ("ollama", "lm_studio")
+        if plan_features.get("local_models") is not True:
+            candidate_models = [
+                model for model in candidate_models
+                if model.get("provider", "").lower() not in local_providers
+            ]
+        if plan_features.get("local_byok") is not True:
+            candidate_models = [
+                model for model in candidate_models
+                if model.get("provider", "").lower() in local_providers
+            ]
         if strategy_upper == "LOCAL":
-            candidate_models = [m for m in candidate_models if m.get("provider", "").lower() in ("ollama", "lm_studio")]
+            candidate_models = [
+                model for model in candidate_models
+                if model.get("provider", "").lower() in local_providers
+            ]
 
         now = time.time()
         active_candidates = []
@@ -451,7 +466,6 @@ class AgentLoopCoordinator:
         final_text = ""
         active_specialist_index = 0
         force_no_tools = False
-        plan_features = features if isinstance(features, dict) else {}
         allowed_tools = [
             entry for entry in AGENT_TOOLS_MANIFEST
             if plan_features.get(tool_feature_key(entry.get("function", {}).get("name", ""))) is True
