@@ -124,7 +124,12 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 project_id = active_proj.get("id", "default") if active_proj else "default"
 
             active_workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
-            if active_workspace and str(active_workspace.get("type") or "").lower() == "ssh":
+            active_project = container.project_repo.get_project(project_id, user_id)
+            uses_ssh = bool(
+                (active_workspace and str(active_workspace.get("type") or "").lower() == "ssh")
+                or (not active_workspace and active_project and (active_project.get("ssh_host") or "").strip())
+            )
+            if uses_ssh:
                 if (entitlements.get("features") or {}).get("ssh") is not True:
                     await websocket.send_json({
                         "status": "error",
