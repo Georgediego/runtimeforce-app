@@ -2042,3 +2042,54 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 #rf-memory-activity .rf-memory-activity-row{background:transparent}
 @media(max-height:760px){#rf-memory-activity{max-height:52px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:60px}}
 @media(max-height:620px){#rf-memory-activity{max-height:36px!important}#rf-memory-widget .rf-memory-activity-heading{bottom:44px}}
+
+/* Runtime Graph 3D cube — isolated widget styles */
+#rf-memory-widget.rf-neon-cube{
+  flex:0 1 46%;min-height:270px;max-height:52%;padding:9px 9px 7px;gap:6px;
+  background:radial-gradient(ellipse at 50% 42%,rgba(12,92,54,.16),rgba(4,18,12,.08) 68%);
+  border-top:1px solid rgba(55,255,158,.18);
+}
+.rf-neon-cube .rf-memory-widget-heading{min-height:20px}
+.rf-neon-cube .rf-memory-live-dot{background:#43ff9f;box-shadow:0 0 10px rgba(67,255,159,.85)}
+.rf-cube-body{gap:5px;min-height:0}
+.rf-cube-stage{position:relative;flex:1 1 160px;min-height:145px;overflow:hidden;border:1px solid rgba(47,255,151,.12);border-radius:9px;background:radial-gradient(ellipse at 50% 52%,rgba(8,63,39,.25),rgba(2,9,7,.3) 72%)}
+#rf-cube-viewport{position:absolute;inset:0;width:100%;height:100%;min-height:145px}
+#rf-cube-viewport canvas{display:block;width:100%;height:100%;outline:none;cursor:grab}
+.rf-cube-hud{position:absolute;left:7px;top:7px;z-index:2;display:grid;gap:4px;max-width:45%;pointer-events:none;text-shadow:0 1px 4px #00190e}
+.rf-cube-hud>div:not(.rf-cube-state){display:grid;grid-template-columns:48px minmax(0,1fr);gap:4px;align-items:center}
+.rf-cube-hud small{font:700 6px 'Inter',sans-serif;letter-spacing:.08em;color:rgba(157,210,181,.58)}
+.rf-cube-hud b{font:600 7px 'JetBrains Mono',monospace;color:#b8fbd3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-cube-state{display:flex;align-items:center;gap:5px;margin-bottom:2px}
+.rf-cube-state span{width:5px;height:5px;border-radius:50%;background:#54fca8;box-shadow:0 0 8px #54fca8}
+.rf-neon-cube[data-state="active"] .rf-cube-state span{animation:rf-cube-pulse .65s ease-in-out infinite alternate}
+.rf-neon-cube[data-state="failed"] .rf-cube-state span{background:#ff6258;box-shadow:0 0 9px #ff6258}
+.rf-cube-state b{font:800 7px 'JetBrains Mono',monospace;color:#75ffb6;letter-spacing:.08em}
+.rf-neon-cube[data-state="failed"] .rf-cube-state b{color:#ff786d}
+@keyframes rf-cube-pulse{to{opacity:.35;transform:scale(.72)}}
+.rf-cube-inspector{display:flex;flex-direction:column;gap:2px;min-width:0;padding:4px 6px;border:1px solid rgba(54,255,153,.10);border-radius:6px;background:rgba(3,19,12,.46)}
+.rf-cube-inspector b{font:700 8px 'Inter',sans-serif;color:#aaffd0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-cube-inspector span{font:7px 'JetBrains Mono',monospace;color:rgba(166,205,183,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-neon-cube .rf-memory-widget-stats{font:700 7px 'JetBrains Mono',monospace;color:rgba(152,206,175,.62);letter-spacing:.07em}
+.rf-neon-cube #rf-memory-activity{flex:0 0 54px;min-height:36px;max-height:54px;overflow:hidden}
+.rf-neon-cube .rf-memory-activity-row{min-height:16px;gap:5px}
+.rf-neon-cube .rf-memory-activity-row b{font-size:7px}
+.rf-neon-cube .rf-memory-activity-row small,.rf-neon-cube .rf-memory-activity-row time{font-size:6px}
+.rf-neon-cube .rf-memory-activity-pulse{background:#49fba5;box-shadow:0 0 7px rgba(73,251,165,.7)}
+.rf-neon-cube .rf-memory-activity-row.is-error .rf-memory-activity-pulse{background:#ff6258;box-shadow:0 0 7px rgba(255,98,88,.8)}
+.rf-neon-cube .rf-memory-activity-row.is-warn .rf-memory-activity-pulse{background:#ffbf62;box-shadow:0 0 7px rgba(255,191,98,.7)}
+.rf-neon-cube.is-collapsed{flex-basis:28px;min-height:28px;max-height:28px}
+.rf-neon-cube.is-collapsed .rf-cube-body{display:none}
+@media(max-height:760px){
+  #rf-memory-widget.rf-neon-cube{min-height:235px;flex-basis:43%;padding:7px}
+  .rf-cube-stage{min-height:120px;flex-basis:130px}
+  #rf-cube-viewport{min-height:120px}
+  .rf-neon-cube #rf-memory-activity{flex-basis:44px;max-height:44px}
+}
+@media(max-height:620px){
+  #rf-memory-widget.rf-neon-cube{min-height:205px}
+  .rf-cube-stage{min-height:105px;flex-basis:110px}
+  #rf-cube-viewport{min-height:105px}
+  .rf-cube-hud{gap:2px}
+}
+
+#rf-memory-widget-body.rf-cube-body{display:flex!important;flex-direction:column;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important}
