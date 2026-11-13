@@ -123,6 +123,17 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 active_proj = container.project_repo.get_active_project(user_id)
                 project_id = active_proj.get("id", "default") if active_proj else "default"
 
+            active_workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
+            if active_workspace and str(active_workspace.get("type") or "").lower() == "ssh":
+                if (entitlements.get("features") or {}).get("ssh") is not True:
+                    await websocket.send_json({
+                        "status": "error",
+                        "code": "feature_not_enabled",
+                        "feature": "ssh",
+                        "error": "SSH workspaces are not included in your current plan.",
+                    })
+                    continue
+
             driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
             if not driver:
                 await websocket.send_json({
