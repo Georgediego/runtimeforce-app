@@ -40,13 +40,6 @@ import { eventBus } from "../core/event_bus.js";
     pointer: new THREE.Vector2(), resizeObserver: null, disposed: false
   };
 
-  const restore = document.createElement("button");
-  restore.id = "rf-memory-widget-restore";
-  restore.type = "button";
-  restore.className = "rf-memory-widget-restore";
-  restore.textContent = "RUNTIME GRAPH  ↑";
-  root.insertAdjacentElement("afterend", restore);
-
   function setStatus(value) {
     state.status = String(value || "IDLE").toUpperCase();
     if (statusEl) statusEl.textContent = state.status;
@@ -845,7 +838,6 @@ import { eventBus } from "../core/event_bus.js";
   }
 
   if (toggle) toggle.addEventListener("click", () => setCollapsed(!root.classList.contains("is-collapsed")));
-  restore.addEventListener("click", () => setCollapsed(false));
   eventBus.on("generation:state", event => {
     if (event?.active && !state.running) startRun();
     else if (!event?.active && state.running) finishRun("aborted");
