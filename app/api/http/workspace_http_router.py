@@ -40,7 +40,11 @@ async def _verified_entitlements(request: Request):
 
 async def _ensure_ssh_workspace_allowed(user_id: str, project_id: str, request: Request):
     workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
-    if not workspace or str(workspace.get("type") or "").lower() != "ssh":
+    is_ssh = bool(workspace and str(workspace.get("type") or "").lower() == "ssh")
+    if not workspace:
+        project = container.project_repo.get_project(project_id, user_id)
+        is_ssh = bool(project and (project.get("ssh_host") or "").strip())
+    if not is_ssh:
         return
     entitlements = await _verified_entitlements(request)
     features = entitlements.get("features") or {}
@@ -52,6 +56,9 @@ def _count_unique_ssh_hosts(user_id: str):
     hosts = set()
     for project in container.project_repo.list_projects(user_id):
         project_id = project.get("id")
+        legacy_host = str(project.get("ssh_host") or "").strip().lower()
+        if legacy_host:
+            hosts.add((legacy_host, int(project.get("ssh_port") or 22)))
         if not project_id:
             continue
         for workspace in container.workspace_repo.get_all_workspaces(user_id, project_id):
