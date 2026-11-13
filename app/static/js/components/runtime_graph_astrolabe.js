@@ -147,6 +147,16 @@ import { eventBus } from "../core/event_bus.js";
     });
     schedule();
   }
+  function refreshEdgePositions(){
+    state.edgeObjects.forEach(item=>{
+      const curve=makeCurve(item.edge.source,item.edge.target);
+      if(!curve)return;
+      item.curve=curve;
+      const points=curve.getPoints(18);
+      item.line.geometry.dispose();
+      item.line.geometry=new THREE.BufferGeometry().setFromPoints(points);
+    });
+  }
   function schedule(){state.dirty=true;if(!state.raf&&!state.disposed&&!document.hidden)state.raf=requestAnimationFrame(frame);}
   function hasMotion(){return state.rotations.length>0||state.pulses.length>0||Boolean(state.beam);}
   function frame(now){
@@ -155,7 +165,7 @@ import { eventBus } from "../core/event_bus.js";
       const t=Math.min(1,(now-r.started)/r.duration),e=t*t*(3-2*t);r.ring.group.rotation.y=r.from+r.delta*e;
       if(t<1){moving=true;return true;}r.ring.group.rotation.y=r.to;return false;
     });
-    if(moving)updateEdges();
+    if(moving)refreshEdgePositions();
     state.pulses=state.pulses.filter(p=>{
       const t=Math.min(1,(now-p.started)/p.duration);p.mesh.position.copy(p.curve.getPoint(t));p.mesh.material.opacity=t>.72?Math.max(0,(1-t)/.28):1;
       if(t<1){moving=true;return true;}state.pulseRoot.remove(p.mesh);disposeObject(p.mesh);
@@ -178,7 +188,7 @@ import { eventBus } from "../core/event_bus.js";
     if(!curve)return;const color=tone==="error"?0xff665b:0x9affc2;
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(.035,8,6),new THREE.MeshBasicMaterial({color,transparent:true,opacity:1}));
     state.pulseRoot.add(mesh);state.pulses.push({mesh,curve,edgeId:edgeId||"",started:performance.now(),duration:1000});
-    if(edgeId){state.activeEdges.add(edgeId);const e=state.edgeObjects.get(edgeId);if(e){e.line.material.color.setHex(color);e.line.material.opacity:.95;}}
+    if(edgeId){state.activeEdges.add(edgeId);const e=state.edgeObjects.get(edgeId);if(e){e.line.material.color.setHex(color);e.line.material.opacity=0.95;}}
     schedule();
   }
   function beam(id,tone){
@@ -263,7 +273,7 @@ import { eventBus } from "../core/event_bus.js";
       activity(tid);status("TOOL EXECUTION");log("Tool started",state.current.tool+" · "+state.current.agent,"active");
     }else if(s==="tool_end"){
       const name=String(event.tool_name||state.current.tool||"");let failed=false;
-      try{failed=Number(JSON.parse(event.result||"{}").exit_code)!==0;}catch(_){}
+      try{const result=JSON.parse(event.result||"{}");failed=Object.prototype.hasOwnProperty.call(result,"exit_code")&&Number(result.exit_code)!==0;}catch(_){}
       if(failed){state.failed=true;status("TOOL FAILED");activity("tool:"+name,"error");log("Tool failed",name,"error");}
       else{log("Tool completed",name);complete(["tool:"+name]);status("TOOL COMPLETED");}
       state.current.tool="";
