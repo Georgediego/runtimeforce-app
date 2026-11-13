@@ -219,28 +219,29 @@
                 </div>
             </div>
 
-            <section id="rf-memory-widget" class="rf-memory-widget rf-neon-cube" aria-label="Live Runtime Graph">
-                <div class="rf-memory-widget-heading">
-                    <button id="rf-memory-widget-toggle" class="rf-memory-widget-toggle" type="button" aria-expanded="true" aria-label="Hide runtime graph" title="Hide runtime graph"><i data-lucide="chevron-down" class="w-3 h-3"></i></button>
-                </div>
-                <div id="rf-memory-widget-body" class="rf-memory-widget-body rf-cube-body">
-                    <div class="rf-cube-stage">
-                        <div id="rf-cube-viewport" aria-label="Interactive 3D cube. Drag to orbit, scroll to zoom."></div>
+            <section id="rf-memory-widget" class="rf-memory-widget rf-astrolabe" aria-label="Live Runtime Graph Astrolabe">
+                <div id="rf-memory-widget-body" class="rf-astrolabe-body">
+                    <div class="rf-astrolabe-stage"><div id="rf-astrolabe-viewport"></div></div>
+                    <div class="rf-astrolabe-hud">
+                        <div class="rf-astrolabe-state"><i></i><b id="rf-astrolabe-status">IDLE</b></div>
+                        <div class="rf-astrolabe-readout">
+                            <span>MODEL <b id="rf-astrolabe-model">—</b></span>
+                            <span>PROVIDER <b id="rf-astrolabe-provider">—</b></span>
+                            <span>AGENT <b id="rf-astrolabe-agent">—</b></span>
+                            <span>TOOL <b id="rf-astrolabe-tool">—</b></span>
+                            <span>MODE <b id="rf-astrolabe-mode">—</b></span>
+                        </div>
                     </div>
-                    <div class="rf-cube-hud">
-                        <div class="rf-cube-state"><span></span><b id="rf-memory-widget-status">IDLE</b></div>
-                        <div><small>MODEL</small><b id="rf-cube-model">—</b></div>
-                        <div><small>PROVIDER</small><b id="rf-cube-provider">—</b></div>
-                        <div><small>AGENT</small><b id="rf-cube-agent">—</b></div>
-                        <div><small>TOOL</small><b id="rf-cube-tool">—</b></div>
-                        <div><small>MODE</small><b id="rf-cube-mode">—</b></div>
+                    <div class="rf-astrolabe-controls">
+                        <button id="rf-astrolabe-reset" type="button" aria-label="Reset camera" title="Reset camera"><i data-lucide="crosshair" class="w-3 h-3"></i></button>
+                        <button id="rf-memory-widget-toggle" type="button" aria-expanded="true" aria-label="Hide Runtime Graph" title="Hide Runtime Graph"><i data-lucide="chevron-down" class="w-3 h-3"></i></button>
                     </div>
-                    <div class="rf-cube-inspector">
-                        <b id="rf-cube-inspector-title"></b>
-                        <span id="rf-cube-inspector-detail"></span>
+                    <div class="rf-astrolabe-inspector">
+                        <b id="rf-astrolabe-inspector-title">Select a real node</b>
+                        <span><i id="rf-astrolabe-inspector-kind">—</i><i id="rf-astrolabe-inspector-links">—</i></span>
+                        <small id="rf-astrolabe-inspector-detail">Hover or click an orbit node to inspect it</small>
                     </div>
-                    <div class="rf-memory-widget-stats"><span></span><span id="rf-memory-widget-edges"></span></div>
-                    <div id="rf-memory-activity" class="rf-memory-activity" aria-live="polite"></div>
+                    <div id="rf-astrolabe-events" class="rf-astrolabe-events" aria-live="polite"></div>
                 </div>
             </section>
         </section>
@@ -989,7 +990,7 @@
 <script type="module" src="/static/js/components/trace_ui_controller.js?v={{ app_version }}-bug-reports-agent-graph"></script>
 <script type="module" src="/static/js/components/setup_wizard_ui_controller.js?v={{ app_version }}-bug-reports"></script>
 <script type="module" src="/static/js/components/system_monitor.js?v={{ app_version }}-bug-reports"></script>
-<script type="module" src="/static/js/components/runtime_graph_cube.js?v={{ app_version }}-runtime-graph-cube-v1"></script>
+<script type="module" src="/static/js/components/runtime_graph_astrolabe.js?v={{ app_version }}-runtime-graph-astrolabe-v1"></script>
 <script type="module" src="/static/js/app_bootstrap.js?v={{ app_version }}-bug-reports"></script>
 
 
