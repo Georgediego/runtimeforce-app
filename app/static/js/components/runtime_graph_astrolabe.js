@@ -40,7 +40,9 @@ import { eventBus } from "../core/event_bus.js";
   function addEdge(id,source,target,kind,detail){if(id&&state.nodes.has(source)&&state.nodes.has(target)&&source!==target)state.edges.set(String(id),{id:String(id),source,target,kind:kind||"relation",detail:String(detail||"")});}
   function walkTree(item,parent,out,limit){
     if(!item||!item.path||out.length>=limit)return;
-    const name=String(item.name||item.path.split("/").pop()||"workspace"),kind=item.type==="directory"||Array.isArray(item.children)?"directory":"file";
+    const name=String(item.name||item.path.split("/").pop()||"workspace");
+    if([".git","node_modules","venv",".venv","__pycache__"].includes(name))return;
+    const kind=item.type==="directory"||Array.isArray(item.children)?"directory":"file";
     out.push({id:"workspace:"+item.path,name,path:item.path,parent,kind});
     (item.children||[]).forEach(child=>walkTree(child,item.path,out,limit));
   }
@@ -152,6 +154,7 @@ import { eventBus } from "../core/event_bus.js";
       const curve=makeCurve(item.edge.source,item.edge.target);
       if(!curve)return;
       item.curve=curve;
+      state.pulses.forEach(pulse=>{if(pulse.edgeId===item.edge.id)pulse.curve=curve;});
       const points=curve.getPoints(18);
       item.line.geometry.dispose();
       item.line.geometry=new THREE.BufferGeometry().setFromPoints(points);
@@ -173,7 +176,10 @@ import { eventBus } from "../core/event_bus.js";
       if(t<1){moving=true;return true;}state.pulseRoot.remove(p.mesh);disposeObject(p.mesh);
       if(p.edgeId){state.activeEdges.delete(p.edgeId);const edge=state.edgeObjects.get(p.edgeId);if(edge){edge.line.material.color.setHex(0x277f61);edge.line.material.opacity=.3;}}return false;
     });
-    if(state.beam){const b=state.beam,t=Math.min(1,(now-b.started)/b.duration);b.mesh.position.copy(b.curve.getPoint(t));b.mesh.material.opacity=t>.75?Math.max(0,(1-t)/.25):1;
+    if(state.beam){
+      const b=state.beam,target=worldPos(b.targetId);
+      if(target){const mid=target.clone().multiplyScalar(.5);mid.y+=.22;b.curve.v1.copy(mid);b.curve.v2.copy(target);b.line.geometry.dispose();b.line.geometry=new THREE.BufferGeometry().setFromPoints(b.curve.getPoints(22));}
+      const t=Math.min(1,(now-b.started)/b.duration);b.mesh.position.copy(b.curve.getPoint(t));b.mesh.material.opacity=t>.75?Math.max(0,(1-t)/.25):1;
       if(t>=1){state.pulseRoot.remove(b.mesh);disposeObject(b.mesh);state.edgeRoot.remove(b.line);disposeObject(b.line);state.beam=null;}else moving=true;}
     if(state.coreGlow&&state.running){state.coreGlow.scale.setScalar(.92+Math.sin(now*.009)*.08);moving=true;}
     const controlsChanged=state.controls?state.controls.update():false;
@@ -201,7 +207,7 @@ import { eventBus } from "../core/event_bus.js";
     const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(22)),new THREE.LineBasicMaterial({color,transparent:true,opacity:.8}));
     state.edgeRoot.add(line);
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),new THREE.MeshBasicMaterial({color,transparent:true,opacity:1}));state.pulseRoot.add(mesh);
-    state.beam={curve,line,mesh,started:performance.now(),duration:1050};schedule();
+    state.beam={curve,line,mesh,targetId:id,started:performance.now(),duration:1050};schedule();
   }
   function activity(id,tone){
     if(!state.meshes.has(id))return;state.activeNodes.add(id);const mesh=state.meshes.get(id),body=mesh.userData.body||mesh.children.find(c=>c.isMesh);
