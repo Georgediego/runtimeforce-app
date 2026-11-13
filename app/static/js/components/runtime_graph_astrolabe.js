@@ -160,7 +160,9 @@ import { eventBus } from "../core/event_bus.js";
   function schedule(){state.dirty=true;if(!state.raf&&!state.disposed&&!document.hidden)state.raf=requestAnimationFrame(frame);}
   function hasMotion(){return state.rotations.length>0||state.pulses.length>0||Boolean(state.beam);}
   function frame(now){
-    state.raf=0;if(state.disposed||!state.renderer)return;let moving=false;
+    state.raf=0;if(state.disposed||!state.renderer)return;
+    if(state.lastFrame&&now-state.lastFrame<30){schedule();return;}
+    state.lastFrame=now;let moving=false;
     state.rotations=state.rotations.filter(r=>{
       const t=Math.min(1,(now-r.started)/r.duration),e=t*t*(3-2*t);r.ring.group.rotation.y=r.from+r.delta*e;
       if(t<1){moving=true;return true;}r.ring.group.rotation.y=r.to;return false;
@@ -260,9 +262,9 @@ import { eventBus } from "../core/event_bus.js";
     }else if(s==="model_try"){
       state.current.model=String(event.model||"");state.current.provider=String(event.provider||"");state.current.agent=String(event.role||state.current.agent||"");
       const pid="provider:"+state.current.provider.toLowerCase(),mid="model:"+state.current.model;
-      observedNode(pid,"provider",state.current.provider,"Provider observed during model selection","systems",{observed:true});
+      if(state.current.provider)observedNode(pid,"provider",state.current.provider,"Provider observed during model selection","systems",{observed:true});
       observedNode(mid,"model",state.current.model.split("/").pop(),state.current.model,"systems",{provider:state.current.provider,observed:true});
-      observedEdge("runtime-model:"+state.current.provider+":"+state.current.model,pid,mid,"Live model selection");
+      if(state.current.provider)observedEdge("runtime-model:"+state.current.provider+":"+state.current.model,pid,mid,"Live model selection");
       activity(mid);status("MODEL INFERENCE");log("Model selected",state.current.model+" · "+state.current.provider,"active");
     }else if(s==="tool_start"){
       state.current.tool=String(event.tool_name||"");state.current.agent=String(event.role||state.current.agent||"");
