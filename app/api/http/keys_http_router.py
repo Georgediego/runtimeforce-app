@@ -3,12 +3,13 @@ HTTP API Router for managing Provider API Keys, Selected Models, and Global AUTO
 """
 import logging
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature
-from app.container import get_provider_keys_repo, get_byok_key_service, get_llm_router, get_llm_discovery
+from app.core.security.entitlements import feature_enabled, provider_feature_key
+from app.container import get_provider_keys_repo, get_byok_key_service, get_llm_router, get_llm_discovery, get_license_service
+from app.services.billing.license_service import LicenseService
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.services.byok.byok_key_service import ByokKeyService
 from app.services.llm.llm_router_service import LLMRouterService
@@ -29,9 +30,14 @@ class AutoselectPayload(BaseModel):
 @router.post("/update")
 async def update_keys(
     payload: KeysUpdatePayload,
-    user_id: str = Depends(require_plan_feature("local_byok")),
-    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
+    request: Request,
+    user_id: str = Depends(require_authenticated_user),
+    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
+    license_service: LicenseService = Depends(get_license_service),
 ):
+    for provider in payload.keys:
+        if provider.lower() != "perplexity":
+            await _verified_entitlements(request, license_service, provider)
     saved_count = 0
     for provider, plain_key in payload.keys.items():
         if provider.lower() == "perplexity":
@@ -45,26 +51,44 @@ async def update_keys(
 
 @router.get("/status")
 async def get_keys_status(
-    user_id: str = Depends(require_plan_feature("local_byok")),
-    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
+    request: Request,
+    user_id: str = Depends(require_authenticated_user),
+    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
+    license_service: LicenseService = Depends(get_license_service),
 ):
+    entitlements = await _verified_entitlements(request, license_service)
     keys = repo.get_all_provider_keys(user_id)
-    filtered = {p: True for p in keys.keys() if p.lower() != "perplexity"}
+    filtered = {
+        p: True for p in keys.keys()
+        if p.lower() != "perplexity"
+        and feature_enabled(entitlements, provider_feature_key(p))
+    }
     return {"providers": filtered}
 
 @router.get("/selected-models")
 async def get_selected_models(
-    user_id: str = Depends(require_plan_feature("local_byok")),
-    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
+    request: Request,
+    user_id: str = Depends(require_authenticated_user),
+    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
+    license_service: LicenseService = Depends(get_license_service),
 ):
-    return {"selected_models": repo.get_all_selected_models(user_id)}
+    entitlements = await _verified_entitlements(request, license_service)
+    selected = repo.get_all_selected_models(user_id)
+    selected = {
+        provider: models for provider, models in selected.items()
+        if feature_enabled(entitlements, provider_feature_key(provider))
+    }
+    return {"selected_models": selected}
 
 @router.post("/selected-models")
 async def save_selected_models(
     payload: SelectedModelsPayload,
-    user_id: str = Depends(require_plan_feature("local_byok")),
-    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
+    request: Request,
+    user_id: str = Depends(require_authenticated_user),
+    repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
+    license_service: LicenseService = Depends(get_license_service),
 ):
+    await _verified_entitlements(request, license_service, payload.provider_id)
     p_clean = payload.provider_id.lower().strip()
     if p_clean == "perplexity":
         return {"status": "ignored"}
@@ -74,10 +98,13 @@ async def save_selected_models(
 @router.post("/autoselect")
 async def autoselect_provider_models(
     payload: AutoselectPayload,
-    user_id: str = Depends(require_plan_feature("local_byok")),
+    request: Request,
+    user_id: str = Depends(require_authenticated_user),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
-    llm_router: LLMRouterService = Depends(get_llm_router)
+    llm_router: LLMRouterService = Depends(get_llm_router),
+    license_service: LicenseService = Depends(get_license_service),
 ):
+    await _verified_entitlements(request, license_service, payload.provider_id)
     p_clean = payload.provider_id.lower().strip()
     if p_clean == "perplexity":
         raise HTTPException(400, "Perplexity provider is removed")
@@ -93,11 +120,14 @@ async def autoselect_provider_models(
 
 @router.post("/autoselect-all")
 async def autoselect_all_providers(
-    user_id: str = Depends(require_plan_feature("local_byok")),
+    request: Request,
+    user_id: str = Depends(require_authenticated_user),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
     llm_router: LLMRouterService = Depends(get_llm_router),
-    discovery: LLMDiscoveryService = Depends(get_llm_discovery)
+    discovery: LLMDiscoveryService = Depends(get_llm_discovery),
+    license_service: LicenseService = Depends(get_license_service),
 ):
+    entitlements = await _verified_entitlements(request, license_service)
     encrypted_keys = repo.get_all_provider_keys(user_id)
     decrypted_keys = {}
     for p, key_enc in encrypted_keys.items():
@@ -115,7 +145,10 @@ async def autoselect_all_providers(
 
     await discovery.discover_all(decrypted_keys)
 
-    connected_providers = set(p.lower() for p in decrypted_keys.keys())
+    connected_providers = {
+        p.lower() for p in decrypted_keys.keys()
+        if feature_enabled(entitlements, provider_feature_key(p))
+    }
     results = {}
     total_selected = 0
 
@@ -134,7 +167,7 @@ async def autoselect_all_providers(
 
 @router.post("/reencrypt")
 async def reencrypt_keys(
-    user_id: str = Depends(require_plan_feature("local_byok")),
+    user_id: str = Depends(require_authenticated_user),
     byok_service: ByokKeyService = Depends(get_byok_key_service)
 ):
     return byok_service.reencrypt_all_keys(user_id)
@@ -142,7 +175,7 @@ async def reencrypt_keys(
 @router.delete("/{provider}")
 async def delete_key(
     provider: str,
-    user_id: str = Depends(require_plan_feature("local_byok")),
+    user_id: str = Depends(require_authenticated_user),
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo)
 ):
     repo.delete_provider_key(provider.lower().strip(), user_id)
