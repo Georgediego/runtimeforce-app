@@ -50,13 +50,20 @@ import { eventBus } from "../core/event_bus.js";
 
     let nodePoints = null, glowPoints = null, edgeLines = null, ambientPoints = null, shellMesh = null;
     let nodeMaterial = null, glowMaterial = null, edgeMaterial = null;
-    let positionById = new Map();      // id -> [x, y, z]
-    let indexById = new Map();         // node id -> buffer index
-    let edgeIndexById = new Map();     // edge id -> segment index
+    let positionById = new Map();      // id -> current [x, y, z]
+    let surfacePositionById = new Map();
+    let indexById = new Map();
+    let edgeIndexById = new Map();
     let nodeTarget = new Float32Array(0);
     let edgeTarget = new Float32Array(0);
     let hubIndexes = [];
-    const layoutCache = new Map();     // id -> [x, y, z], survives data refreshes
+    const layoutCache = new Map();     // stable deep positions
+    const revealedIds = new Set();
+    const queuedRevealIds = new Set();
+    const revealQueue = [];
+    const revealStartedAt = new Map();
+    const edgeListByIndex = [];
+    let nextRevealAt = 0;
 
     const setStatus = value => { if (statusEl) statusEl.textContent = value; };
 
@@ -299,13 +306,17 @@ import { eventBus } from "../core/event_bus.js";
         labelLayer.style.height = canvas.clientHeight + "px";
     }
 
+    const NODE_GLYPHS = {
+        project: "◈", conversation: "◌", memoryquery: "⌕", decision: "◆",
+        file: "▤", code: "</>", symbol: "◇", memory: "✧", workspace: "⌂",
+        directory: "▰", provider: "◉", model: "◎", role: "♙", tool: "⚙", mode: "⌘"
+    };
+
     function updateLabels() {
         const picks = [];
-        if (processActive) {
-            for (const id of activeIds) {
-                const i = indexById.get(id);
-                if (i !== undefined) picks.push({ i, hot: true });
-            }
+        for (const id of revealedIds) {
+            const i = indexById.get(id);
+            if (i !== undefined) picks.push({ i, hot: activeIds.has(id) });
         }
         const w = canvas.clientWidth, h = canvas.clientHeight;
         graphGroup.updateMatrixWorld(true);
@@ -326,7 +337,8 @@ import { eventBus } from "../core/event_bus.js";
                 labelLayer.appendChild(el);
             }
             el.className = "rf-memory-label" + (hot ? " hot" : "");
-            const text = String(node.label || node.id || node.type || "").trim();
+            const type = String(node.type || "memory").toLowerCase();
+            const text = (NODE_GLYPHS[type] || "•") + " " + String(node.label || node.id || type).trim();
             if (el.textContent !== text) el.textContent = text;
             el.style.opacity = "1";
             el.style.transform = "translate(" + Math.round(x + 7) + "px," + Math.round(y - 8) + "px)";
@@ -381,11 +393,13 @@ import { eventBus } from "../core/event_bus.js";
         disposeLayers();
         layoutCache.clear();
         positionById = new Map();
+        surfacePositionById = new Map();
         indexById = new Map();
         edgeIndexById = new Map();
         nodeTarget = new Float32Array(0);
         edgeTarget = new Float32Array(0);
         hubIndexes = [];
+        edgeListByIndex.length = 0;
     }
 
     // ---- Graph build -----------------------------------------------------
@@ -414,6 +428,9 @@ import { eventBus } from "../core/event_bus.js";
         edgeIndexById = new Map();
         const count = nodes.length;
         nodeTarget = new Float32Array(count);
+        edgeTarget = new Float32Array(edges.length);
+        surfacePositionById = new Map();
+        edgeListByIndex.length = 0;
 
         const degree = new Map();
         edges.forEach(edge => {
@@ -431,14 +448,17 @@ import { eventBus } from "../core/event_bus.js";
             nodes.forEach((node, i) => {
                 const id = String(node.id);
                 const pos = layoutCache.get(id);
+                const length = Math.hypot(pos[0], pos[1], pos[2]) || 1;
+                const surface = [pos[0] / length * RADIUS * 0.92, pos[1] / length * RADIUS * 0.92, pos[2] / length * RADIUS * 0.92];
                 const color = nodeColor(node);
                 positions.set(pos, i * 3);
+                surfacePositionById.set(id, surface);
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
                 sizes[i] = 0.075 + 0.085 * Math.min(1, Math.log1p(deg) / Math.log(14));
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
-                positionById.set(id, pos);
+                positionById.set(id, [...pos]);
                 indexById.set(id, i);
                 colorById.set(id, color);
             });
@@ -460,6 +480,36 @@ import { eventBus } from "../core/event_bus.js";
             glowPoints.renderOrder = 3;
             graphGroup.add(nodePoints, glowPoints);
 
+            // Render only real graph edges; each segment joins its stored source and target.
+            const edgePositions = new Float32Array(edges.length * 6);
+            const edgeColors = new Float32Array(edges.length * 6);
+            const edgeAlong = new Float32Array(edges.length * 2);
+            const edgeActive = new Float32Array(edges.length * 2);
+            edges.forEach((edge, i) => {
+                const sourceId = String(edge.source), targetId = String(edge.target);
+                const source = positionById.get(sourceId), target = positionById.get(targetId);
+                if (!source || !target) return;
+                edgePositions.set(source, i * 6);
+                edgePositions.set(target, i * 6 + 3);
+                const sourceColor = colorById.get(sourceId) || rawColor(INACTIVE_NODE_COLOR);
+                const targetColor = colorById.get(targetId) || sourceColor;
+                const tint = sourceColor.clone().lerp(targetColor, 0.5);
+                edgeColors.set([tint.r, tint.g, tint.b, tint.r, tint.g, tint.b], i * 6);
+                edgeAlong[i * 2] = 0;
+                edgeAlong[i * 2 + 1] = 1;
+                edgeIndexById.set(String(edge.id), i);
+                edgeListByIndex[i] = edge;
+            });
+            const edgeGeometry = new THREE.BufferGeometry();
+            edgeGeometry.setAttribute("position", new THREE.BufferAttribute(edgePositions, 3));
+            edgeGeometry.setAttribute("aColor", new THREE.BufferAttribute(edgeColors, 3));
+            edgeGeometry.setAttribute("aAlong", new THREE.BufferAttribute(edgeAlong, 1));
+            edgeGeometry.setAttribute("aAct", new THREE.BufferAttribute(edgeActive, 1));
+            edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+            edgeLines.frustumCulled = false;
+            edgeLines.renderOrder = 1;
+            graphGroup.add(edgeLines);
+
             hubIndexes = nodes
                 .map((node, i) => ({ i, deg: degree.get(String(node.id)) || 0, id: String(node.id) }))
                 .filter(item => item.deg > 0)
@@ -478,26 +528,49 @@ import { eventBus } from "../core/event_bus.js";
         setStatus("RUNTIME GRAPH · " + count + " OBJECTS · " + edges.length + " LINKS" + activeText);
     }
 
-    // Targets come only from ids reported by the memory pipeline that exist in the loaded SQLite rows.
+    function enqueueReveals() {
+        activeIds.forEach(id => {
+            if (!indexById.has(id) || revealedIds.has(id) || queuedRevealIds.has(id)) return;
+            revealQueue.push(id);
+            queuedRevealIds.add(id);
+        });
+    }
+
+    function resetIteration() {
+        revealedIds.clear();
+        queuedRevealIds.clear();
+        revealQueue.length = 0;
+        revealStartedAt.clear();
+        nextRevealAt = 0;
+        if (nodePoints) {
+            const positions = nodePoints.geometry.attributes.position.array;
+            nodes.forEach((node, i) => {
+                const id = String(node.id);
+                const base = layoutCache.get(id);
+                if (!base) return;
+                positions.set(base, i * 3);
+                positionById.set(id, [...base]);
+            });
+            nodePoints.geometry.attributes.position.needsUpdate = true;
+        }
+    }
+
     function applyActive() {
+        enqueueReveals();
         nodeTarget.fill(0);
         edgeTarget.fill(0);
         if (!processActive) return;
         activeIds.forEach(id => {
             const i = indexById.get(id);
-            if (i !== undefined) nodeTarget[i] = 1;
+            if (i !== undefined && revealedIds.has(id)) nodeTarget[i] = 1;
         });
         activeEdgeIds.forEach(id => {
             const k = edgeIndexById.get(id);
             if (k !== undefined) edgeTarget[k] = 1;
         });
-        // Real relationships connected to an active object light up during its operation.
-        // Illuminate only real stored/configured relationships that touch an active object.
-        // This keeps the network meaningful: no synthetic all-to-all links are drawn.
         edges.forEach(edge => {
-            const source = String(edge.source);
-            const target = String(edge.target);
-            if (!activeIds.has(source) && !activeIds.has(target)) return;
+            const source = String(edge.source), target = String(edge.target);
+            if (!revealedIds.has(source) || !revealedIds.has(target)) return;
             const k = edgeIndexById.get(String(edge.id));
             if (k !== undefined) edgeTarget[k] = 1;
         });
@@ -811,6 +884,7 @@ import { eventBus } from "../core/event_bus.js";
             if (indexById.has(toolId)) activeIds.add(toolId);
         }
         rememberActiveNodes();
+        enqueueReveals();
     }
 
     const hasUnknown = () => [...activeIds].some(id => !indexById.has(id));
@@ -824,6 +898,7 @@ import { eventBus } from "../core/event_bus.js";
             if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
             processActive = true;
             runStartedAt = performance.now();
+            if (!generationActive) resetIteration();
             activeIds.clear();
             activeEdgeIds.clear();
             addContextActive(detail);
@@ -903,7 +978,56 @@ import { eventBus } from "../core/event_bus.js";
         graphGroup.rotation.z = Math.sin(pulseClock * 0.00013) * 0.045;
 
         nodeMaterial.uniforms.uTime.value = pulseClock;
-        if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
+        if (revealQueue.length && now >= nextRevealAt) {
+            const id = revealQueue.shift();
+            queuedRevealIds.delete(id);
+            if (indexById.has(id)) {
+                revealedIds.add(id);
+                revealStartedAt.set(id, now);
+                nextRevealAt = now + 310;
+                applyActive();
+            }
+        }
+
+        if (nodePoints) {
+            const positionAttribute = nodePoints.geometry.attributes.position;
+            const positionArray = positionAttribute.array;
+            let moved = false;
+            revealedIds.forEach(id => {
+                const index = indexById.get(id);
+                const base = layoutCache.get(id);
+                const surface = surfacePositionById.get(id);
+                const started = revealStartedAt.get(id);
+                if (index === undefined || !base || !surface || started === undefined) return;
+                const progress = Math.min(1, Math.max(0, (now - started) / 820));
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = [
+                    base[0] + (surface[0] - base[0]) * eased,
+                    base[1] + (surface[1] - base[1]) * eased,
+                    base[2] + (surface[2] - base[2]) * eased
+                ];
+                positionArray.set(current, index * 3);
+                positionById.set(id, current);
+                moved = true;
+            });
+            if (moved) positionAttribute.needsUpdate = true;
+            easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
+        }
+        if (edgeLines) {
+            const edgePosition = edgeLines.geometry.attributes.position;
+            const edgeArray = edgePosition.array;
+            edgeListByIndex.forEach((edge, i) => {
+                if (!edge) return;
+                const source = positionById.get(String(edge.source));
+                const target = positionById.get(String(edge.target));
+                if (!source || !target) return;
+                edgeArray.set(source, i * 6);
+                edgeArray.set(target, i * 6 + 3);
+            });
+            edgePosition.needsUpdate = true;
+            easeBuffer(edgeLines.geometry.attributes.aAct, edgeTarget, 1 - Math.exp(-delta / 170), 2);
+            edgeMaterial.uniforms.uTime.value = pulseClock;
+        }
 
         updateLabels();
         renderer.render(scene, camera);
@@ -977,16 +1101,20 @@ import { eventBus } from "../core/event_bus.js";
         if (event.detail?.status === "memory_graph") handleMemoryEvent(event.detail);
     });
 
+    let graphIterationActive = false;
     eventBus.on("generation:state", state => {
         generationActive = Boolean(state?.active);
         if (endRunTimer) { clearTimeout(endRunTimer); endRunTimer = 0; }
         if (generationActive) {
+            if (!graphIterationActive) resetIteration();
+            graphIterationActive = true;
             processActive = true;
             const strategy = document.getElementById("strategy-select")?.value || "auto";
             addActive({ mode: strategy });
             setStatus("Assistant generating · runtime graph active");
             applyActive();
         } else {
+            graphIterationActive = false;
             endRun();
         }
     });
