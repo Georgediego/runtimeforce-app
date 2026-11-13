@@ -16,7 +16,7 @@ from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
-from app.core.security.entitlements import tool_feature_key
+from app.core.security.entitlements import tool_feature_key, provider_feature_key
 
 logger = logging.getLogger("runtimeforce.service.agent.coordinator")
 
@@ -392,17 +392,11 @@ class AgentLoopCoordinator:
                 route_error = str(e)
                 logger.warning(f"[AgentCoordinator] LLM route failed: {e}")
 
+        candidate_models = [
+            model for model in candidate_models
+            if plan_features.get(provider_feature_key(model.get("provider", ""))) is True
+        ]
         local_providers = ("ollama", "lm_studio")
-        if plan_features.get("local_models") is not True:
-            candidate_models = [
-                model for model in candidate_models
-                if model.get("provider", "").lower() not in local_providers
-            ]
-        if plan_features.get("local_byok") is not True:
-            candidate_models = [
-                model for model in candidate_models
-                if model.get("provider", "").lower() in local_providers
-            ]
         if strategy_upper == "LOCAL":
             candidate_models = [
                 model for model in candidate_models
