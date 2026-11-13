@@ -27,8 +27,8 @@ import { eventBus } from "../core/event_bus.js";
     const FOV = 38, CAM_Z = 4.85, RADIUS = 1.42;
     const MIN_ACTIVE_MS = 2500;        // real activity stays visible long enough to be seen
     const EDGE_IDLE_ALPHA = 0;           // real edges are visible only during actual memory activity
-    const IDLE_ROTATION_SPEED = 0.00010;
-    const ACTIVE_ROTATION_SPEED = 0.00058;
+    const IDLE_ROTATION_SPEED = 0.00032;
+    const ACTIVE_ROTATION_SPEED = 0.00105;
     let rotationSpeed = IDLE_ROTATION_SPEED;
     const HOT = 0x8dff4f;
 
@@ -115,8 +115,8 @@ import { eventBus } from "../core/event_bus.js";
         return raw.map(v => (v / len) * radius * 0.55);
     }
 
-    // Organic volumetric layout: a flowing, softly twisted memory cloud.
-    // Points occupy depth instead of sitting on a spherical shell.
+    // Volumetric particle vortex: a dense, multi-turn spiral around a hollow core.
+    // Stable per-node coordinates preserve the graph layout across data refreshes.
     function layoutGraph(nodeList, edgeList, cache, radius) {
         const ordered = nodeList
             .map(node => String(node.id))
@@ -125,25 +125,26 @@ import { eventBus } from "../core/event_bus.js";
                 const hb = hash01(b, 0x6d2b79f5);
                 return ha - hb || a.localeCompare(b);
             });
-        const total = ordered.length;
-        ordered.forEach((id, i) => {
+
+        ordered.forEach(id => {
             const u = hash01(id, 0x31a7);
             const v = hash01(id, 0x72c9);
             const w = hash01(id, 0x19e5);
-            const angle = u * Math.PI * 5.2 + v * 0.8;
-            const along = (v - 0.5) * 1.55;
-            const thickness = 0.34 + w * 0.38;
-            const swirl = angle + along * 1.35;
-            const envelope = 0.72 + 0.28 * Math.cos(along * Math.PI * 0.72);
-            const x = Math.cos(swirl) * thickness * envelope;
-            const y = along * 0.92 + Math.sin(angle * 0.58) * 0.16;
-            const z = Math.sin(swirl) * thickness * envelope;
-            const depth = (w - 0.5) * 0.42;
-            cache.set(id, [
-                x * radius + depth * 0.35,
-                y * radius,
-                z * radius + depth
-            ]);
+
+            // Several helical turns, with particles distributed across a soft,
+            // expanding radial band to create a visible vortex rather than a shell.
+            const height = (v - 0.5) * 1.72;
+            const radial = 0.19 + Math.pow(u, 0.72) * 0.58;
+            const angle = v * Math.PI * 7.2 + u * 1.75 + (w - 0.5) * 0.42;
+            const envelope = 0.78 + 0.22 * Math.cos(height * Math.PI * 0.72);
+            const radiusAtPoint = radial * envelope;
+            const turbulence = (w - 0.5) * 0.12;
+
+            const x = Math.cos(angle) * radiusAtPoint + Math.cos(angle * 0.46) * turbulence;
+            const y = height * 0.92 + Math.sin(angle * 0.34) * 0.055;
+            const z = Math.sin(angle) * radiusAtPoint + Math.sin(angle * 0.46) * turbulence;
+
+            cache.set(id, [x * radius, y * radius, z * radius]);
         });
     }
         // LAYOUT-END
