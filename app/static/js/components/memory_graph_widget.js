@@ -115,11 +115,8 @@ import { eventBus } from "../core/event_bus.js";
         return raw.map(v => (v / len) * radius * 0.55);
     }
 
-    // All real SQLite nodes share one spherical surface.
-    // Fibonacci distribution spreads the existing points evenly over the globe.
-    // Hash-shuffle IDs before Fibonacci placement. This prevents sorted ID prefixes
-    // (workspace files, models, roles) from occupying separate latitude bands.
-    // Every real object receives a stable, evenly distributed position on the sphere.
+    // Organic volumetric layout: a flowing, softly twisted memory cloud.
+    // Points occupy depth instead of sitting on a spherical shell.
     function layoutGraph(nodeList, edgeList, cache, radius) {
         const ordered = nodeList
             .map(node => String(node.id))
@@ -129,15 +126,23 @@ import { eventBus } from "../core/event_bus.js";
                 return ha - hb || a.localeCompare(b);
             });
         const total = ordered.length;
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
         ordered.forEach((id, i) => {
-            const y = total <= 1 ? 0 : 1 - 2 * (i + 0.5) / total;
-            const ring = Math.sqrt(Math.max(0, 1 - y * y));
-            const theta = goldenAngle * i;
+            const u = hash01(id, 0x31a7);
+            const v = hash01(id, 0x72c9);
+            const w = hash01(id, 0x19e5);
+            const angle = u * Math.PI * 5.2 + v * 0.8;
+            const along = (v - 0.5) * 1.55;
+            const thickness = 0.34 + w * 0.38;
+            const swirl = angle + along * 1.35;
+            const envelope = 0.72 + 0.28 * Math.cos(along * Math.PI * 0.72);
+            const x = Math.cos(swirl) * thickness * envelope;
+            const y = along * 0.92 + Math.sin(angle * 0.58) * 0.16;
+            const z = Math.sin(swirl) * thickness * envelope;
+            const depth = (w - 0.5) * 0.42;
             cache.set(id, [
-                Math.cos(theta) * ring * radius,
+                x * radius + depth * 0.35,
                 y * radius,
-                Math.sin(theta) * ring * radius
+                z * radius + depth
             ]);
         });
     }
@@ -276,45 +281,46 @@ import { eventBus } from "../core/event_bus.js";
     const DEPTH_GLSL = "float depth = clamp((-mv.z - 4.0) / 3.6, 0.0, 1.0);";
 
     function createNodeMaterial() {
-        // Flat type icons instead of shaded spherical points.
+        // Abstract luminous particles; no glyphs, symbols, or geometric outlines.
         return new THREE.ShaderMaterial({
             transparent: true, depthWrite: false, depthTest: true,
             uniforms: {
                 uScale: { value: 300 },
                 uTime: { value: 0 },
-                uIconAtlas: { value: iconAtlas },
                 uIdleColor: { value: rawColor(INACTIVE_NODE_COLOR) }
             },
             vertexShader: `
                 attribute vec3 aColor;
-                attribute float aSize, aActive, aMarked, aIcon;
+                attribute float aSize, aActive, aMarked;
                 uniform float uScale, uTime;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth, vIcon;
+                varying float vActive, vMarked, vDepth, vPulse;
                 void main() {
                     vec4 mv = modelViewMatrix * vec4(position, 1.0);
                     ${DEPTH_GLSL}
-                    float pulse = 1.0 + aActive * 0.18 * sin(uTime * 0.009 + position.x * 5.0);
+                    float pulse = 1.0 + 0.10 * sin(uTime * 0.0018 + position.x * 7.0 + position.z * 5.0);
+                    float activePulse = 1.0 + aActive * 0.75 * sin(uTime * 0.008 + position.y * 8.0);
                     gl_Position = projectionMatrix * mv;
-                    gl_PointSize = max(9.0, aSize * (1.0 + aActive * 0.9) * pulse * uScale / -mv.z * 2.0);
-                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vIcon = aIcon;
+                    gl_PointSize = max(2.0, aSize * pulse * activePulse * uScale / -mv.z * 1.25);
+                    vColor = aColor; vActive = aActive; vMarked = aMarked; vDepth = depth; vPulse = pulse;
                 }`,
             fragmentShader: `
-                uniform sampler2D uIconAtlas;
                 uniform vec3 uIdleColor;
                 varying vec3 vColor;
-                varying float vActive, vMarked, vDepth, vIcon;
+                varying float vActive, vMarked, vDepth, vPulse;
                 void main() {
-                    float columns = 4.0;
-                    float rows = ${Math.ceil(ICON_TYPES.length / 4)}.0;
-                    vec2 cell = vec2(mod(vIcon, columns), floor(vIcon / columns));
-                    vec2 uv = (cell + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y)) / vec2(columns, rows);
-                    vec4 glyph = texture2D(uIconAtlas, uv);
-                    if (glyph.a < 0.16 || max(glyph.r, max(glyph.g, glyph.b)) < 0.12) discard;
-                    vec3 base = mix(uIdleColor, vColor, vMarked);
-                    vec3 col = mix(base, vec3(1.0), vActive * 0.32);
-                    col *= mix(1.0, 0.55, vDepth);
-                    gl_FragColor = vec4(col, glyph.a);
+                    vec2 p = gl_PointCoord - 0.5;
+                    float d = length(p) * 2.0;
+                    if (d > 1.0) discard;
+                    float core = exp(-d * d * 15.0);
+                    float halo = exp(-d * d * 4.2);
+                    float baseAlpha = halo * 0.34 + core * 0.72;
+                    vec3 base = mix(uIdleColor, vColor, max(vMarked * 0.45, 0.12));
+                    vec3 active = vec3(0.62, 1.0, 0.48);
+                    vec3 color = mix(base, active, clamp(vActive, 0.0, 1.0));
+                    color = mix(color * 0.72, vec3(1.0), core * (0.18 + vActive * 0.52));
+                    float alpha = baseAlpha * mix(0.48, 1.0, vActive) * mix(1.0, 0.62, vDepth);
+                    gl_FragColor = vec4(color, alpha);
                 }`
         });
     }
@@ -537,7 +543,6 @@ import { eventBus } from "../core/event_bus.js";
             const sizes = new Float32Array(count);
             const active = new Float32Array(count);
             const marked = new Float32Array(count);
-            const icons = new Float32Array(count);
             const colorById = new Map();
             nodes.forEach((node, i) => {
                 const id = String(node.id);
@@ -547,7 +552,6 @@ import { eventBus } from "../core/event_bus.js";
                 colors.set([color.r, color.g, color.b], i * 3);
                 const deg = degree.get(id) || 0;
                 sizes[i] = 0.075 + 0.085 * Math.min(1, Math.log1p(deg) / Math.log(14));
-                icons[i] = ICON_INDEX[String(node.type || "memory").toLowerCase()] ?? ICON_INDEX.memory;
                 active[i] = carryNodes.get(id) || 0;
                 marked[i] = everActiveIds.has(id) ? 1 : 0;
                 positionById.set(id, pos);
@@ -560,37 +564,9 @@ import { eventBus } from "../core/event_bus.js";
             geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
             geometry.setAttribute("aActive", new THREE.BufferAttribute(active, 1));
             geometry.setAttribute("aMarked", new THREE.BufferAttribute(marked, 1));
-            geometry.setAttribute("aIcon", new THREE.BufferAttribute(icons, 1));
 
-            // Real SQLite edges only: both endpoints must exist in the loaded node set.
-            const rows = edges.filter(edge => positionById.has(String(edge.source)) && positionById.has(String(edge.target)));
-            const ePos = new Float32Array(rows.length * 6);
-            const eColor = new Float32Array(rows.length * 6);
-            const eAlong = new Float32Array(rows.length * 2);
-            const eAct = new Float32Array(rows.length * 2);
-            rows.forEach((edge, k) => {
-                const a = String(edge.source), b = String(edge.target);
-                ePos.set(positionById.get(a), k * 6);
-                ePos.set(positionById.get(b), k * 6 + 3);
-                const ca = colorById.get(a), cb = colorById.get(b);
-                eColor.set([ca.r, ca.g, ca.b, cb.r, cb.g, cb.b], k * 6);
-                eAlong[k * 2] = 0; eAlong[k * 2 + 1] = 1;
-                const carry = carryEdges.get(String(edge.id)) || 0;
-                eAct[k * 2] = carry; eAct[k * 2 + 1] = carry;
-                edgeIndexById.set(String(edge.id), k);
-            });
-            edgeTarget = new Float32Array(rows.length);
-            if (rows.length) {
-                const edgeGeometry = new THREE.BufferGeometry();
-                edgeGeometry.setAttribute("position", new THREE.BufferAttribute(ePos, 3));
-                edgeGeometry.setAttribute("aColor", new THREE.BufferAttribute(eColor, 3));
-                edgeGeometry.setAttribute("aAlong", new THREE.BufferAttribute(eAlong, 1));
-                edgeGeometry.setAttribute("aAct", new THREE.BufferAttribute(eAct, 1));
-                edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-                edgeLines.frustumCulled = false;
-                edgeLines.renderOrder = 1;
-                graphGroup.add(edgeLines);
-            }
+            // Relationships remain in the data model, but are intentionally not drawn.
+            edgeTarget = new Float32Array(0);
 
             nodePoints = new THREE.Points(geometry, nodeMaterial);
             nodePoints.frustumCulled = false;
@@ -1038,13 +1014,12 @@ import { eventBus } from "../core/event_bus.js";
         // Rotation is unconditional: it never depends on AI activity.
         const targetRotationSpeed = processActive ? ACTIVE_ROTATION_SPEED : IDLE_ROTATION_SPEED;
         rotationSpeed += (targetRotationSpeed - rotationSpeed) * (1 - Math.exp(-delta / 650));
-        graphGroup.rotation.y += rotationSpeed * delta;
-        graphGroup.rotation.x = Math.sin(pulseClock * 0.00012) * 0.055;
+        graphGroup.rotation.y += rotationSpeed * delta * 0.72;
+        graphGroup.rotation.x = Math.sin(pulseClock * 0.00019) * 0.11;
+        graphGroup.rotation.z = Math.sin(pulseClock * 0.00013) * 0.045;
 
         nodeMaterial.uniforms.uTime.value = pulseClock;
-        edgeMaterial.uniforms.uTime.value = pulseClock;
         if (nodePoints) easeBuffer(nodePoints.geometry.attributes.aActive, nodeTarget, 1 - Math.exp(-delta / 150), 1);
-        if (edgeLines) easeBuffer(edgeLines.geometry.attributes.aAct, edgeTarget, 1 - Math.exp(-delta / 220), 2);
 
         updateLabels();
         renderer.render(scene, camera);
