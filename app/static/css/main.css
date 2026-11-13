@@ -2083,3 +2083,5 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
   #rf-cube-viewport{min-height:105px}
   .rf-cube-hud{gap:2px}
 }
+
+#rf-memory-widget-body.rf-cube-body{display:flex!important;flex-direction:column;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important}
