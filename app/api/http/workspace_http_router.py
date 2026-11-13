@@ -149,6 +149,8 @@ async def get_workspace_tree_children(
     except PermissionError as e:
         logger.error(f"Workspace permission denied: {e}")
         raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting tree children for path {path}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
