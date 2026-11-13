@@ -192,7 +192,9 @@ import { eventBus } from "../core/event_bus.js";
     group.position.set(coord.x * state.spacing, coord.y * state.spacing, coord.z * state.spacing);
     group.userData.coord = {...coord};
     group.userData.nodeId = node ? node.id : "";
-    const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(state.cubeSize, state.cubeSize, state.cubeSize));
+    const baseGeometry = new THREE.BoxGeometry(state.cubeSize, state.cubeSize, state.cubeSize);
+    const edges = new THREE.EdgesGeometry(baseGeometry);
+    baseGeometry.dispose();
     const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({
       color: node ? (palette[node.kind] || 0x39f5a0) : 0x174a35,
       transparent: true, opacity: node ? 0.9 : 0.16
@@ -506,7 +508,8 @@ import { eventBus } from "../core/event_bus.js";
     window.setTimeout(() => {
       state.failed = false;
       state.activeNodes.clear(); state.activeEdges.clear();
-      buildCube(); setStatus("IDLE");
+      state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
+      buildCube(); setStatus("IDLE"); updateHud();
     }, 1800);
   }
 
@@ -527,7 +530,7 @@ import { eventBus } from "../core/event_bus.js";
     state.running = false;
     state.activeNodes.clear(); state.activeEdges.clear();
     state.rotationQueue.length = 0;
-    state.current.tool = "";
+    state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
     if (result === "aborted") {
       setStatus("STOPPED"); addLog("Run stopped", "Execution aborted");
     } else {
