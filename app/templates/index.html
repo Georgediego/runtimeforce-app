@@ -219,21 +219,33 @@
                 </div>
             </div>
 
-            <section id="rf-memory-widget" class="rf-memory-widget" aria-label="Live SQLite memory graph">
+            <section id="rf-memory-widget" class="rf-memory-widget rf-neon-cube" aria-label="Live Runtime Graph">
                 <div class="rf-memory-widget-heading">
-                    <div class="rf-memory-heading-title"><span class="rf-memory-live-dot"></span><span>MEMORY GRAPH</span></div>
-                    <span id="rf-memory-widget-count">0 NODES</span>
-                    <button id="rf-memory-widget-toggle" class="rf-memory-widget-toggle" type="button" aria-expanded="true" aria-label="Hide memory graph" title="Hide memory graph"><i data-lucide="chevron-down" class="w-3 h-3"></i></button>
+                    <div class="rf-memory-heading-title"><span class="rf-memory-live-dot"></span><span>RUNTIME GRAPH</span></div>
+                    <span id="rf-memory-widget-count">0 OBJECTS</span>
+                    <button id="rf-memory-widget-toggle" class="rf-memory-widget-toggle" type="button" aria-expanded="true" aria-label="Hide runtime graph" title="Hide runtime graph"><i data-lucide="chevron-down" class="w-3 h-3"></i></button>
                 </div>
-                <div id="rf-memory-widget-body" class="rf-memory-widget-body">
-                    <canvas id="rf-memory-sphere" aria-label="Live project knowledge graph"></canvas>
-                    <div class="rf-memory-widget-stats">
-                        <span id="rf-memory-widget-status">Loading local SQLite graph…</span>
-                        <span id="rf-memory-widget-edges">0 EDGES</span>
+                <div id="rf-memory-widget-body" class="rf-memory-widget-body rf-cube-body">
+                    <div class="rf-cube-stage">
+                        <div id="rf-cube-viewport" aria-label="Interactive 3D neon cube. Drag to orbit, scroll to zoom."></div>
+                        <div class="rf-cube-hud">
+                            <div class="rf-cube-state"><span></span><b id="rf-memory-widget-status">IDLE</b></div>
+                            <div><small>MODEL</small><b id="rf-cube-model">—</b></div>
+                            <div><small>PROVIDER</small><b id="rf-cube-provider">—</b></div>
+                            <div><small>AGENT</small><b id="rf-cube-agent">—</b></div>
+                            <div><small>TOOL</small><b id="rf-cube-tool">—</b></div>
+                        </div>
                     </div>
-                    <div class="rf-memory-activity-heading">LIVE MEMORY OPERATIONS</div>
+                    <div class="rf-cube-inspector">
+                        <b id="rf-cube-inspector-title">Select a segment</b>
+                        <span id="rf-cube-inspector-detail">Hover or click a real object to inspect it</span>
+                    </div>
+                    <div class="rf-memory-widget-stats">
+                        <span>LIVE ORCHESTRATOR EVENTS</span>
+                        <span id="rf-memory-widget-edges">0 LINKS</span>
+                    </div>
                     <div id="rf-memory-activity" class="rf-memory-activity" aria-live="polite">
-                        <div class="rf-memory-activity-empty">Waiting for orchestrator query</div>
+                        <div class="rf-memory-activity-empty">Waiting for real orchestrator events</div>
                     </div>
                 </div>
             </section>
@@ -983,7 +995,7 @@
 <script type="module" src="/static/js/components/trace_ui_controller.js?v={{ app_version }}-bug-reports-agent-graph"></script>
 <script type="module" src="/static/js/components/setup_wizard_ui_controller.js?v={{ app_version }}-bug-reports"></script>
 <script type="module" src="/static/js/components/system_monitor.js?v={{ app_version }}-bug-reports"></script>
-<script type="module" src="/static/js/components/memory_graph_widget.js?v={{ app_version }}-memory-orchestrator-surface-2"></script>
+<script type="module" src="/static/js/components/runtime_graph_cube.js?v={{ app_version }}-neon-cube-1"></script>
 <script type="module" src="/static/js/app_bootstrap.js?v={{ app_version }}-bug-reports"></script>
 
 
