@@ -407,6 +407,16 @@ import { eventBus } from "../core/event_bus.js";
     rebuildEdges();
   }
 
+  function resolveModelNode(model) {
+    const exact = "model:" + model;
+    if (state.nodes.has(exact)) return exact;
+    const shortName = String(model || "").split("/").pop();
+    for (const [id, node] of state.nodes) {
+      if (node.kind === "model" && (node.label === shortName || node.detail === model)) return id;
+    }
+    return "";
+  }
+
   function handleGraphEvent(event) {
     if (!event || typeof event !== "object") return;
     const status = String(event.status || "");
@@ -436,10 +446,12 @@ import { eventBus } from "../core/event_bus.js";
         state.activeNodes.forEach(id => { if (id.startsWith("role:")) state.activeNodes.delete(id); });
         state.current.agent = agent;
         const id = "role:" + agent.toLowerCase();
-        if (state.nodes.has(id)) {
-          state.activeNodes.add(id);
-          enqueueTurn(id, "role");
+        if (!state.nodes.has(id)) {
+          addNode(id, "role", agent, "Observed active agent role", "agent_event");
+          buildCube();
         }
+        state.activeNodes.add(id);
+        enqueueTurn(id, "role");
       }
       setStatus(event.label || "PROCESSING");
       addLog("Agent phase", event.label || event.role || "");
@@ -450,28 +462,60 @@ import { eventBus } from "../core/event_bus.js";
       state.current.model = model;
       state.current.provider = provider;
       if (event.role) state.current.agent = String(event.role);
-      const modelId = "model:" + model;
+      let modelId = resolveModelNode(model);
       const providerId = "provider:" + provider.toLowerCase();
       const roleId = "role:" + String(state.current.agent || "").toLowerCase();
+      let needsBuild = false;
+      if (!state.nodes.has(providerId)) {
+        addNode(providerId, "provider", provider, "Observed active provider", "model_try");
+        needsBuild = true;
+      }
+      if (!modelId) {
+        modelId = "model:runtime:" + model;
+        addNode(modelId, "model", model.split("/").pop(), model, "model_try");
+        needsBuild = true;
+      }
+      if (needsBuild) buildCube();
       state.activeNodes.add(modelId); state.activeNodes.add(providerId);
-      const relationId = "provider-model:" + provider.toLowerCase() + ":" + model;
-      if (state.edges.has(relationId)) pulseEdge(relationId);
-      if (state.nodes.has(roleId)) {
-        state.activeNodes.add(roleId);
-        enqueueTurn(modelId, "model");
-      } else enqueueTurn(modelId, "model");
+      if (state.nodes.has(roleId)) state.activeNodes.add(roleId);
+      let relation = Array.from(state.edges.values()).find(edge => edge.source === providerId && edge.target === modelId);
+      if (!relation && state.nodes.has(providerId) && state.nodes.has(modelId)) {
+        const relationId = "observed-model:" + provider.toLowerCase() + ":" + model;
+        addEdge(relationId, providerId, modelId, "runtime", "Observed model selection event");
+        relation = state.edges.get(relationId);
+        rebuildEdges();
+      }
+      if (relation) pulseEdge(relation.id);
+      enqueueTurn(modelId, "model");
       setStatus("INFERENCE");
       addLog("Model selected", model + " · " + provider);
     } else if (status === "tool_start") {
       const name = String(event.tool_name || "");
       state.current.tool = name;
       const toolId = "tool:" + name;
-      state.activeNodes.add(toolId);
       const role = String(event.role || state.current.agent || "");
+      let needsBuild = false;
+      if (!state.nodes.has(toolId)) {
+        addNode(toolId, "tool", name, "Observed active orchestrator tool", "tool_start");
+        needsBuild = true;
+      }
+      const roleId = role ? "role:" + role.toLowerCase() : "";
+      if (role && !state.nodes.has(roleId)) {
+        addNode(roleId, "role", role, "Observed active agent role", "tool_start");
+        needsBuild = true;
+      }
+      if (needsBuild) buildCube();
+      state.activeNodes.add(toolId);
       if (role) {
         state.current.agent = role;
-        const relationId = "role-tool:" + role + ":" + name;
-        if (state.edges.has(relationId)) pulseEdge(relationId);
+        let relation = Array.from(state.edges.values()).find(edge => edge.source === roleId && edge.target === toolId);
+        if (!relation) {
+          const relationId = "observed-tool:" + role.toLowerCase() + ":" + name;
+          addEdge(relationId, roleId, toolId, "runtime", "Observed tool invocation event");
+          relation = state.edges.get(relationId);
+          if (relation) rebuildEdges();
+        }
+        if (relation) pulseEdge(relation.id);
       }
       enqueueTurn(toolId, "tool");
       setStatus("TOOL EXECUTION");
