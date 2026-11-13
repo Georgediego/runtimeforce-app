@@ -32,7 +32,7 @@ import { eventBus } from "../core/event_bus.js";
     activeNodes: new Set(), activeEdges: new Set(), failedNodes: new Set(), events: [],
     current: {model: "", provider: "", agent: "", tool: "", mode: ""},
     status: "IDLE", running: false, failed: false, project: "",
-    side: 2, cubeSize: 0.78, spacing: 0.9, selectedNode: "",
+    side: 3, cubeSize: 0.94, spacing: 1.02, selectedNode: "",
     rotationQueue: [], rotation: null, lastTurn: new Map(),
     pulses: new Map(), dirty: true, lastRender: 0, raf: 0,
     renderer: null, scene: null, camera: null, controls: null,
@@ -198,7 +198,7 @@ import { eventBus } from "../core/event_bus.js";
         new THREE.BoxGeometry(state.cubeSize * 0.94, state.cubeSize * 0.94, state.cubeSize * 0.94),
         new THREE.MeshPhongMaterial({
           color: palette[node.kind] || 0x39f5a0, transparent: true,
-          opacity: 0.13, shininess: 90, specular: 0x72ffba
+          opacity: 0.22, shininess: 90, specular: 0x72ffba
         })
       );
       body.userData.nodeId = node.id;
@@ -235,9 +235,9 @@ import { eventBus } from "../core/event_bus.js";
     state.pulses.clear();
 
     const count = state.nodes.size;
-    state.side = count <= 8 ? 2 : Math.max(3, Math.ceil(Math.cbrt(count)));
-    state.spacing = Math.min(0.9, 2.5 / state.side);
-    state.cubeSize = state.spacing * 0.84;
+    state.side = 3;
+    state.spacing = 1.02;
+    state.cubeSize = 0.94;
     const ordered = Array.from(state.nodes.values()).sort((a, b) =>
       a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label)
     );
@@ -689,7 +689,7 @@ import { eventBus } from "../core/event_bus.js";
   function initScene() {
     state.scene = new THREE.Scene();
     state.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-    state.camera.position.set(4.1, 3.0, 5.1);
+    state.camera.position.set(4.0, 2.9, 4.8);
     try {
       state.renderer = new THREE.WebGLRenderer({alpha: true, antialias: true, powerPreference: "low-power"});
     } catch (error) {
@@ -706,8 +706,8 @@ import { eventBus } from "../core/event_bus.js";
     state.controls.enableDamping = true;
     state.controls.dampingFactor = 0.08;
     state.controls.enablePan = false;
-    state.controls.minDistance = 3.0;
-    state.controls.maxDistance = 10;
+    state.controls.minDistance = 3.4;
+    state.controls.maxDistance = 8;
     state.controls.addEventListener("change", () => { state.dirty = true; });
     state.scene.add(new THREE.AmbientLight(0x6fffb5, 1.1));
     const keyLight = new THREE.PointLight(0x31ff9a, 18, 12);
@@ -772,7 +772,7 @@ import { eventBus } from "../core/event_bus.js";
         if (!cell || !cell.userData.body || !cell.userData.outline) return;
         const activeNode = state.activeNodes.has(node.id);
         const failedNode = state.failedNodes.has(node.id);
-        cell.userData.body.material.opacity = activeNode ? 0.42 : (failedNode ? 0.3 : 0.13);
+        cell.userData.body.material.opacity = activeNode ? 0.58 : (failedNode ? 0.44 : 0.22);
         cell.userData.outline.material.color.setHex(failedNode ? 0xff6258 : (activeNode ? 0xa6ffc9 : (palette[node.kind] || 0x39f5a0)));
         cell.userData.outline.material.opacity = activeNode || failedNode ? 1 : 0.9;
       });
