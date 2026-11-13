@@ -14,6 +14,23 @@ CHAT_STRATEGY_FEATURES = {
     "local": "local_models",
 }
 
+TOOL_FEATURES = {
+    "execute_command": "terminal",
+    "read_workspace_file": "editor",
+    "write_workspace_file": "editor",
+    "scan_workspace": "editor",
+    "search_grep": "editor",
+    "apply_code_patch": "editor",
+    "git_status": "git",
+    "git_diff": "git",
+    "git_commit": "git",
+    "git_log": "git",
+}
+
+
+def tool_feature_key(tool_name: str) -> str | None:
+    return TOOL_FEATURES.get(str(tool_name or "").strip())
+
 
 def chat_strategy_feature(strategy: str) -> str | None:
     """Map the public chat strategy to its Admin-managed plan feature."""
