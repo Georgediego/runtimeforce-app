@@ -29,7 +29,7 @@ import { eventBus } from "../core/event_bus.js";
   const state = {
     nodes: new Map(), edges: new Map(), cells: [], memory: {nodes: [], edges: []},
     registry: {roles: [], tools: []}, selected: {}, workspace: [],
-    activeNodes: new Set(), activeEdges: new Set(), events: [],
+    activeNodes: new Set(), activeEdges: new Set(), failedNodes: new Set(), events: [],
     current: {model: "", provider: "", agent: "", tool: "", mode: ""},
     status: "IDLE", running: false, failed: false, project: "",
     side: 2, cubeSize: 0.78, spacing: 0.9, selectedNode: "",
@@ -453,7 +453,21 @@ import { eventBus } from "../core/event_bus.js";
     if (status === "memory_graph") {
       const item = event.event || event;
       if (event.phase === "failed") {
-        setStatus("MEMORY FAILED"); addLog("Memory access failed", event.error || "", "error");
+        state.failed = true;
+        state.failedNodes = new Set(state.activeNodes);
+        setStatus("MEMORY FAILED");
+        state.pulses.forEach(pulse => pulse.mesh.material.color.setHex(0xff6258));
+        state.edgeRoot.children.forEach(line => {
+          if (state.activeEdges.has(line.userData.edgeId)) {
+            line.material.color.setHex(0xff6258);
+            line.material.opacity = 1;
+          }
+        });
+        addLog("Memory access failed", event.error || "", "error");
+        window.setTimeout(() => {
+          state.failed = false; state.failedNodes.clear();
+          setStatus(state.running ? "PROCESSING" : "IDLE"); state.dirty = true;
+        }, 1800);
         return;
       }
       if (event.phase === "activity" || event.phase === "completed") {
@@ -577,6 +591,7 @@ import { eventBus } from "../core/event_bus.js";
   function failRun(message) {
     state.failed = true;
     state.running = false;
+    state.failedNodes = new Set(state.activeNodes);
     setStatus("FAILED");
     addLog("Execution failed", message, "error");
     state.activeNodes.forEach(id => {
@@ -593,7 +608,7 @@ import { eventBus } from "../core/event_bus.js";
     });
     state.dirty = true;
     window.setTimeout(() => {
-      state.failed = false;
+      state.failed = false; state.failedNodes.clear();
       state.activeNodes.clear(); state.activeEdges.clear();
       state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
       buildCube(); setStatus("IDLE"); updateHud();
@@ -772,9 +787,10 @@ import { eventBus } from "../core/event_bus.js";
         const cell = node.cell;
         if (!cell || !cell.userData.body || !cell.userData.outline) return;
         const activeNode = state.activeNodes.has(node.id);
-        cell.userData.body.material.opacity = activeNode ? 0.42 : 0.13;
-        cell.userData.outline.material.color.setHex(state.failed ? 0xff6258 : (activeNode ? 0xa6ffc9 : (palette[node.kind] || 0x39f5a0)));
-        cell.userData.outline.material.opacity = activeNode ? 1 : 0.9;
+        const failedNode = state.failedNodes.has(node.id);
+        cell.userData.body.material.opacity = activeNode ? 0.42 : (failedNode ? 0.3 : 0.13);
+        cell.userData.outline.material.color.setHex(failedNode ? 0xff6258 : (activeNode ? 0xa6ffc9 : (palette[node.kind] || 0x39f5a0)));
+        cell.userData.outline.material.opacity = activeNode || failedNode ? 1 : 0.9;
       });
       if (state.rotation) {
         const turn = state.rotation;
