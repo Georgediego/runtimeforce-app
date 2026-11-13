@@ -16,6 +16,7 @@ from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
+from app.core.security.entitlements import tool_feature_key
 
 logger = logging.getLogger("runtimeforce.service.agent.coordinator")
 
@@ -153,6 +154,7 @@ class AgentLoopCoordinator:
         model_lock: Optional[str] = None,
         temperature: float = 0.2,
         plan: str = "free",
+        features: Optional[Dict[str, Any]] = None,
         user_id: str = "default_user",
         enabled_models: Optional[List[str]] = None,
         project_id: str = "default_project",
@@ -449,6 +451,11 @@ class AgentLoopCoordinator:
         final_text = ""
         active_specialist_index = 0
         force_no_tools = False
+        plan_features = features if isinstance(features, dict) else {}
+        allowed_tools = [
+            entry for entry in AGENT_TOOLS_MANIFEST
+            if plan_features.get(tool_feature_key(entry.get("function", {}).get("name", ""))) is True
+        ]
 
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             iter_limit_err = loop_detector.check_max_iterations(iteration)
@@ -459,7 +466,7 @@ class AgentLoopCoordinator:
 
             iteration_text, tool_calls = "", []
             iteration_success = False
-            effective_tools = None if force_no_tools else AGENT_TOOLS_MANIFEST
+            effective_tools = None if force_no_tools else allowed_tools
 
             while active_specialist_index < len(active_candidates):
                 specialist_model = active_candidates[active_specialist_index]
@@ -671,7 +678,15 @@ class AgentLoopCoordinator:
                     "label": f"Running tool {tool_name}..."
                 }
                 
-                result = await ToolDispatcherService.dispatch(tool_name, arguments_json, driver)
+                required_feature = tool_feature_key(tool_name)
+                if required_feature and plan_features.get(required_feature) is not True:
+                    result = {
+                        "error": f"Tool '{tool_name}' is not enabled for the current plan.",
+                        "code": "feature_not_enabled",
+                        "feature": required_feature,
+                    }
+                else:
+                    result = await ToolDispatcherService.dispatch(tool_name, arguments_json, driver)
 
                 cmd_str = args_raw.get("command", "") if isinstance(args_raw, dict) else ""
                 out_text = result.get("stdout") or result.get("stderr") or result.get("message") or ""
