@@ -298,6 +298,34 @@ import { eventBus } from "../core/event_bus.js";
     state.dirty = true;
   }
 
+  function updateLiveEdges() {
+    if (!state.edgeRoot) return;
+    const from = new THREE.Vector3();
+    const to = new THREE.Vector3();
+    state.edgeRoot.children.forEach(line => {
+      const edge = state.edges.get(line.userData.edgeId);
+      const a = edge && state.nodes.get(edge.source)?.cell;
+      const b = edge && state.nodes.get(edge.target)?.cell;
+      if (!a || !b) return;
+      a.getWorldPosition(from);
+      b.getWorldPosition(to);
+      const position = line.geometry.attributes.position;
+      position.setXYZ(0, from.x, from.y, from.z);
+      position.setXYZ(1, to.x, to.y, to.z);
+      position.needsUpdate = true;
+      line.geometry.computeBoundingSphere();
+    });
+    state.pulses.forEach((pulse, edgeId) => {
+      const edge = state.edges.get(edgeId);
+      const a = edge && state.nodes.get(edge.source)?.cell;
+      const b = edge && state.nodes.get(edge.target)?.cell;
+      if (a && b) {
+        a.getWorldPosition(pulse.from);
+        b.getWorldPosition(pulse.to);
+      }
+    });
+  }
+
   function updateHud() {
     if (countEl) countEl.textContent = state.nodes.size + " OBJECTS";
     if (edgeCountEl) edgeCountEl.textContent = state.edges.size + " LINKS";
@@ -747,6 +775,7 @@ import { eventBus } from "../core/event_bus.js";
         turn.pivot.rotation[turn.axis] = eased * Math.PI / 2;
         if (t >= 1) finishTurn(turn);
       } else beginTurn();
+      if (state.rotation) updateLiveEdges();
 
       state.pulses.forEach((pulse, id) => {
         const t = Math.min(1, (now - pulse.started) / pulse.duration);
