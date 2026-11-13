@@ -437,7 +437,10 @@ import { eventBus } from "../core/event_bus.js";
             completedIds.forEach(id => state.activeNodes.delete(id));
             state.dirty = true;
           }, 850);
-          window.setTimeout(loadMemory, 1300);
+          window.setTimeout(async () => {
+            await loadMemory();
+            (item.active_edge_ids || []).forEach(id => pulseEdge("memory:" + id));
+          }, 1300);
         }
       }
     } else if (status === "phase") {
@@ -652,7 +655,13 @@ import { eventBus } from "../core/event_bus.js";
     state.scene = new THREE.Scene();
     state.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
     state.camera.position.set(4.1, 3.0, 5.1);
-    state.renderer = new THREE.WebGLRenderer({alpha: true, antialias: true, powerPreference: "low-power"});
+    try {
+      state.renderer = new THREE.WebGLRenderer({alpha: true, antialias: true, powerPreference: "low-power"});
+    } catch (error) {
+      setStatus("3D UNAVAILABLE");
+      addLog("WebGL unavailable", error.message || "3D rendering is not supported", "warn");
+      return;
+    }
     state.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     state.renderer.outputColorSpace = THREE.SRGBColorSpace;
     state.renderer.setClearColor(0x020b08, 0);
