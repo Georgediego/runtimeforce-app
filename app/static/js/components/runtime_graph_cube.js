@@ -372,6 +372,8 @@ import { eventBus } from "../core/event_bus.js";
     state.scene.add(mesh);
     state.pulses.set(edgeId, {mesh, from: source.position.clone(), to: target.position.clone(), started: performance.now(), duration: 1150});
     state.activeEdges.add(edgeId);
+    const line = state.edgeRoot.children.find(item => item.userData.edgeId === edgeId);
+    if (line) { line.material.color.setHex(tone === "error" ? 0xff6258 : 0x9dffbd); line.material.opacity = 0.98; }
     state.dirty = true;
   }
 
@@ -583,6 +585,12 @@ import { eventBus } from "../core/event_bus.js";
       if (node?.cell?.userData.body) node.cell.userData.body.material.color.setHex(0xff6258);
     });
     state.pulses.forEach(pulse => pulse.mesh.material.color.setHex(0xff6258));
+    state.edgeRoot.children.forEach(line => {
+      if (state.activeEdges.has(line.userData.edgeId)) {
+        line.material.color.setHex(0xff6258);
+        line.material.opacity = 1;
+      }
+    });
     state.dirty = true;
     window.setTimeout(() => {
       state.failed = false;
@@ -784,6 +792,12 @@ import { eventBus } from "../core/event_bus.js";
           state.scene.remove(pulse.mesh);
           pulse.mesh.geometry.dispose(); pulse.mesh.material.dispose();
           state.pulses.delete(id); state.activeEdges.delete(id);
+          const edge = state.edges.get(id);
+          const line = state.edgeRoot.children.find(item => item.userData.edgeId === id);
+          if (line && edge) {
+            line.material.color.setHex(edge.kind === "memory" ? 0x4dffad : 0x238e63);
+            line.material.opacity = edge.kind === "memory" ? 0.68 : 0.38;
+          }
         }
       });
       state.renderer.render(state.scene, state.camera);
