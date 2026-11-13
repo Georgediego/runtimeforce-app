@@ -616,7 +616,7 @@ import { eventBus } from "../core/event_bus.js";
   }
 
   function startRun() {
-    state.running = true; state.failed = false;
+    state.running = true; state.failed = false; state.failedNodes.clear();
     state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
     state.activeNodes.clear(); state.activeEdges.clear();
     state.rotationQueue.length = 0;
@@ -630,7 +630,7 @@ import { eventBus } from "../core/event_bus.js";
 
   function finishRun(result) {
     state.running = false;
-    state.activeNodes.clear(); state.activeEdges.clear();
+    state.activeNodes.clear(); state.activeEdges.clear(); state.failedNodes.clear();
     state.rotationQueue.length = 0;
     state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
     if (result === "aborted") {
