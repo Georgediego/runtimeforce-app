@@ -8,6 +8,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
+from app.core.security.entitlements import chat_strategy_feature, feature_enabled
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
@@ -73,9 +74,36 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             if not prompt and not data.get("messages"):
                 logger.debug("[WS] IGNORE empty send session=%s", session_id)
                 continue
+            strategy = str(data.get("strategy") or "auto").strip().lower()
+            entitlements = await container.license_service.get_entitlements(token)
+            if not entitlements.get("valid"):
+                await websocket.send_json({
+                    "status": "error",
+                    "code": "entitlements_unavailable",
+                    "error": "Your plan could not be verified. Please reconnect and try again.",
+                })
+                continue
+            plan = str(entitlements.get("plan") or "free")
+            feature_key = chat_strategy_feature(strategy)
+            if not feature_key:
+                await websocket.send_json({
+                    "status": "error",
+                    "code": "unsupported_strategy",
+                    "error": "The selected chat mode is not supported.",
+                })
+                continue
+            if not feature_enabled(entitlements, feature_key):
+                await websocket.send_json({
+                    "status": "error",
+                    "code": "feature_not_enabled",
+                    "feature": feature_key,
+                    "error": f"The {strategy.upper()} mode is not included in your current plan.",
+                })
+                continue
+
             logger.info(
-                "[WS] GENERATION REQUEST session=%s user=%s action=%s prompt_chars=%s",
-                session_id, user_id, action, len(str(prompt))
+                "[WS] GENERATION REQUEST session=%s user=%s action=%s strategy=%s prompt_chars=%s",
+                session_id, user_id, action, strategy, len(str(prompt))
             )
 
             existing_message_id = data.get("existing_message_id")
@@ -103,7 +131,6 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 })
                 continue
 
-            strategy = data.get("strategy") or "auto"
             model_lock = data.get("model_lock")
             enabled_models = data.get("enabled_models")
             logger.info(
