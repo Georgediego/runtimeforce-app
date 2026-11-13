@@ -470,6 +470,10 @@ import { eventBus } from "../core/event_bus.js";
         addNode(providerId, "provider", provider, "Observed active provider", "model_try");
         needsBuild = true;
       }
+      if (roleId && !state.nodes.has(roleId)) {
+        addNode(roleId, "role", state.current.agent, "Observed active agent role", "model_try");
+        needsBuild = true;
+      }
       if (!modelId) {
         modelId = "model:runtime:" + model;
         addNode(modelId, "model", model.split("/").pop(), model, "model_try");
