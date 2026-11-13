@@ -2022,15 +2022,6 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 
 
 /* Memory graph restore handle shown when the full sidebar card is hidden. */
-.rf-memory-widget-restore{
-    display:none;flex:0 0 28px;min-height:28px;width:100%;margin-top:auto;
-    align-items:center;justify-content:center;gap:7px;padding:3px 8px;
-    border:1px solid var(--ide-border-subtle);border-radius:7px;
-    background:rgba(7,247,122,.045);color:var(--ide-text-muted);
-    font:700 8px 'JetBrains Mono',monospace;letter-spacing:.08em;cursor:pointer;
-}
-.rf-memory-widget-restore:hover{border-color:var(--ide-accent);color:var(--ide-accent);background:rgba(7,247,122,.10)}
-
 
 /* Memory graph: let the rotating globe occupy the full card; UI stays overlaid. */
 #rf-memory-widget.rf-memory-widget{position:relative}
