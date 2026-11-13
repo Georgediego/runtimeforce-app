@@ -1,4 +1,4 @@
-from app.core.security.entitlements import chat_strategy_feature, feature_enabled, tool_feature_key
+from app.core.security.entitlements import chat_strategy_feature, feature_enabled, tool_feature_key, provider_feature_key
 
 
 def test_chat_strategy_maps_to_admin_feature_keys():
@@ -26,3 +26,9 @@ def test_agent_tools_map_to_plan_features():
     assert tool_feature_key("apply_code_patch") == "editor"
     assert tool_feature_key("git_commit") == "git"
     assert tool_feature_key("unknown_tool") is None
+
+def test_provider_access_uses_separate_local_and_byok_flags():
+    assert provider_feature_key("ollama") == "local_models"
+    assert provider_feature_key("lm_studio") == "local_models"
+    assert provider_feature_key("openai") == "local_byok"
+    assert provider_feature_key("gemini") == "local_byok"
