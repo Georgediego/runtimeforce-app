@@ -7,7 +7,7 @@ import asyncio
 from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.container import container
-from app.core.security.jwt_auth_service import JWTAuthService
+from app.core.security.jwt_auth_service import JWTAuthService, AuthVerificationUnavailable
 from app.core.security.entitlements import chat_strategy_feature, feature_enabled
 
 logger = logging.getLogger("runtimeforce.chat_ws")
@@ -28,7 +28,12 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
         return
 
     token = str(auth_message.get("token") or "")
-    user = await JWTAuthService.verify_token(token)
+    try:
+        user = await JWTAuthService.verify_token(token)
+    except AuthVerificationUnavailable:
+        logger.warning("[WS] AUTH UNAVAILABLE session=%s reason=control_plane_error", session_id)
+        await websocket.close(code=1013, reason="Authentication service temporarily unavailable")
+        return
     if not user:
         logger.warning("[WS] AUTH FAILED session=%s reason=invalid_token", session_id)
         await websocket.close(code=1008, reason="Authentication required")

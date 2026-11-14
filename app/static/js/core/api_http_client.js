@@ -1,15 +1,34 @@
 /**
  * HTTP API Client with Strict project_id Isolation & AUTOSELECT ALL Endpoints.
  */
-async function request(path, options = {}) {
+import { authFrontendService } from "../services/auth_frontend_service.js";
+
+let authRecoveryPromise = null;
+
+async function request(path, options = {}, allowAuthRetry = true) {
     const headers = { "Content-Type": "application/json", ...options.headers };
-    const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token");
+    const token = authFrontendService.getToken();
     if (token) {
         const cleanToken = token.startsWith("Bearer ") ? token.slice(7) : token;
         headers["Authorization"] = `Bearer ${cleanToken}`;
     }
+
     const res = await fetch(path, { ...options, headers });
-    if (res.status === 401) throw new Error("Authentication required");
+    if (res.status === 401) {
+        if (allowAuthRetry) {
+            // Collapse concurrent 401 responses into one refresh attempt.
+            if (!authRecoveryPromise) {
+                authRecoveryPromise = authFrontendService.recoverSession()
+                    .finally(() => { authRecoveryPromise = null; });
+            }
+            const recovered = await authRecoveryPromise;
+            if (recovered) {
+                // Retry the original request exactly once with the renewed token.
+                return request(path, options, false);
+            }
+        }
+        throw new Error("Authentication required. Reconnect your RuntimeForce account.");
+    }
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
         throw new Error(err.detail || `HTTP ${res.status}`);

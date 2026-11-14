@@ -18,6 +18,10 @@ AUTH_CACHE_TTL_SECONDS = 10
 _AUTH_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
+class AuthVerificationUnavailable(Exception):
+    """The SaaS authority could not be reached or returned a server error."""
+
+
 class JWTAuthService:
     @staticmethod
     def get_local_user_id(user: Dict[str, Any]) -> str:
@@ -45,15 +49,23 @@ class JWTAuthService:
                     RUNTIMEFORCE_AUTH_URL,
                     headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
                 )
-            if response.status_code != 200:
+            if response.status_code in (401, 403):
                 _AUTH_CACHE.pop(cache_key, None)
+                logger.info("RuntimeForce rejected account token (HTTP %s)", response.status_code)
                 return None
+            if response.status_code != 200:
+                logger.warning("RuntimeForce account verification unavailable (HTTP %s)", response.status_code)
+                raise AuthVerificationUnavailable(
+                    f"RuntimeForce authentication returned HTTP {response.status_code}"
+                )
             data = response.json()
-            if not isinstance(data, dict) or not data.get("id") or data.get("is_active") is not True:
+            if not isinstance(data, dict):
+                raise AuthVerificationUnavailable("RuntimeForce authentication returned an invalid response")
+            if not data.get("id") or data.get("is_active") is not True:
                 return None
             email = str(data.get("email") or "").strip().lower()
             if not email:
-                return None
+                raise AuthVerificationUnavailable("RuntimeForce authentication response omitted account email")
             # SaaS UUID verifies the account; local IDE data uses the verified,
             # normalized email as its stable SQLite ownership key.
             user = {
@@ -67,9 +79,11 @@ class JWTAuthService:
                 for key in oldest:
                     _AUTH_CACHE.pop(key, None)
             return user
+        except AuthVerificationUnavailable:
+            raise
         except Exception as exc:
             logger.warning("RuntimeForce account verification failed (%s)", type(exc).__name__)
-            return None
+            raise AuthVerificationUnavailable("RuntimeForce account verification is temporarily unavailable") from exc
 
     @staticmethod
     def extract_user_from_jwt(token: Optional[str]) -> Optional[str]:
@@ -95,7 +109,15 @@ class JWTAuthService:
         if not token:
             token = request.cookies.get("access_token") or request.cookies.get("jwt_token")
 
-        user = await cls.verify_token(token)
+        try:
+            user = await cls.verify_token(token)
+        except AuthVerificationUnavailable:
+            # Do not misreport a control-plane outage as an invalid user token.
+            raise HTTPException(
+                status_code=503,
+                detail="RuntimeForce authentication service is temporarily unavailable",
+                headers={"Retry-After": "30"},
+            ) from None
         email = str(user.get("email") or "").strip().lower() if user else ""
         if not email:
             raise HTTPException(status_code=401, detail="Authentication required")

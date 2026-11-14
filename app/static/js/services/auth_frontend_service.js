@@ -40,7 +40,9 @@ export const authFrontendService = {
     },
 
     async init() {
-        // 1. Прием токена через редирект с сервера (например, кнопка "Authorize Local IDE" из кабинета)
+        this.bindAuthSyncButton();
+
+        // Прием токена через редирект из кабинета.
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get("rf_token");
         if (token) {
@@ -51,45 +53,84 @@ export const authFrontendService = {
                 urlParams.get("rf_avatar") || ""
             );
             window.history.replaceState({}, document.title, window.location.pathname);
-            return;
         }
 
-        // 2. Если уже авторизован локально
-        if (this.isAuthenticated()) {
+        // Всегда пробуем обновить короткоживущий access token через HttpOnly
+        // refresh cookie. Наличие строки токена в localStorage не доказывает,
+        // что токен еще действителен.
+        const hadLocalToken = this.isAuthenticated();
+        const synced = await this.syncSessionFromServer();
+        if (synced) return;
+
+        if (hadLocalToken) {
+            // Не стираем токен при временной сетевой ошибке. Первый API 401
+            // запустит контролируемое восстановление сессии.
             this.hideAuth();
             eventBus.emit("auth:success", { email: this.getEmail(), plan: this.getPlan() });
             return;
         }
 
-        // 3. Тихая фоновая проверка активной сессии с сервера
-        await this.syncSessionFromServer();
+        this.showAuth();
+        eventBus.emit("auth:required");
+    },
 
-        // 4. Привязка кнопки 1-кликовой синхронизации на оверлее
-        document.getElementById("rf-auth-sync-btn")?.addEventListener("click", () => {
-            this.syncViaPopup();
-        });
+    bindAuthSyncButton() {
+        if (this._authSyncBound) return;
+        const button = document.getElementById("rf-auth-sync-btn");
+        if (!button) return;
+        button.addEventListener("click", () => this.syncViaPopup());
+        this._authSyncBound = true;
     },
 
     async syncSessionFromServer() {
         try {
             const res = await fetch(`${SAAS_URL}/api/v1/auth/session-sync`, {
-                credentials: "include"
+                credentials: "include",
+                cache: "no-store"
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.authenticated && data.token) {
-                    this.setSession(data.token, data.plan, data.email, data.avatar);
-                    return;
-                }
+            if (!res.ok) return false;
+            const data = await res.json();
+            if (data.authenticated && data.token) {
+                this.setSession(data.token, data.plan, data.email, data.avatar);
+                return true;
             }
         } catch (e) {
             console.debug("Silent session sync skipped:", e);
         }
-        
-        if (!this.isAuthenticated()) {
-            this.showAuth();
-            eventBus.emit("auth:required");
+        return false;
+    },
+
+    async recoverSession() {
+        try {
+            const res = await fetch(`${SAAS_URL}/api/v1/auth/session-sync`, {
+                credentials: "include",
+                cache: "no-store"
+            });
+            if (!res.ok) {
+                // 5xx/429 are transient: keep the current token and local data.
+                if (res.status < 500 && res.status !== 429) this.invalidateSession();
+                return false;
+            }
+            const data = await res.json();
+            if (data.authenticated && data.token) {
+                this.setSession(data.token, data.plan, data.email, data.avatar);
+                return true;
+            }
+            this.invalidateSession();
+            return false;
+        } catch (e) {
+            console.warn("Session recovery unavailable:", e);
+            return false;
         }
+    },
+
+    invalidateSession() {
+        // Remove credentials only. Provider keys, projects, workspaces,
+        // conversations and all other SQLite data must remain untouched.
+        localStorage.removeItem("rf_jwt_token");
+        localStorage.removeItem("access_token");
+        this.showAuth();
+        eventBus.emit("auth:required");
     },
 
     syncViaPopup() {
