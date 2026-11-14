@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, plan_limit, enforce_plan_limit
+from app.core.security.entitlements import require_plan_feature, plan_limit, enforce_plan_limit, feature_enabled
 from app.container import get_project_service, get_license_service, container
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
@@ -91,7 +91,7 @@ async def create_project(
             enforce_plan_limit(entitlements, "max_ssh_hosts", len(current_ssh_hosts), adding=1)
 
     if payload.github_remote_url and payload.github_remote_url.strip():
-        if features.get("git") is not True:
+        if not feature_enabled(entitlements, "git"):
             raise HTTPException(403, detail="Git integration is not enabled for this plan")
         max_git_repos = plan_limit(entitlements, "git_repos")
         current_git_repos = sum(1 for project in existing_projects if (project.get("github_remote_url") or "").strip())
