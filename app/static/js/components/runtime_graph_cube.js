@@ -291,10 +291,6 @@ import { eventBus } from "../core/event_bus.js";
       const key = "memory:" + id;
       if (state.edges.has(key)) pulseEdge(key);
     });
-    if ((item.active_node_ids || []).length) {
-      const first = state.nodes.get("mem:" + item.active_node_ids[0]);
-      if (first) enqueueTurn(first.id, "memory");
-    }
   }
 
   function enqueueTurn(nodeId, kind) {
