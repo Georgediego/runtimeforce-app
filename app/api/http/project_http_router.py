@@ -128,7 +128,14 @@ async def activate_project(
     if host and host not in {"localhost", "127.0.0.1"}:
         allowed_hosts = set(sorted(_known_ssh_hosts(service, user_id, service.list_projects(user_id)))[:plan_limit(entitlements, "max_ssh_hosts")])
         if host not in allowed_hosts:
-            require_limit(entitlements, "max_ssh_hosts", len(_known_ssh_hosts(service, user_id, service.list_projects(user_id))), "SSH Hosts")
+            used_hosts = len(_known_ssh_hosts(service, user_id, service.list_projects(user_id)))
+            maximum = plan_limit(entitlements, "max_ssh_hosts")
+            raise HTTPException(status_code=403, detail={
+                "code": "plan_limit_reached", "limit": "max_ssh_hosts",
+                "used": used_hosts, "maximum": maximum,
+                "plan": entitlements.get("plan", "unknown"),
+                "message": "This SSH host is outside the host allowance for your current plan.",
+            })
     service.activate_project(project_id, user_id)
     return {"status": "success", "active_id": project_id}
 
