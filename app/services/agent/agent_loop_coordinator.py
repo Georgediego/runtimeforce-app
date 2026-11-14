@@ -714,6 +714,8 @@ class AgentLoopCoordinator:
                     result = {"error": "GitHub / Git integration is not enabled for this plan.", "code": 403}
                 elif plan_entitlements is not None and tool_name == "execute_command" and command_creates_git_repo(command_text) and not git_repo_slot_available:
                     result = {"error": "Git repository limit reached for this plan.", "code": 403}
+                elif plan_entitlements is not None and tool_name in {"git_status", "git_diff", "git_commit", "git_log"} and not git_repo_slot_available:
+                    result = {"error": "This repository is outside the Git Repos allowance for your current plan.", "code": 403}
                 elif plan_entitlements is not None and tool_feature and not feature_enabled(plan_entitlements, tool_feature):
                     result = {
                         "error": f"Feature '{tool_feature}' is not enabled for this plan.",
