@@ -85,7 +85,9 @@ async def discover_local_models(
 ):
     require_feature(entitlements, "local_llms")
     try:
-        provider_key_name = (request.provider_name or "local").lower().strip()
+        provider_key_name = (request.provider_name or "local").lower().strip().replace("-", "_")
+        if provider_key_name not in {"ollama", "lm_studio", "local"} and not provider_key_name.startswith("local_"):
+            provider_key_name = "local_" + provider_key_name
         res = await discovery.discover_local_provider(request.base_url, provider_name=provider_key_name)
         keys_repo.save_provider_key(provider_key_name, request.base_url, user_id)
         return {
