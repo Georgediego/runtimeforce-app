@@ -22,8 +22,8 @@ RuntimeForce IDE runs on the user's computer. The RuntimeForce SaaS at [runtimef
 
 - The SaaS server is the authority for account identity, subscription status, plan features, and limits.
 - The IDE does not treat locally decoded JWT claims or locally edited plan values as proof of entitlement. The server verifies the bearer token and returns current entitlements through `GET /api/v1/billing/entitlements`.
-- When the server cannot verify a session, protected operations fail closed. A bounded offline grace period may use only previously server-verified entitlement data.
-- The current implementation verifies sessions online through the official `/api/v1/auth/me` endpoint and obtains entitlements from `/api/v1/billing/entitlements`. Offline use relies on a bounded in-memory cache of previously verified entitlements.
+- When the server cannot verify a session, protected operations fail closed. During the configured Offline Grace period, the IDE may use only previously server-verified entitlements stored in its local SQLite subscription cache.
+- The local entitlement cache refreshes from `/api/v1/billing/entitlements` and applies the server-provided feature flags and limits to HTTP APIs, WebSocket chat orchestration, agent tools, and UI controls. Offline access expires when the plan's `offline_grace_hours` window ends.
 - A local user can modify software running on their own computer. Protected account, subscription, and SaaS operations are therefore verified server-side.
 
 ## Installation
