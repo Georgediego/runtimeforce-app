@@ -20,55 +20,6 @@ export const settingsUIController = {
         await planAccessState.refresh();
         this._features = planAccessState.entitlements.features || {};
         this._limits = planAccessState.entitlements.limits || {};
-        const updatesAllowed = this._featureEnabled("software_updates");
-        const updatesButton = document.querySelector('.settings-nav-btn[data-tab="updates"]');
-        if (updatesButton) {
-            updatesButton.disabled = !updatesAllowed;
-            updatesButton.title = updatesAllowed ? "" : "Software Updates are not included in your current plan";
-            updatesButton.classList.toggle("opacity-40", !updatesAllowed);
-            updatesButton.classList.toggle("cursor-not-allowed", !updatesAllowed);
-        }
-        ["rf-update-settings-check-btn", "rf-update-settings-apply-btn"].forEach((id) => {
-            const button = document.getElementById(id);
-            if (button) button.disabled = !updatesAllowed;
-        });
-
-        const featureStates = [
-            { selector: '.right-tab-btn[data-panel="editor"]', feature: "editor" },
-            { selector: '.right-tab-btn[data-panel="terminal"]', feature: "terminal" },
-        ];
-        for (const item of featureStates) {
-            const allowed = this._featureEnabled(item.feature);
-            document.querySelectorAll(item.selector).forEach((button) => {
-                button.disabled = !allowed;
-                button.title = allowed ? "" : item.feature + " is not included in your current plan";
-                button.classList.toggle("opacity-40", !allowed);
-                button.classList.toggle("cursor-not-allowed", !allowed);
-            });
-        }
-        const editorSave = document.getElementById("editor-save-btn");
-        if (editorSave) editorSave.disabled = !this._featureEnabled("editor");
-        const terminalInput = document.getElementById("terminal-cmd-input");
-        if (terminalInput) terminalInput.disabled = !this._featureEnabled("terminal");
-
-        const gitAllowed = this._featureEnabled("git") && planAccessState.limit("git_repos") > 0;
-        document.querySelectorAll('.left-tab-btn[data-panel="git"], .proj-settings-tab-btn[data-tab="git"]').forEach((element) => {
-            element.classList.toggle("opacity-40", !gitAllowed);
-            element.classList.toggle("cursor-not-allowed", !gitAllowed);
-            element.classList.toggle("pointer-events-none", !gitAllowed);
-            element.setAttribute("aria-disabled", gitAllowed ? "false" : "true");
-            element.title = gitAllowed ? "" : "GitHub / Git integration is not included in your current plan";
-            if ("disabled" in element) element.disabled = !gitAllowed;
-            if (!gitAllowed) element.dataset.planLocked = "true";
-            else delete element.dataset.planLocked;
-        });
-        ["git-init-btn", "connect-github-oauth-btn"].forEach((id) => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.disabled = !gitAllowed;
-                element.title = gitAllowed ? "" : "GitHub / Git integration is not included in your current plan";
-            }
-        });
     },
 
     init() {
