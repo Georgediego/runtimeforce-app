@@ -2,7 +2,7 @@
  * Chat UI Controller with Interactive Section 15.5 Dangerous Command Approval & Terminal Stream.
  */
 import { ChatWSClient } from "../core/chat_ws_client.js";
-import { sessionsApi, keysApi, projectsApi } from "../core/api_http_client.js";
+import { sessionsApi, keysApi, projectsApi, modelsApi } from "../core/api_http_client.js";
 import { showToast, showConfirm, showPrompt, showMultiLinePrompt, showCommandApprovalModal } from "./toast_ui_controller.js";
 import { terminalUIController } from "./terminal.js";
 import { eventBus } from "../core/event_bus.js";
@@ -188,20 +188,49 @@ export const chatUIController = {
     async getEnabledModelsList() {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
+        const localProviders = new Set(["ollama", "lm_studio"]);
 
         const enabled = [];
         let hasAnySavedConfig = false;
         try {
             const data = await keysApi.getSelectedModels();
             const selectedMap = data.selected_models || {};
-            Object.entries(selectedMap).forEach(([p, modelIds]) => {
-                const isFreeProv = FREE_PROVIDERS_SET.has(p);
-                if (!allowFree && isFreeProv) return;
-                if (!allowPro && !isFreeProv) return;
-                if (Array.isArray(modelIds) && modelIds.length > 0) {
-                    hasAnySavedConfig = true;
-                    enabled.push(...modelIds);
-                }
+            const selectedEntries = Object.entries(selectedMap).filter(
+                ([, modelIds]) => Array.isArray(modelIds) && modelIds.length > 0
+            );
+            hasAnySavedConfig = selectedEntries.length > 0;
+
+            // Classify each saved model by its actual registry tier. Provider-level
+            // classification is incorrect for OpenRouter, which can expose both
+            // free and paid models under the same provider.
+            let modelMetadata = new Map();
+            try {
+                const catalog = await modelsApi.list();
+                Object.entries(catalog.models || {}).forEach(([provider, models]) => {
+                    (models || []).forEach((model) => {
+                        if (model?.id) {
+                            modelMetadata.set(model.id, {
+                                provider: String(model.provider || provider).toLowerCase(),
+                                tier: String(model.tier || "").toLowerCase(),
+                            });
+                        }
+                    });
+                });
+            } catch (catalogError) {
+                console.warn("Model tier catalog unavailable; using provider fallback:", catalogError);
+            }
+
+            selectedEntries.forEach(([providerId, modelIds]) => {
+                modelIds.forEach((modelId) => {
+                    const metadata = modelMetadata.get(modelId);
+                    const provider = metadata?.provider || String(providerId).toLowerCase();
+                    const tier = metadata?.tier || "";
+                    const isFree = tier === "free" || localProviders.has(provider)
+                        || (!tier && FREE_PROVIDERS_SET.has(provider));
+                    if (isFree && !allowFree) return;
+                    if (!isFree && !allowPro) return;
+                    enabled.push(modelId);
+                });
             });
         } catch (e) {
             console.warn("Failed to get enabled models list:", e);
