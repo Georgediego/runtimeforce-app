@@ -81,8 +81,9 @@ async def create_project(
         require_limit(entitlements, "max_projects", len(existing_projects), "Active Projects")
 
     github_remote = (payload.github_remote_url or "").strip()
-    if github_remote:
+    if github_remote or (payload.github_pat_enc or "").strip():
         require_feature(entitlements, "git")
+    if github_remote:
         known_repos = {
             str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
             for project in existing_projects
@@ -153,8 +154,11 @@ async def update_project(
         raise HTTPException(404, "Project not found")
     new_remote = (payload.github_remote_url or "").strip()
     old_remote = str(current.get("github_remote_url") or "").strip()
-    if new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower():
+    new_pat = (payload.github_pat_enc or "").strip()
+    old_pat = str(current.get("github_pat_enc") or "").strip()
+    if (new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower()) or (new_pat and new_pat != old_pat):
         require_feature(entitlements, "git")
+    if new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower():
         projects = service.list_projects(user_id)
         known_repos = {
             str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
