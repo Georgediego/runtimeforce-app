@@ -1,3 +1,5 @@
+import { billingApi } from "../core/api_http_client.js";
+
 const UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const UPDATE_SNOOZE_MS = 4 * 60 * 60 * 1000;
 const UPDATE_LAST_CHECK_KEY = "rf_update_last_check_v2";
@@ -7,6 +9,16 @@ let checkTimer = null;
 let checking = false;
 let pendingUpdate = null;
 let applyingUpdate = false;
+
+async function softwareUpdatesAllowed() {
+    try {
+        const data = await billingApi.entitlements();
+        const features = data?.valid ? (data.features || {}) : {};
+        return features.software_updates === true || features["software updates"] === true;
+    } catch {
+        return false;
+    }
+}
 
 function authHeaders(extra = {}) {
     const rawToken = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
@@ -212,6 +224,12 @@ function presentPendingUpdate() {
 
 async function checkForUpdates({ force = false } = {}) {
     if (checking || document.hidden) return;
+    if (!(await softwareUpdatesAllowed())) {
+        const status = document.getElementById("rf-update-settings-status");
+        if (status) status.textContent = "Software Updates are not included in your current plan";
+        pendingUpdate = null;
+        return;
+    }
     const lastCheck = Number(localStorage.getItem(UPDATE_LAST_CHECK_KEY) || 0);
     if (!force && lastCheck && Date.now() - lastCheck < UPDATE_CHECK_INTERVAL_MS) {
         presentPendingUpdate();
