@@ -472,7 +472,7 @@ class AgentLoopCoordinator:
         force_no_tools = False
         allowed_tools = [
             entry for entry in AGENT_TOOLS_MANIFEST
-            if (not tool_feature_key(entry.get("function", {}).get("name", "")) or feature_enabled({"valid": True, "features": plan_features}, tool_feature_key(entry.get("function", {}).get("name", ""))))
+            if tool_feature_key(entry.get("function", {}).get("name", "")) and feature_enabled({"valid": True, "features": plan_features}, tool_feature_key(entry.get("function", {}).get("name", "")) )
         ]
 
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
@@ -697,7 +697,12 @@ class AgentLoopCoordinator:
                 }
                 
                 required_feature = tool_feature_key(tool_name)
-                if required_feature and not feature_enabled({"valid": True, "features": plan_features}, required_feature):
+                if not required_feature:
+                    result = {
+                        "error": f"Tool '{tool_name}' has no registered plan permission and is blocked.",
+                        "code": "tool_not_entitled",
+                    }
+                elif not feature_enabled({"valid": True, "features": plan_features}, required_feature):
                     result = {
                         "error": f"Tool '{tool_name}' is not enabled for the current plan.",
                         "code": "feature_not_enabled",
