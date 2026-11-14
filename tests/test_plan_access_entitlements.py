@@ -128,3 +128,57 @@ def test_project_access_keeps_only_projects_within_current_allowance(monkeypatch
         entitlement_dependencies.require_project_access("user-1", "older", entitlements)
     assert error.value.status_code == 403
     assert error.value.detail["limit"] == "max_projects"
+
+
+
+def test_offline_grace_accepts_only_cached_verified_entitlements_inside_window():
+    import asyncio
+    import time
+
+    from app.services.billing.license_service import LicenseService
+
+    async def run():
+        now = time.time()
+        service = LicenseService()
+        service._cache["token-key"] = {
+            "valid": True,
+            "plan": "free",
+            "features": {"offline_grace": True},
+            "limits": {"offline_grace_hours": 48},
+            "validated_at": now - (47 * 3600),
+        }
+        result = await service._offline_entitlements("token-key", None, now, RuntimeError("offline"))
+        assert result["valid"] is True
+        assert result["is_stale"] is True
+
+    asyncio.run(run())
+
+
+def test_offline_grace_fails_closed_when_flag_disabled_or_window_expired():
+    import asyncio
+    import time
+
+    from app.services.billing.license_service import LicenseService
+
+    async def run():
+        now = time.time()
+        service = LicenseService()
+        service._cache["disabled"] = {
+            "valid": True,
+            "features": {"offline_grace": False},
+            "limits": {"offline_grace_hours": 48},
+            "validated_at": now,
+        }
+        disabled = await service._offline_entitlements("disabled", None, now, RuntimeError("offline"))
+        assert disabled["valid"] is False
+
+        service._cache["expired"] = {
+            "valid": True,
+            "features": {"offline_grace": True},
+            "limits": {"offline_grace_hours": 48},
+            "validated_at": now - (49 * 3600),
+        }
+        expired = await service._offline_entitlements("expired", None, now, RuntimeError("offline"))
+        assert expired["valid"] is False
+
+    asyncio.run(run())
