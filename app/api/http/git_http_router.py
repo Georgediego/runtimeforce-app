@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -38,14 +38,31 @@ class PushPullPayload(BaseModel):
     remote: Optional[str] = "origin"
     branch: Optional[str] = None
 
-async def _count_other_git_repos(user_id: str, workspace_manager: WorkspaceManagerService, current_project_id: Optional[str]) -> int:
+async def _count_other_git_repos(user_id: str, workspace_manager: WorkspaceManagerService, current_project_id: Optional[str], entitlements: dict) -> int:
     repo_projects = set()
-    for project in container.project_repo.list_projects(user_id):
+    all_hosts = set()
+    projects = container.project_repo.list_projects(user_id)
+    for project in projects:
+        project_host = str(project.get("ssh_host") or "").strip().lower()
+        if project_host:
+            all_hosts.add(project_host)
+        project_id = str(project.get("id") or "")
+        if project_id:
+            for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
+                host = str(workspace.get("host") or "").strip().lower()
+                if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
+                    all_hosts.add(host)
+    allowed_hosts = set(sorted(all_hosts)[:plan_limit(entitlements, "max_ssh_hosts")])
+    for project in projects:
         project_id = str(project.get("id") or "")
         if not project_id or project_id == current_project_id:
             continue
         if str(project.get("github_remote_url") or "").strip():
             repo_projects.add(project_id)
+            continue
+        workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
+        host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
+        if host and host not in {"localhost", "127.0.0.1"} and host not in allowed_hosts:
             continue
         driver = await workspace_manager.get_driver_for_project(user_id, project_id)
         if driver and await GitStatusService.is_repo(driver):
@@ -103,7 +120,7 @@ async def git_init(
     active_project = container.project_repo.get_active_project(user_id)
     current_project_id = str(active_project.get("id") or "") if active_project else None
     if not await GitStatusService.is_repo(driver):
-        used_repos = await _count_other_git_repos(user_id, workspace_manager, current_project_id)
+        used_repos = await _count_other_git_repos(user_id, workspace_manager, current_project_id, entitlements)
         require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
     return await GitCommitService.init_repo(driver)
 
