@@ -1,8 +1,30 @@
+import pytest
 import app.main as main_mod
 from fastapi.testclient import TestClient
 
+from app.core.security.entitlements import _license_service_dependency
+from app.core.security.jwt_auth_service import require_authenticated_user
+
 
 client = TestClient(main_mod.app)
+
+
+class _TestLicenseService:
+    async def get_entitlements(self, token):
+        return {
+            "valid": True,
+            "features": {"software_updates": True},
+        }
+
+
+@pytest.fixture(autouse=True)
+def authenticated_update_plan():
+    original_overrides = main_mod.app.dependency_overrides.copy()
+    main_mod.app.dependency_overrides[require_authenticated_user] = lambda: "test-user"
+    main_mod.app.dependency_overrides[_license_service_dependency] = _TestLicenseService
+    yield
+    main_mod.app.dependency_overrides.clear()
+    main_mod.app.dependency_overrides.update(original_overrides)
 
 
 def test_update_apply_rejects_non_local_origin():
