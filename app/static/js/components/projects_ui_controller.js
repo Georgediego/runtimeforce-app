@@ -56,6 +56,11 @@ export const projectsUIController = {
 
         document.getElementById("connect-github-oauth-btn")?.addEventListener("click", () => this.connectOAuth("github"));
         document.getElementById("disconnect-github-btn")?.addEventListener("click", () => this.disconnectOAuth("github"));
+        document.addEventListener("visibilitychange", async () => {
+            if (document.visibilityState !== "visible") return;
+            await this.initActiveProject();
+            await this.loadProjectsList();
+        });
 
     },
 
