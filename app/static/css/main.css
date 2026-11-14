@@ -1898,16 +1898,4 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 .tree-node-name::selection{background:rgba(7,247,122,.28);color:var(--ide-text-primary)}
 
 
-/* Runtime Graph — spherical memory topology, no decorative overlays */
 #file-explorer-col{min-height:0}
-#rf-memory-widget.rf-network-graph{position:relative;z-index:2;flex:0 0 46%;min-height:270px;max-height:54%;width:100%;margin-top:auto;padding:0;display:flex;overflow:hidden;border-top:1px solid rgba(90,140,190,.16);background:#050912}
-#rf-memory-widget .rf-network-body{position:relative;flex:1;min-height:0;width:100%;overflow:hidden;background:radial-gradient(ellipse at 50% 50%,rgba(23,39,61,.28),rgba(4,8,15,.98) 76%)}
-#rf-network-canvas{display:block;width:100%;height:100%;outline:0}
-.rf-network-collapse{position:absolute;right:7px;top:7px;z-index:5;width:22px;height:21px;display:grid;place-items:center;border:1px solid rgba(111,153,194,.22);border-radius:4px;background:rgba(4,10,19,.78);color:#9bb5d0;cursor:pointer}
-.rf-network-collapse:hover{border-color:rgba(150,195,235,.55);color:#e1efff}
-#rf-memory-widget.is-collapsed{flex-basis:26px;min-height:26px;max-height:26px;padding:2px 7px;background:transparent;border:0}
-#rf-memory-widget.is-collapsed .rf-network-body{display:none}
-#rf-memory-widget.is-collapsed .rf-network-collapse{position:relative;top:auto;right:auto;margin-left:auto}
-#rf-memory-widget.is-collapsed .rf-network-collapse i{transform:rotate(180deg)}
-@media(max-height:760px){#rf-memory-widget.rf-network-graph{min-height:220px;flex-basis:43%}}
-@media(max-height:620px){#rf-memory-widget.rf-network-graph{min-height:185px;flex-basis:40%}}
