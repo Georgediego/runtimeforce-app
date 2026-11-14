@@ -83,6 +83,11 @@ class LicenseService(ILicenseService):
             }
             if not result["valid"] or not self._not_expired(result, now):
                 self._cache.pop(token_key, None)
+                if self.subscription_repo and user_id:
+                    try:
+                        self.subscription_repo.delete("", user_id)
+                    except Exception:
+                        pass
                 return self._invalid("Subscription is not active")
             self._cache[token_key] = result
             if self.subscription_repo and user_id:
