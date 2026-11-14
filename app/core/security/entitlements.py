@@ -157,6 +157,7 @@ async def git_repo_quota_state(
         "current_project_has_repo": current_has_repo,
         "current_project_allowed": current_allowed if current_has_repo else True,
         "can_use_git": bool(current_allowed or can_create),
+        "can_create_repo": bool(can_create),
         "allowed_project_ids": repo_ids[:maximum],
     }
 
