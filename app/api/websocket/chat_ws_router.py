@@ -9,7 +9,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
 from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, require_ssh_host_access, git_repo_quota_state
-from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
