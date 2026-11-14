@@ -238,6 +238,9 @@ export const workspaceUIController = {
         });
 
         document.getElementById("ssh-host")?.addEventListener("input", () => this.updateSSHHostControl());
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") this.refreshSSHPlanState();
+        });
         this.refreshSSHPlanState();
 
         document.getElementById("ssh-auth-type")?.addEventListener("change", (e) => {
