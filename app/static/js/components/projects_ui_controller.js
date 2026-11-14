@@ -69,6 +69,10 @@ export const projectsUIController = {
             if (allowedProjects.length > 0) {
                 const savedId = localStorage.getItem("rf_active_project_id");
                 let activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0];
+                const serverActiveProject = projects.find((p) => p.is_active);
+                if (!serverActiveProject || serverActiveProject.id !== activeProj.id) {
+                    await projectsApi.activate(activeProj.id);
+                }
                 
                 localStorage.setItem("rf_active_project_id", activeProj.id);
                 this.updateActiveHeader(activeProj);
