@@ -12,7 +12,7 @@ from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
 from app.services.git.git_status_service import GitStatusService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -106,11 +106,7 @@ async def create_project(
 
     ssh_host = (payload.ssh_host or "").strip().lower()
     if ssh_host:
-        known_hosts = _known_ssh_hosts(service, user_id, existing_projects)
-        if plan_limit(entitlements, "max_ssh_hosts") <= 0:
-            require_limit(entitlements, "max_ssh_hosts", 0, "SSH Hosts")
-        elif ssh_host not in known_hosts:
-            require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
+        require_ssh_host_access(user_id, ssh_host, entitlements)
     res = service.create_project(user_id, payload.dict(), plan=entitlements.get("plan", "free"), max_projects=max_projects)
     if "error" in res:
         status_code = 403 if res.get("status") == "limit_reached" else 500
@@ -144,17 +140,7 @@ async def activate_project(
         raise HTTPException(404, "Project not found")
     workspace = project.get("workspace") or {}
     host = str(workspace.get("host") or project.get("ssh_host") or "").strip().lower()
-    if host and host not in {"localhost", "127.0.0.1"}:
-        allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
-        if host not in allowed_hosts:
-            used_hosts = len(_known_ssh_hosts(service, user_id, service.list_projects(user_id)))
-            maximum = plan_limit(entitlements, "max_ssh_hosts")
-            raise HTTPException(status_code=403, detail={
-                "code": "plan_limit_reached", "limit": "max_ssh_hosts",
-                "used": used_hosts, "maximum": maximum,
-                "plan": entitlements.get("plan", "unknown"),
-                "message": "This SSH host is outside the host allowance for your current plan.",
-            })
+    require_ssh_host_access(user_id, host, entitlements)
     service.activate_project(project_id, user_id)
     return {"status": "success", "active_id": project_id}
 
@@ -183,14 +169,8 @@ async def update_project(
         )
         require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
     new_ssh_host = (payload.ssh_host or "").strip().lower()
-    old_ssh_host = str(current.get("ssh_host") or "").strip().lower()
     if new_ssh_host:
-        projects = service.list_projects(user_id)
-        known_hosts = _known_ssh_hosts(service, user_id, projects)
-        if plan_limit(entitlements, "max_ssh_hosts") <= 0:
-            require_limit(entitlements, "max_ssh_hosts", 0, "SSH Hosts")
-        elif new_ssh_host != old_ssh_host and new_ssh_host not in known_hosts:
-            require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
+        require_ssh_host_access(user_id, new_ssh_host, entitlements)
     updated = service.update_project(project_id, user_id, payload.dict())
     if not updated:
         raise HTTPException(404, "Project not found or no changes made")
