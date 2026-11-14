@@ -35,6 +35,25 @@ class ProjectPayload(BaseModel):
     prerelease_tag: Optional[str] = ""
     current_version: Optional[str] = "v1.0.0"
 
+def _known_ssh_hosts(service: ProjectService, user_id: str, projects: list) -> set[str]:
+    hosts = {
+        str(project.get("ssh_host") or "").strip().lower()
+        for project in projects
+        if str(project.get("ssh_host") or "").strip()
+    }
+    workspace_repo = getattr(service, "workspace_repo", None)
+    if workspace_repo:
+        for project in projects:
+            project_id = str(project.get("id") or "")
+            if not project_id:
+                continue
+            for workspace in workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
+                host = str(workspace.get("host") or "").strip().lower()
+                if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
+                    hosts.add(host)
+    return hosts
+
+
 class BumpVersionPayload(BaseModel):
     changelog: str
     bump_type: Optional[str] = "patch"
@@ -74,9 +93,9 @@ async def create_project(
 
     ssh_host = (payload.ssh_host or "").strip().lower()
     if ssh_host:
-        known_hosts = {str(project.get("ssh_host") or "").strip().lower() for project in existing_projects}
+        known_hosts = _known_ssh_hosts(service, user_id, existing_projects)
         if ssh_host not in known_hosts:
-            require_limit(entitlements, "max_ssh_hosts", len(known_hosts - {""}), "SSH Hosts")
+            require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
     res = service.create_project(user_id, payload.dict(), plan=entitlements.get("plan", "free"), max_projects=max_projects)
     if "error" in res:
         status_code = 403 if res.get("status") == "limit_reached" else 500
@@ -124,13 +143,13 @@ async def update_project(
             for project in projects
             if str(project.get("github_remote_url") or "").strip()
         }
-        require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
+        if new_remote.rstrip("/").lower() not in known_repos:
+            require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
     new_ssh_host = (payload.ssh_host or "").strip().lower()
     old_ssh_host = str(current.get("ssh_host") or "").strip().lower()
     if new_ssh_host and new_ssh_host != old_ssh_host:
         projects = service.list_projects(user_id)
-        known_hosts = {str(project.get("ssh_host") or "").strip().lower() for project in projects}
-        known_hosts.discard("")
+        known_hosts = _known_ssh_hosts(service, user_id, projects)
         if new_ssh_host not in known_hosts:
             require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
     updated = service.update_project(project_id, user_id, payload.dict())
