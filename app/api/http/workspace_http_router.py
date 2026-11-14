@@ -15,7 +15,6 @@ from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
 from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos, require_git_repo_access
 from app.core.security.plan_access import command_requires_git, command_creates_git_repo
-from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.workspace_http")
 router = APIRouter(prefix="/api/v1/workspaces", tags=["Workspaces"])
