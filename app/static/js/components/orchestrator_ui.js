@@ -1,7 +1,8 @@
 /**
  * Orchestrator UI Controller with ATM 5-Role Dropdowns (including Designer).
  */
-import { modelsApi, keysApi, billingApi } from "../core/api_http_client.js";
+import { modelsApi, keysApi } from "../core/api_http_client.js";
+import { planAccessState } from "../core/plan_access_state.js";
 import { showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -99,34 +100,12 @@ export const orchestratorUIController = {
     },
 
     _featureEnabled(featureKey) {
-        if (!featureKey) return false;
-        const aliases = {
-            local_llms: ["local_llms", "local_models", "local llms"],
-            git: ["git", "github_git", "github_git_integration", "git_integration"],
-            software_updates: ["software_updates", "software updates"],
-            free_cloud_byok: ["free_cloud_byok", "free cloud byok"],
-            full_pro_byok: ["full_pro_byok", "full pro byok"],
-            offline_grace: ["offline_grace", "offline grace"],
-        };
-        const keys = aliases[featureKey] || [featureKey];
-        const normalizedFeatures = Object.fromEntries(
-            Object.entries(this._features).map(([key, value]) => [key.trim().toLowerCase(), value])
-        );
-        for (const key of keys) {
-            const normalizedKey = key.trim().toLowerCase();
-            if (Object.prototype.hasOwnProperty.call(normalizedFeatures, normalizedKey)) return normalizedFeatures[normalizedKey] === true;
-        }
-        return false;
+        return planAccessState.featureEnabled(featureKey);
     },
 
     async loadEntitlements() {
-        try {
-            const data = await billingApi.entitlements();
-            this._features = data?.valid ? (data.features || {}) : {};
-        } catch (error) {
-            this._features = {};
-            console.warn("Unable to load verified plan features:", error);
-        }
+        await planAccessState.refresh();
+        this._features = planAccessState.entitlements.features || {};
     },
 
     initModeCards() {
