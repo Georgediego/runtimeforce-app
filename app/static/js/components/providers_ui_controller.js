@@ -38,13 +38,20 @@ export const providersUIController = {
         }
     },
 
+    _featureEnabled(canonical, legacy = []) {
+        if (Object.prototype.hasOwnProperty.call(this._features, canonical)) {
+            return this._features[canonical] === true;
+        }
+        return legacy.some(key => this._features[key] === true);
+    },
+
     _providerLocked(providerId) {
         const id = String(providerId || "").toLowerCase();
         if (PRO_PROVIDERS.some(provider => provider.id === id)) {
-            return this._features.full_pro_byok !== true && this._features.pro_byok !== true;
+            return !this._featureEnabled("full_pro_byok", ["pro_byok"]);
         }
         if (FREE_PROVIDERS.some(provider => provider.id === id)) {
-            return this._features.free_cloud_byok !== true && this._features.local_byok !== true;
+            return !this._featureEnabled("free_cloud_byok", ["local_byok"]);
         }
         return false;
     },
@@ -122,7 +129,7 @@ export const providersUIController = {
             `;
         }
 
-        const localLocked = this._features.local_llms !== true && this._features.local_models !== true;
+        const localLocked = !this._featureEnabled("local_llms", ["local_models", "local_llm"]);
         container.innerHTML = `
             <div class="space-y-3">
                 ${hwBadge}
