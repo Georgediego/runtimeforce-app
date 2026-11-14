@@ -3,6 +3,8 @@ import pytest
 from app.core.security.entitlements import (
     chat_strategy_feature,
     feature_enabled,
+    plan_limit,
+    enforce_plan_limit,
     provider_feature_key,
     tool_feature_key,
 )
@@ -75,3 +77,16 @@ def test_legacy_local_models_alias_remains_supported():
 )
 def test_agent_tool_feature_map(tool, feature):
     assert tool_feature_key(tool) == feature
+
+
+
+def test_plan_limit_aliases_and_fail_closed_defaults():
+    assert plan_limit({"limits": {"active_projects": 1}}, "max_projects") == 1
+    assert plan_limit({"limits": {"ssh_hosts": 1}}, "max_ssh_hosts") == 1
+    assert plan_limit({"limits": {}}, "git_repos") == 0
+
+
+def test_plan_limit_guard_rejects_overage():
+    with pytest.raises(Exception) as exc:
+        enforce_plan_limit({"limits": {"max_projects": 1}}, "max_projects", 1, adding=1)
+    assert getattr(exc.value, "status_code", None) == 403
