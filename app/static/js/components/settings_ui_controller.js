@@ -11,6 +11,17 @@ import { billingApi } from "../core/api_http_client.js";
 export const settingsUIController = {
     _features: {},
 
+    _featureEnabled(featureKey) {
+        const aliases = {
+            git: ["git", "github_git", "github_git_integration", "git_integration", "github / git integration"],
+            software_updates: ["software_updates", "software updates"],
+        };
+        for (const key of (aliases[featureKey] || [featureKey])) {
+            if (Object.prototype.hasOwnProperty.call(this._features, key)) return this._features[key] === true;
+        }
+        return false;
+    },
+
     async loadPlanFeatures() {
         try {
             const data = await billingApi.entitlements();
@@ -18,7 +29,7 @@ export const settingsUIController = {
         } catch {
             this._features = {};
         }
-        const updatesAllowed = this._features.software_updates === true || this._features["software updates"] === true;
+        const updatesAllowed = this._featureEnabled("software_updates");
         const updatesButton = document.querySelector('.settings-nav-btn[data-tab="updates"]');
         if (updatesButton) {
             updatesButton.disabled = !updatesAllowed;
@@ -36,7 +47,7 @@ export const settingsUIController = {
             { selector: '.right-tab-btn[data-panel="terminal"]', feature: "terminal" },
         ];
         for (const item of featureStates) {
-            const allowed = this._features[item.feature] === true;
+            const allowed = this._featureEnabled(item.feature);
             document.querySelectorAll(item.selector).forEach((button) => {
                 button.disabled = !allowed;
                 button.title = allowed ? "" : item.feature + " is not included in your current plan";
@@ -45,9 +56,27 @@ export const settingsUIController = {
             });
         }
         const editorSave = document.getElementById("editor-save-btn");
-        if (editorSave) editorSave.disabled = this._features.editor !== true;
+        if (editorSave) editorSave.disabled = !this._featureEnabled("editor");
         const terminalInput = document.getElementById("terminal-cmd-input");
-        if (terminalInput) terminalInput.disabled = this._features.terminal !== true;
+        if (terminalInput) terminalInput.disabled = !this._featureEnabled("terminal");
+
+        const gitAllowed = this._featureEnabled("git");
+        document.querySelectorAll('.left-tab-btn[data-panel="git"], .proj-settings-tab-btn[data-tab="git"]').forEach((element) => {
+            element.classList.toggle("opacity-40", !gitAllowed);
+            element.classList.toggle("cursor-not-allowed", !gitAllowed);
+            element.setAttribute("aria-disabled", gitAllowed ? "false" : "true");
+            element.title = gitAllowed ? "" : "GitHub / Git integration is not included in your current plan";
+            if ("disabled" in element) element.disabled = !gitAllowed;
+            if (!gitAllowed) element.dataset.planLocked = "true";
+            else delete element.dataset.planLocked;
+        });
+        ["git-init-btn", "connect-github-oauth-btn"].forEach((id) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.disabled = !gitAllowed;
+                element.title = gitAllowed ? "" : "GitHub / Git integration is not included in your current plan";
+            }
+        });
     },
 
     init() {
@@ -103,7 +132,7 @@ export const settingsUIController = {
     },
 
     async switchTab(targetTab) {
-        if (targetTab === "updates" && !(this._features.software_updates === true || this._features["software updates"] === true)) {
+        if (targetTab === "updates" && !this._featureEnabled("software_updates")) {
             showToast("Software Updates are not included in your current plan.", "warning");
             return;
         }
