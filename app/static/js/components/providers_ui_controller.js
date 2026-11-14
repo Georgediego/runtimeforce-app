@@ -34,8 +34,12 @@ export const providersUIController = {
             free_cloud_byok: ["free_cloud_byok", "free cloud byok"],
             full_pro_byok: ["full_pro_byok", "full pro byok"],
         };
+        const normalizedFeatures = Object.fromEntries(
+            Object.entries(this._features).map(([key, value]) => [key.trim().toLowerCase(), value])
+        );
         for (const key of (aliases[featureKey] || [featureKey])) {
-            if (Object.prototype.hasOwnProperty.call(this._features, key)) return this._features[key] === true;
+            const normalizedKey = key.trim().toLowerCase();
+            if (Object.prototype.hasOwnProperty.call(normalizedFeatures, normalizedKey)) return normalizedFeatures[normalizedKey] === true;
         }
         return false;
     },
