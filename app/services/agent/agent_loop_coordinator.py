@@ -423,6 +423,7 @@ class AgentLoopCoordinator:
         # Provider-level flags incorrectly classify Free models from mixed-tier
         # providers (especially OpenRouter) as paid BYOK models.
         eligible_models = []
+        blocked_feature_key = None
         for model in candidate_models:
             model_id = model.get("model_id", "")
             metadata = (
@@ -448,6 +449,7 @@ class AgentLoopCoordinator:
                     "[AgentCoordinator] Model excluded by entitlement: model=%s feature=%s",
                     model_id, required_feature
                 )
+                blocked_feature_key = blocked_feature_key or required_feature
                 continue
             eligible_models.append(model)
 
@@ -478,6 +480,19 @@ class AgentLoopCoordinator:
             active_candidates = candidate_models
 
         if not active_candidates:
+            if blocked_feature_key:
+                upgrade = plan_feature_upgrades.get(blocked_feature_key)
+                err_msg = "The selected model requires a feature that is not included in your current plan."
+                yield {
+                    "status": "error",
+                    "code": "feature_not_enabled",
+                    "error_code": "FEATURE_NOT_ENABLED",
+                    "feature": blocked_feature_key,
+                    "upgrade": upgrade,
+                    "error": err_msg,
+                }
+                yield {"status": "done"}
+                return
             if route_error and strategy_upper != "LOCAL":
                 err_msg = route_error
             elif strategy_upper == "LOCAL":
