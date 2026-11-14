@@ -13,7 +13,7 @@ from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos, require_git_repo_access
 from app.core.security.plan_access import command_requires_git, command_creates_git_repo
 from app.services.git.git_status_service import GitStatusService
 
@@ -237,6 +237,7 @@ async def execute_command(
         if command_requires_git(payload.command):
             require_feature(entitlements, "git")
             require_limit(entitlements, "git_repos", 0, "Git Repositories")
+            await require_git_repo_access(user_id, target_project_id, container.workspace_manager_service, entitlements)
             if command_creates_git_repo(payload.command):
                 used_repos = await count_other_git_repos(user_id, container.workspace_manager_service, target_project_id, entitlements)
                 require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
