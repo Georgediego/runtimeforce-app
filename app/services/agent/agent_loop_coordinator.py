@@ -166,6 +166,33 @@ class AgentLoopCoordinator:
         plan_entitlements: Optional[Dict[str, Any]] = None,
         git_repo_slot_available: bool = True,
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        strategy_key = {
+            "AUTO": "auto",
+            "CODING": "atm",
+            "ATM": "atm",
+            "LOCAL": "local_llms",
+            "MANUAL": "manual",
+        }.get((strategy or "AUTO").strip().upper())
+
+        if plan_entitlements is not None:
+            if not plan_entitlements.get("valid"):
+                yield {"status": "error", "code": 403, "error": "Account entitlements could not be verified."}
+                yield {"status": "done"}
+                return
+            if not strategy_key or not feature_enabled(plan_entitlements, strategy_key):
+                yield {
+                    "status": "error",
+                    "code": 403,
+                    "feature": strategy_key or "orchestration_mode",
+                    "error": f"Feature '{strategy_key or strategy}' is not enabled for plan '{plan}'.",
+                }
+                yield {"status": "done"}
+                return
+            if plan_limit(plan_entitlements, "max_projects") <= 0:
+                yield {"status": "error", "code": 403, "feature": "max_projects", "error": "Project access is not enabled for this plan."}
+                yield {"status": "done"}
+                return
+
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
         workspace_task_requested = bool(re.search(
