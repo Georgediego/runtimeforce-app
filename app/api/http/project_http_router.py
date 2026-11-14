@@ -166,6 +166,7 @@ async def update_project(
             str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
             for project in projects
             if str(project.get("github_remote_url") or "").strip()
+            and str(project.get("id") or "") != project_id
         }
         if new_remote.rstrip("/").lower() not in known_repos:
             require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
