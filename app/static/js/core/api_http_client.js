@@ -47,6 +47,7 @@ export const sessionsApi = {
 };
 
 export const workspacesApi = {
+    sshUsage: () => request("/api/v1/workspaces/ssh-usage"),
     environment: () => request("/api/v1/workspaces/environment"),
     list: (projectId = null) => {
         const pid = resolveProjectId(projectId);
