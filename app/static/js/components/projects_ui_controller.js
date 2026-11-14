@@ -1,7 +1,7 @@
 /**
  * Projects UI Controller with Central GitHub OAuth Bridge.
  */
-import { projectsApi } from "../core/api_http_client.js";
+import { projectsApi, gitApi } from "../core/api_http_client.js";
 import { planAccessState } from "../core/plan_access_state.js";
 import { showToast, showPrompt, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
@@ -321,8 +321,14 @@ export const projectsUIController = {
             const projectList = Array.isArray(projectData) ? projectData : projectData.projects || [];
             const maxGitRepos = planAccessState.limit("git_repos");
             const knownGitRepos = new Set(projectList.map((item) => String(item.github_remote_url || "").trim().replace(/\/$/, "").toLowerCase()).filter(Boolean));
-            const currentHasRepo = Boolean(String(proj.github_remote_url || "").trim());
-            const canAddGitRepo = planAccessState.canAddGitRepo(knownGitRepos.size, currentHasRepo);
+            const gitUsage = planAccessState.featureEnabled("git")
+                ? await gitApi.usage(projectId).catch(() => null)
+                : null;
+            const currentHasRepo = gitUsage?.current_project_has_repo ?? Boolean(String(proj.github_remote_url || "").trim());
+            const usedElsewhere = gitUsage
+                ? Math.max(0, Number(gitUsage.used || 0) - (currentHasRepo ? 1 : 0))
+                : knownGitRepos.size;
+            const canAddGitRepo = planAccessState.canAddGitRepo(usedElsewhere, currentHasRepo);
             const gitTabButton = document.querySelector('.proj-settings-tab-btn[data-tab="git"]');
             if (gitTabButton) {
                 gitTabButton.disabled = !canAddGitRepo;
