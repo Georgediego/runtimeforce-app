@@ -27,6 +27,7 @@ from app.services.llm.llm_orchestrator_service import LLMOrchestratorService
 from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.project.project_service import ProjectService
 from app.api.schemas import SessionCreatePayload
+from app.core.security.entitlements import get_plan_entitlements, require_feature, model_allowed_by_plan, feature_enabled
 
 logger = logging.getLogger("runtimeforce.api.http.sessions")
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
@@ -123,6 +124,7 @@ async def create_session(
 async def auto_title(
     payload: AutoTitlePayload,
     user_id: str = Depends(require_authenticated_user),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
     orchestrator: LLMOrchestratorService = Depends(get_llm_orchestrator),
     llm_registry: LLMRegistryService = Depends(get_llm_registry),
     provider_keys_repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
@@ -140,7 +142,10 @@ async def auto_title(
         selected_models_set.update(mlist)
 
     keys = provider_keys_repo.get_all_provider_keys(user_id)
-    available_models = [m for m in llm_registry.get_available_models() if m.id in selected_models_set]
+    available_models = [
+        model for model in llm_registry.get_available_models()
+        if model.id in selected_models_set and model_allowed_by_plan(entitlements, model)
+    ] if feature_enabled(entitlements, "auto") else []
     
     fast_model_id = None
     fast_provider = None
@@ -239,8 +244,10 @@ async def get_session_tools(
 async def get_session_terminal(
     session_id: str,
     user_id: str = Depends(require_authenticated_user),
-    repo: ConversationDBRepository = Depends(get_conversation_repo)
+    repo: ConversationDBRepository = Depends(get_conversation_repo),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    require_feature(entitlements, "terminal")
     return {"session_id": session_id, "terminal": repo.get_session_terminal(session_id)}
 
 @router.post("/{session_id}/terminal")
@@ -248,8 +255,10 @@ async def save_session_terminal(
     session_id: str,
     payload: TerminalEntryPayload,
     user_id: str = Depends(require_authenticated_user),
-    repo: ConversationDBRepository = Depends(get_conversation_repo)
+    repo: ConversationDBRepository = Depends(get_conversation_repo),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    require_feature(entitlements, "terminal")
     repo.append_terminal(session_id, payload.entry_type, payload.content)
     return {"status": "success"}
 
