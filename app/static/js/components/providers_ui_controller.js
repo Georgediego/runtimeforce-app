@@ -1,7 +1,7 @@
 /**
  * Providers UI Controller with English-only UI, Hardware Diagnostics & Seamless Local Models.
  */
-import { keysApi, modelsApi } from "../core/api_http_client.js";
+import { keysApi, modelsApi, billingApi } from "../core/api_http_client.js";
 import { showToast, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -26,7 +26,31 @@ let activeFilterTag = "all";
 let cachedHardwareInfo = null;
 
 export const providersUIController = {
+    _features: {},
+
+    async loadEntitlements() {
+        try {
+            const data = await billingApi.entitlements();
+            this._features = data?.valid ? (data.features || {}) : {};
+        } catch (error) {
+            this._features = {};
+            console.warn("Unable to load verified provider entitlements:", error);
+        }
+    },
+
+    _providerLocked(providerId) {
+        const id = String(providerId || "").toLowerCase();
+        if (PRO_PROVIDERS.some(provider => provider.id === id)) {
+            return this._features.full_pro_byok !== true && this._features.pro_byok !== true;
+        }
+        if (FREE_PROVIDERS.some(provider => provider.id === id)) {
+            return this._features.free_cloud_byok !== true && this._features.local_byok !== true;
+        }
+        return false;
+    },
+
     async loadProvidersList() {
+        await this.loadEntitlements();
         const freeContainer = document.getElementById("providers-list-free");
         const proContainer = document.getElementById("providers-list-pro");
 
@@ -98,13 +122,14 @@ export const providersUIController = {
             `;
         }
 
+        const localLocked = this._features.local_llms !== true && this._features.local_models !== true;
         container.innerHTML = `
             <div class="space-y-3">
                 ${hwBadge}
                 <div class="flex items-center justify-between">
                     <span class="text-xs text-[var(--ide-text-muted)]">Connected local engines:</span>
-                    <button id="add-local-provider-btn" type="button" class="px-2.5 py-1 bg-[var(--ide-accent)] text-black text-[11px] font-bold rounded hover:brightness-110 cursor-pointer">
-                        + Add Local Engine
+                    <button id="add-local-provider-btn" type="button" ${localLocked ? "disabled" : ""} class="px-2.5 py-1 bg-[var(--ide-accent)] text-black text-[11px] font-bold rounded hover:brightness-110 cursor-pointer ${localLocked ? "opacity-40 cursor-not-allowed" : ""}">
+                        ${localLocked ? "🔒 PRO · Local LLMs" : "+ Add Local Engine"}
                     </button>
                 </div>
                 <div id="local-providers-list" class="space-y-2"></div>
@@ -355,22 +380,25 @@ export const providersUIController = {
     providerCardHTML(p) {
         const savedSelections = this._selectedModelsMap[(p.id || "").toLowerCase()] || null;
         const countBadgeText = Array.isArray(savedSelections) ? `${savedSelections.length} models selected` : "";
+        const locked = this._providerLocked(p.id);
         const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
+        const lockBadge = locked ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">PRO · LOCKED</span>' : "";
 
         return `
             <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2.5">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2 min-w-0 text-xs font-semibold">
                         <span>${p.name}</span>
+                        ${lockBadge}
                         ${refLinkHTML}
                     </div>
                     <span class="text-[10px] key-status-${p.id} text-[var(--ide-text-muted)] shrink-0">No API key</span>
                 </div>
-                <input type="password" id="key-input-${p.id}" placeholder="${p.placeholder}" class="w-full p-2 text-xs bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
+                <input type="password" id="key-input-${p.id}" ${locked ? "disabled" : ""} placeholder="${p.placeholder}" class="w-full p-2 text-xs bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-[10px] text-[var(--ide-accent)] font-mono selected-count-${p.id}">${countBadgeText}</span>
                     <div class="flex items-center gap-1.5 shrink-0">
-                        <button type="button" class="provider-toggle-btn text-[10px] px-3 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] border border-[var(--ide-accent)]/30 hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Connect</button>
+                        <button type="button" class="provider-toggle-btn text-[10px] px-3 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] border border-[var(--ide-accent)]/30 hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}" ${locked ? "disabled" : ""}>Connect</button>
                         <button type="button" class="provider-delete-key-btn text-[10px] px-3 py-1 rounded text-red-400 border border-red-500/30 hover:bg-red-500/10 cursor-pointer" data-provider="${p.id}" disabled>Delete key</button>
                         <button type="button" class="configure-models-btn hidden text-[10px] px-2 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Select Models</button>
                     </div>
@@ -456,6 +484,7 @@ export const providersUIController = {
                 const totalAvailable = availableModels.length;
 
                 const hasKey = Boolean(connected[p.id]);
+                const locked = this._providerLocked(p.id);
                 const selectedCount = Array.isArray(savedSelections) ? savedSelections.length : 0;
                 const enabled = hasKey && selectedCount > 0;
                 const toggleBtn = document.querySelector(`.provider-toggle-btn[data-provider="${p.id}"]`);
@@ -468,16 +497,16 @@ export const providersUIController = {
                 }
                 if (toggleBtn) {
                     toggleBtn.textContent = enabled ? "Disconnect" : "Connect";
-                    toggleBtn.disabled = !hasKey;
-                    toggleBtn.classList.toggle("opacity-40", !hasKey);
-                    toggleBtn.classList.toggle("cursor-not-allowed", !hasKey);
+                    toggleBtn.disabled = locked || !hasKey;
+                    toggleBtn.classList.toggle("opacity-40", locked || !hasKey);
+                    toggleBtn.classList.toggle("cursor-not-allowed", locked || !hasKey);
                 }
                 if (deleteBtn) {
                     deleteBtn.disabled = !hasKey;
                     deleteBtn.classList.toggle("opacity-40", !hasKey);
                     deleteBtn.classList.toggle("cursor-not-allowed", !hasKey);
                 }
-                if (configBtn) configBtn.classList.toggle("hidden", !hasKey && totalAvailable === 0);
+                if (configBtn) configBtn.classList.toggle("hidden", locked || (!hasKey && totalAvailable === 0));
             });
         } catch (e) {
             console.warn("Failed to check keys status:", e);
