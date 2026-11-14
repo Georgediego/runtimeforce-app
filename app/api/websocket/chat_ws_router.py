@@ -5,10 +5,10 @@ import json
 import logging
 import asyncio
 from typing import Dict
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access
 from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.chat_ws")
@@ -153,6 +153,16 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             if not project_id or project_id == "default_project":
                 active_proj = container.project_repo.get_active_project(user_id)
                 project_id = active_proj.get("id", "default") if active_proj else "default"
+
+            try:
+                require_project_access(user_id, project_id, entitlements)
+            except HTTPException as exc:
+                detail = exc.detail if isinstance(exc.detail, dict) else {}
+                await websocket.send_json({
+                    "status": "error", "code": 403, "feature": "max_projects",
+                    "error": detail.get("message", "This project is outside the Active Projects allowance for your current plan."),
+                })
+                continue
 
             project = container.project_repo.get_project(project_id, user_id)
             workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
