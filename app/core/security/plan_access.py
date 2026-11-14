@@ -20,10 +20,14 @@ PRO_BYOK_PROVIDERS = {"openai", "anthropic", "deepseek", "xai"}
 def feature_enabled(entitlements: Dict[str, Any], feature_key: str) -> bool:
     if entitlements.get("valid") is not True:
         return False
-    features = entitlements.get("features") or {}
+    features = {
+        str(key).strip().lower(): value
+        for key, value in (entitlements.get("features") or {}).items()
+    }
     for key in FEATURE_ALIASES.get(feature_key, (feature_key,)):
-        if key in features:
-            return features[key] is True
+        normalized_key = str(key).strip().lower()
+        if normalized_key in features:
+            return features[normalized_key] is True
     return False
 
 
