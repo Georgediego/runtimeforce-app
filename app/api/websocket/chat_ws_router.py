@@ -8,17 +8,13 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, require_ssh_host_access, count_other_git_repos
 from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
 
 active_tasks: Dict[str, asyncio.Task] = {}
-
-
-def _user_ssh_hosts(user_id: str) -> set[str]:
-    return user_ssh_hosts(user_id)
 
 
 @router.websocket("/ws/chat/{session_id}")
@@ -176,7 +172,8 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 continue
 
             git_repo_slot_available = (
-                plan_limit(entitlements, "git_repos") > 0
+                feature_enabled(entitlements, "git")
+                and plan_limit(entitlements, "git_repos") > 0
                 and await count_other_git_repos(
                     user_id, container.workspace_manager_service, project_id, entitlements
                 ) < plan_limit(entitlements, "git_repos")
