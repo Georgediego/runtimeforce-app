@@ -237,7 +237,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 model_id for model_id in requested_ids
                 if model_id in available_by_id and model_id not in allowed_model_ids
             ]
-                if denied_ids:
+            if denied_ids:
                 denied_model = available_by_id[denied_ids[0]]
                 denied_tier = str(getattr(denied_model, "tier", "standard")).lower()
                 denied_feature = (
@@ -251,7 +251,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     "error": f"Selected model '{denied_ids[0]}' is not available on plan '{plan}'.",
                 })
                 continue
-                enabled_models = [model_id for model_id in requested_ids if model_id in allowed_model_ids]
+            enabled_models = [model_id for model_id in requested_ids if model_id in allowed_model_ids]
 
             if not enabled_models:
                 await websocket.send_json({
