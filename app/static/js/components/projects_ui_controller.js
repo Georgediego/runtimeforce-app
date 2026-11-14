@@ -129,7 +129,7 @@ export const projectsUIController = {
             const maxProjects = planAccessState.limit("max_projects");
             const addButton = document.getElementById("add-project-btn");
             if (addButton) {
-                addButton.disabled = projects.length >= maxProjects;
+                addButton.disabled = !planAccessState.canAddProject(projects.length);
                 addButton.title = addButton.disabled ? "Active Projects limit reached for your current plan" : "";
                 addButton.classList.toggle("opacity-40", addButton.disabled);
                 addButton.classList.toggle("cursor-not-allowed", addButton.disabled);
@@ -242,7 +242,7 @@ export const projectsUIController = {
         const currentData = await projectsApi.list();
         const currentProjects = Array.isArray(currentData) ? currentData : currentData.projects || [];
         const maxProjects = Number(this._limits.max_projects ?? this._limits.workspaces_limit ?? 0);
-        if (currentProjects.length >= maxProjects) {
+        if (!planAccessState.canAddProject(currentProjects.length)) {
             showToast("Active Projects limit reached for your current plan.", "warning");
             return;
         }
@@ -304,7 +304,7 @@ export const projectsUIController = {
             const maxGitRepos = planAccessState.limit("git_repos");
             const knownGitRepos = new Set(projectList.map((item) => String(item.github_remote_url || "").trim().replace(/\/$/, "").toLowerCase()).filter(Boolean));
             const currentHasRepo = Boolean(String(proj.github_remote_url || "").trim());
-            const canAddGitRepo = this._featureEnabled("git") && maxGitRepos > 0 && (currentHasRepo || knownGitRepos.size < maxGitRepos);
+            const canAddGitRepo = planAccessState.canAddGitRepo(knownGitRepos.size, currentHasRepo);
             const gitTabButton = document.querySelector('.proj-settings-tab-btn[data-tab="git"]');
             if (gitTabButton) {
                 gitTabButton.disabled = !canAddGitRepo;
