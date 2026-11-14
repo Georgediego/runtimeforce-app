@@ -363,3 +363,51 @@ def test_online_entitlement_refresh_persists_under_verified_email(monkeypatch):
         assert repo.saved["entitlements"]["features"]["offline_grace"] is True
 
     asyncio.run(run())
+
+
+
+def test_authentication_uses_verified_token_fingerprint_during_offline_grace(monkeypatch):
+    import asyncio
+    from app.container import container
+    from app.core.security import jwt_auth_service as jwt_module
+
+    class OfflineClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            raise jwt_module.httpx.ConnectError("offline")
+
+    class SubscriptionRepo:
+        def get_user_id_by_token_hash(self, token_hash):
+            assert len(token_hash) == 64
+            return "user@example.com"
+
+    class CachedLicenseService:
+        async def get_entitlements(self, token, user_id=None):
+            assert token == "offline-jwt"
+            assert user_id == "user@example.com"
+            return {
+                "valid": True,
+                "is_stale": True,
+                "plan": "free",
+                "features": {"offline_grace": True},
+            }
+
+    async def run():
+        monkeypatch.setattr(jwt_module.httpx, "AsyncClient", OfflineClient)
+        monkeypatch.setattr(container, "subscription_repo", SubscriptionRepo())
+        monkeypatch.setattr(container, "license_service", CachedLicenseService())
+        jwt_module._AUTH_CACHE.clear()
+        user = await jwt_module.JWTAuthService.verify_token("offline-jwt")
+        assert user["email"] == "user@example.com"
+        assert user["id"] == "user@example.com"
+        jwt_module._AUTH_CACHE.clear()
+
+    asyncio.run(run())
