@@ -130,12 +130,13 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 or (not active_workspace and active_project and (active_project.get("ssh_host") or "").strip())
             )
             if uses_ssh:
-                if (entitlements.get("features") or {}).get("ssh") is not True:
+                ssh_limit = max(0, int((entitlements.get("limits") or {}).get("max_ssh_hosts", 0) or 0))
+                if ssh_limit <= 0:
                     await websocket.send_json({
                         "status": "error",
-                        "code": "feature_not_enabled",
-                        "feature": "ssh",
-                        "error": "SSH workspaces are not included in your current plan.",
+                        "code": "limit_reached",
+                        "limit": "max_ssh_hosts",
+                        "error": "SSH access is disabled by the SSH Hosts limit for this plan.",
                     })
                     continue
 
