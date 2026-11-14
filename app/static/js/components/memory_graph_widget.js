@@ -95,26 +95,6 @@ import { eventBus } from "../core/event_bus.js";
         return (h >>> 0) / 4294967296;
     }
 
-    function unitVector(key, salt) {
-        const y = 1 - 2 * hash01(key, salt);
-        const theta = 2 * Math.PI * hash01(key, salt + 1);
-        const ring = Math.sqrt(Math.max(0, 1 - y * y));
-        return [Math.cos(theta) * ring, y, Math.sin(theta) * ring];
-    }
-
-    const KNOWN_ANCHORS = {
-        project: [0, 1, 0.1], conversation: [-0.9, 0.2, 0.4], memoryquery: [0.85, -0.15, 0.5],
-        decision: [0.1, -0.95, -0.3], file: [0.65, 0.5, -0.7], code: [0.65, 0.5, -0.7],
-        symbol: [-0.55, -0.6, -0.65], memory: [-0.2, 0.15, 0.95]
-    };
-
-    function typeAnchor(type, radius) {
-        const key = String(type || "memory").toLowerCase();
-        const raw = KNOWN_ANCHORS[key] || unitVector(key, 0x51ed27);
-        const len = Math.hypot(raw[0], raw[1], raw[2]) || 1;
-        return raw.map(v => (v / len) * radius * 0.55);
-    }
-
     // All real SQLite nodes share one spherical surface.
     // Fibonacci distribution spreads the existing points evenly over the globe.
     // Hash-shuffle IDs before Fibonacci placement. This prevents sorted ID prefixes
@@ -631,37 +611,7 @@ import { eventBus } from "../core/event_bus.js";
             const k = edgeIndexById.get(id);
             if (k !== undefined) edgeTarget[k] = 1;
         });
-        // Real relationships connected to an active object light up during its operation.
-        // Illuminate only real stored/configured relationships that touch an active object.
-        // This keeps the network meaningful: no synthetic all-to-all links are drawn.
-        edges.forEach(edge => {
-            const source = String(edge.source);
-            const target = String(edge.target);
-            if (!activeIds.has(source) && !activeIds.has(target)) return;
-            const k = edgeIndexById.get(String(edge.id));
-            if (k !== undefined) edgeTarget[k] = 1;
-        });
     }
-
-    // ---- Runtime topology sources ---------------------------------------
-    // Cached separately because model discovery is more expensive than the memory graph query.
-    let topologyNodes = [];
-    let topologyEdges = [];
-    let topologyLoadedAt = 0;
-    let modelsLoadedAt = 0;
-    const SKIP_TREE_NAMES = new Set([".git", "__pycache__", "node_modules", "venv", ".venv", ".pytest_cache", "staticfiles", "media", ".cache", ".DS_Store"]);
-    const CHAT_MODES = [
-        { id: "auto", label: "Auto" },
-        { id: "coding", label: "Autonomous Team" },
-        { id: "local", label: "Local" },
-        { id: "manual", label: "Manual" }
-    ];
-    const ROLE_TOOLS = {
-        Engineer: ["read_workspace_file", "write_workspace_file", "run_shell_command", "grep_search"],
-        Implementer: ["read_workspace_file", "write_workspace_file", "patch_file", "run_shell_command"],
-        Designer: ["read_workspace_file", "write_workspace_file", "patch_file"],
-        Architect: ["read_workspace_file", "grep_search", "search_graph"]
-    };
 
     async function authenticatedJson(url) {
         const headers = {};
@@ -672,173 +622,8 @@ import { eventBus } from "../core/event_bus.js";
         return response.json();
     }
 
-    async function loadWorkspaceTopology(pid) {
-        const payload = await authenticatedJson("/api/v1/workspaces/tree?project_id=" + encodeURIComponent(pid));
-        const tree = payload?.tree;
-        if (!tree || !tree.path) return { nodes: [], edges: [] };
-
-        const outNodes = [];
-        const outEdges = [];
-        const rootId = "workspace:root:" + pid;
-        outNodes.push({ id: rootId, label: tree.name || "Workspace", type: "workspace", source: "workspace" });
-        const queue = [{ item: tree, parentId: rootId, depth: 0 }];
-        const seen = new Set([String(tree.path)]);
-        const maxNodes = 320;
-        const maxDepth = 4;
-
-        while (queue.length && outNodes.length < maxNodes) {
-            const current = queue.shift();
-            const children = Array.isArray(current.item.children) ? current.item.children : (
-                current.depth === 0 && Array.isArray(tree.children) ? tree.children : []
-            );
-            for (const child of children) {
-                if (outNodes.length >= maxNodes) break;
-                if (!child?.path || SKIP_TREE_NAMES.has(child.name)) continue;
-                const path = String(child.path);
-                if (seen.has(path)) continue;
-                seen.add(path);
-                const isDir = child.is_dir === true || child.type === "directory";
-                const id = "workspace:" + (isDir ? "dir:" : "file:") + path;
-                outNodes.push({
-                    id,
-                    label: String(child.name || path.split("/").pop() || path),
-                    type: isDir ? "directory" : "file",
-                    source: "workspace"
-                });
-                outEdges.push({
-                    id: "workspace-edge:" + current.parentId + "->" + id,
-                    source: current.parentId,
-                    target: id,
-                    relation: isDir ? "contains directory" : "contains file",
-                    weight: 1
-                });
-                if (isDir && current.depth + 1 < maxDepth) {
-                    queue.push({ item: { ...child, children: null }, parentId: id, depth: current.depth + 1 });
-                }
-            }
-
-            // The tree endpoint returns one level. Load children for directories as needed.
-            if (current.depth > 0 || current.item === tree) {
-                for (const child of children) {
-                    if (outNodes.length >= maxNodes) break;
-                    if (!(child?.is_dir === true || child?.type === "directory") || current.depth + 1 >= maxDepth) continue;
-                    const childId = "workspace:dir:" + String(child.path);
-                    const queued = queue.find(entry => entry.parentId === childId);
-                    if (!queued) continue;
-                    try {
-                        const nested = await authenticatedJson(
-                            "/api/v1/workspaces/tree/children?project_id=" + encodeURIComponent(pid) +
-                            "&path=" + encodeURIComponent(child.path)
-                        );
-                        queued.item.children = Array.isArray(nested.children) ? nested.children : [];
-                    } catch (_) {
-                        // Keep the real directory node even if its listing is inaccessible.
-                        queued.item.children = [];
-                    }
-                }
-            }
-        }
-        return { nodes: outNodes, edges: outEdges };
-    }
-
-    let modelsLoadPromise = null;
-    async function loadModelTopology(force = false) {
-        if (!force && Date.now() - modelsLoadedAt < 180000) {
-            return {
-                nodes: topologyNodes.filter(n => n.source === "models"),
-                edges: topologyEdges.filter(e => e.sourceType === "models")
-            };
-        }
-        if (modelsLoadPromise) return modelsLoadPromise;
-        modelsLoadPromise = (async () => {
-            const payload = await authenticatedJson("/api/v1/models");
-            const outNodes = [];
-            const outEdges = [];
-            Object.entries(payload.models || {}).forEach(([provider, models]) => {
-                const providerId = "provider:" + provider;
-                outNodes.push({ id: providerId, label: provider, type: "provider", source: "models" });
-                (Array.isArray(models) ? models : []).forEach(model => {
-                    const modelId = "model:" + provider + ":" + String(model.id || model.name);
-                    outNodes.push({ id: modelId, label: String(model.name || model.id), type: "model", source: "models" });
-                    outEdges.push({
-                        id: "model-edge:" + provider + "->" + modelId,
-                        source: providerId, target: modelId, relation: "provides model", weight: 1,
-                        sourceType: "models"
-                    });
-                });
-            });
-            modelsLoadedAt = Date.now();
-            return { nodes: outNodes, edges: outEdges };
-        })();
-        try {
-            return await modelsLoadPromise;
-        } finally {
-            modelsLoadPromise = null;
-        }
-    }
-
-    function buildStaticTopology() {
-        const outNodes = [];
-        const outEdges = [];
-        Object.entries(ROLE_TOOLS).forEach(([role, tools]) => {
-            const roleId = "agent-role:" + role.toLowerCase();
-            outNodes.push({ id: roleId, label: role, type: "role", source: "agents" });
-            tools.forEach(tool => {
-                const toolId = "agent-tool:" + tool;
-                if (!outNodes.some(node => node.id === toolId)) {
-                    outNodes.push({ id: toolId, label: tool, type: "tool", source: "agents" });
-                }
-                outEdges.push({
-                    id: "role-tool:" + roleId + "->" + toolId,
-                    source: roleId, target: toolId, relation: "allowed tool", weight: 1
-                });
-            });
-        });
-        CHAT_MODES.forEach(mode => {
-            outNodes.push({ id: "chat-mode:" + mode.id, label: mode.label, type: "mode", source: "chat" });
-        });
-        return { nodes: outNodes, edges: outEdges };
-    }
-
-    let topologyLoadPromise = null;
-    async function loadRuntimeTopology(pid, force = false) {
-        const now = Date.now();
-        if (!force && now - topologyLoadedAt < 60000 && topologyNodes.length) {
-            const models = await loadModelTopology(false).catch(() => ({ nodes: [], edges: [] }));
-            const cachedBase = topologyNodes.filter(node => node.source !== "models");
-            const cachedBaseEdges = topologyEdges.filter(edge => edge.sourceType !== "models");
-            return { nodes: cachedBase.concat(models.nodes), edges: cachedBaseEdges.concat(models.edges) };
-        }
-        if (topologyLoadPromise) return topologyLoadPromise;
-        topologyLoadPromise = (async () => {
-            const [workspace, models] = await Promise.all([
-                loadWorkspaceTopology(pid).catch(error => {
-                    console.warn("[MemoryGraph] Workspace topology unavailable", error);
-                    return { nodes: [], edges: [] };
-                }),
-                loadModelTopology(force).catch(error => {
-                    console.warn("[MemoryGraph] Model topology unavailable", error);
-                    return {
-                        nodes: topologyNodes.filter(n => n.source === "models"),
-                        edges: topologyEdges.filter(e => e.sourceType === "models")
-                    };
-                })
-            ]);
-            const staticGraph = buildStaticTopology();
-            topologyNodes = workspace.nodes.concat(models.nodes, staticGraph.nodes);
-            topologyEdges = workspace.edges.concat(models.edges, staticGraph.edges);
-            topologyLoadedAt = Date.now();
-            return { nodes: topologyNodes, edges: topologyEdges };
-        })();
-        try {
-            return await topologyLoadPromise;
-        } finally {
-            topologyLoadPromise = null;
-        }
-    }
-
     // ---- Data loading ----------------------------------------------------
-    async function loadGraph(pidOverride, forceTopology = false) {
+    async function loadGraph(pidOverride) {
         const pid = (typeof pidOverride === "string" ? pidOverride : "") || projectId() || lastProject;
         if (!pid) {
             requestVersion++;
@@ -855,22 +640,20 @@ import { eventBus } from "../core/event_bus.js";
 
         const version = ++requestVersion;
         try {
-            const [payload, topology] = await Promise.all([
-                authenticatedJson("/api/v1/memory/graph-status/" + encodeURIComponent(pid)),
-                loadRuntimeTopology(pid, forceTopology)
-            ]);
-            if (version !== requestVersion) return;
+            const payload = await authenticatedJson("/api/v1/memory/graph-status/" + encodeURIComponent(pid));
+            if (version !== requestVersion || pid !== projectId()) return;
 
-            const memoryNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
-            const memoryEdges = Array.isArray(payload.edges) ? payload.edges : [];
-            const combinedNodes = memoryNodes.concat(topology.nodes);
-            const combinedEdges = memoryEdges.concat(topology.edges);
-            const signature = combinedNodes.length + ":" + combinedEdges.length + ":" +
-                combinedNodes.map(node => node.id + "|" + node.type).join(",") + ":" +
-                combinedEdges.map(edge => edge.id).join(",");
+            // The visualization consumes only persisted graph data from the backend.
+            // No workspace hierarchy, provider/model catalog, role/tool matrix or chat-mode
+            // relationships are synthesized in the frontend.
+            const nextNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+            const nextEdges = Array.isArray(payload.edges) ? payload.edges : [];
+            const signature = nextNodes.length + ":" + nextEdges.length + ":" +
+                nextNodes.map(node => node.id + "|" + node.type).join(",") + ":" +
+                nextEdges.map(edge => edge.id).join(",");
             const projectChanged = pid !== lastProject;
-            nodes = combinedNodes;
-            edges = combinedEdges;
+            nodes = nextNodes;
+            edges = nextEdges;
             lastProject = pid;
             if (signature !== graphSignature) {
                 graphSignature = signature;
@@ -878,12 +661,11 @@ import { eventBus } from "../core/event_bus.js";
                 buildGraph();
             }
 
-            const memoryCount = memoryNodes.length;
-            setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS · " + memoryCount + " MEMORY");
+            setStatus("MEMORY GRAPH · " + nodes.length + " NODES · " + edges.length + " REAL LINKS");
         } catch (error) {
             if (version !== requestVersion) return;
-            setStatus("Runtime graph unavailable · " + String(error.message || error).slice(0, 64));
-            console.error("[MemoryGraph] Runtime graph fetch failed", error);
+            setStatus("Memory graph unavailable · " + String(error.message || error).slice(0, 64));
+            console.error("[MemoryGraph] Memory graph fetch failed", error);
         }
     }
 
@@ -896,61 +678,6 @@ import { eventBus } from "../core/event_bus.js";
         activeEdgeIds.clear();
         applyActive();     // targets fall to 0 -> smooth fade; every node and edge stays on screen
         if (nodes.length) setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
-    }
-
-    function addContextActive(item) {
-        if (!item || typeof item !== "object") return;
-        const modeValue = String(item.mode || item.strategy || "").toLowerCase().replace(/[^a-z]/g, "");
-        const modeAliases = { auto: "auto", automatic: "auto", coding: "coding", atm: "coding", local: "local", manual: "manual" };
-        const modeId = modeAliases[modeValue];
-        if (modeId) activeIds.add("chat-mode:" + modeId);
-
-        const roleValue = String(item.role || item.agent_role || item.agent || "").toLowerCase();
-        if (roleValue) {
-            const roleNode = nodes.find(node => node.type === "role" && String(node.label).toLowerCase() === roleValue);
-            if (roleNode) activeIds.add(String(roleNode.id));
-        }
-
-        const modelValue = String(item.model || item.model_id || "").toLowerCase().trim();
-        if (modelValue) {
-            const modelNode = nodes.find(node =>
-                node.type === "model" &&
-                (String(node.label).toLowerCase() === modelValue ||
-                 String(node.id).toLowerCase().endsWith(":" + modelValue) ||
-                 modelValue.includes(String(node.label).toLowerCase()))
-            );
-            if (modelNode) {
-                activeIds.add(String(modelNode.id));
-                const providerName = String(modelNode.id).split(":")[1];
-                const providerId = "provider:" + providerName;
-                if (nodes.some(node => String(node.id) === providerId)) activeIds.add(providerId);
-            }
-        }
-    }
-
-    function rememberActiveNodes() {
-        activeIds.forEach(id => {
-            if (!indexById.has(id)) return;
-            everActiveIds.add(id);
-            const attribute = nodePoints?.geometry.attributes.aMarked;
-            const index = indexById.get(id);
-            if (attribute && attribute.array[index] !== 1) {
-                attribute.array[index] = 1;
-                attribute.needsUpdate = true;
-            }
-        });
-    }
-
-    function addActive(item) {
-        if (Array.isArray(item.active_node_ids)) item.active_node_ids.forEach(id => activeIds.add(String(id)));
-        if (Array.isArray(item.active_edge_ids)) item.active_edge_ids.forEach(id => activeEdgeIds.add(String(id)));
-        addContextActive(item);
-        const toolName = String(item.tool_name || item.tool || "").trim();
-        if (toolName) {
-            const toolId = "agent-tool:" + toolName;
-            if (indexById.has(toolId)) activeIds.add(toolId);
-        }
-        rememberActiveNodes();
     }
 
     const hasUnknown = () => [...activeIds].some(id => !indexById.has(id));
@@ -966,7 +693,6 @@ import { eventBus } from "../core/event_bus.js";
             runStartedAt = performance.now();
             activeIds.clear();
             activeEdgeIds.clear();
-            addContextActive(detail);
             rememberActiveNodes();
             applyActive();
             setStatus("Runtime operation running · tracing active graph objects");
