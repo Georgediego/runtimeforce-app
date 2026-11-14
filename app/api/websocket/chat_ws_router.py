@@ -179,14 +179,26 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 model_id for model_id, model in available_by_id.items()
                 if model_allowed_by_plan(entitlements, model)
             }
+            explicit_model_ids = [
+                model_lock,
+                data.get("atm_architect_model"),
+                data.get("atm_engineer_model"),
+                data.get("atm_tester_model"),
+                data.get("atm_critic_model"),
+                data.get("atm_designer_model"),
+            ]
             if enabled_models is None:
-                enabled_models = sorted(allowed_model_ids)
+                requested_ids = sorted(allowed_model_ids)
             else:
                 requested_ids = [str(model_id) for model_id in enabled_models]
-                denied_ids = [
-                    model_id for model_id in requested_ids
-                    if model_id in available_by_id and model_id not in allowed_model_ids
-                ]
+            requested_ids.extend(
+                str(model_id) for model_id in explicit_model_ids
+                if model_id and str(model_id).lower() != "auto"
+            )
+            denied_ids = [
+                model_id for model_id in requested_ids
+                if model_id in available_by_id and model_id not in allowed_model_ids
+            ]
                 if denied_ids:
                     denied_model = available_by_id[denied_ids[0]]
                     denied_tier = str(getattr(denied_model, "tier", "free")).lower()
