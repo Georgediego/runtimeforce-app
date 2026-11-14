@@ -82,7 +82,7 @@ async def create_project(
     # Project access is derived from the authoritative project limit.
     # Do not require a duplicate features.projects flag: cached entitlements
     # may omit it while a dynamic plan still grants project slots.
-    max_projects = limits.get("max_projects", 1)
+    max_projects = limits.get("max_projects", 0)
     try:
         max_projects = max(0, int(max_projects))
     except (TypeError, ValueError):
