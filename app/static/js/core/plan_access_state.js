@@ -38,7 +38,40 @@ export const planAccessState = {
         } catch {
             this.entitlements = { valid: false, plan: "unknown", features: {}, limits: {} };
         }
+        this.applyUiLocks();
         return this.entitlements;
+    },
+
+    applyUiLocks() {
+        if (typeof document === "undefined") return;
+        const locks = [
+            { selector: '.right-tab-btn[data-panel="editor"]', feature: "editor", label: "Editor" },
+            { selector: '.right-tab-btn[data-panel="terminal"]', feature: "terminal", label: "Terminal" },
+            { selector: '.left-tab-btn[data-panel="git"]', feature: "git", label: "Git integration" },
+        ];
+        for (const item of locks) {
+            const allowed = this.featureEnabled(item.feature)
+                && (item.feature !== "git" || this.limit("git_repos") > 0);
+            document.querySelectorAll(item.selector).forEach((element) => {
+                element.disabled = !allowed;
+                element.setAttribute("aria-disabled", String(!allowed));
+                element.title = allowed ? "" : item.label + " is not included in your current plan";
+                element.classList.toggle("opacity-40", !allowed);
+                element.classList.toggle("cursor-not-allowed", !allowed);
+            });
+        }
+        const terminalInput = document.getElementById("terminal-cmd-input");
+        if (terminalInput) {
+            terminalInput.disabled = !this.featureEnabled("terminal");
+            terminalInput.title = terminalInput.disabled ? "Terminal is not included in your current plan" : "";
+        }
+        const editorSave = document.getElementById("editor-save-btn");
+        if (editorSave) {
+            editorSave.disabled = !this.featureEnabled("editor");
+            editorSave.title = editorSave.disabled ? "Editor is not included in your current plan" : "Save File (Ctrl+S)";
+        }
+        const tree = document.getElementById("file-tree");
+        if (tree) tree.dataset.planLocked = String(!this.featureEnabled("editor"));
     },
 
     featureEnabled(featureKey) {
