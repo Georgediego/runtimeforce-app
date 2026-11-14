@@ -56,7 +56,8 @@ export const planAccessState = {
         const locks = [
             { selector: '.right-tab-btn[data-panel="editor"]', feature: "editor", label: "Editor" },
             { selector: '.right-tab-btn[data-panel="terminal"]', feature: "terminal", label: "Terminal" },
-            { selector: '.left-tab-btn[data-panel="git"]', feature: "git", label: "Git integration" },
+            { selector: '.left-tab-btn[data-panel="git"], .proj-settings-tab-btn[data-tab="git"], .settings-nav-btn[data-tab="git"]', feature: "git", label: "Git integration" },
+            { selector: '.settings-nav-btn[data-tab="updates"]', feature: "software_updates", label: "Software Updates" },
         ];
         for (const item of locks) {
             const allowed = this.featureEnabled(item.feature)
@@ -82,6 +83,19 @@ export const planAccessState = {
         }
         const tree = document.getElementById("file-tree");
         if (tree) tree.dataset.planLocked = String(!this.featureEnabled("editor"));
+        const gitAllowed = this.featureEnabled("git") && this.limit("git_repos") > 0;
+        for (const id of ["git-init-btn", "connect-github-oauth-btn"]) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.disabled = !gitAllowed;
+                element.title = gitAllowed ? "" : "GitHub / Git integration is not included in your current plan";
+            }
+        }
+        const updatesAllowed = this.featureEnabled("software_updates");
+        for (const id of ["rf-update-settings-check-btn", "rf-update-settings-apply-btn"]) {
+            const element = document.getElementById(id);
+            if (element) element.disabled = !updatesAllowed;
+        }
     },
 
     featureEnabled(featureKey) {
