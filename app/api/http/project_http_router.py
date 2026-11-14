@@ -12,7 +12,7 @@ from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
 from app.services.git.git_status_service import GitStatusService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, allowed_ssh_hosts, require_ssh_host_access
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -36,10 +36,6 @@ class ProjectPayload(BaseModel):
     version_scheme: Optional[str] = "semver"
     prerelease_tag: Optional[str] = ""
     current_version: Optional[str] = "v1.0.0"
-
-def _known_ssh_hosts(service: ProjectService, user_id: str, projects: list) -> set[str]:
-    return user_ssh_hosts(user_id)
-
 
 async def _count_other_git_repos(
     user_id: str,
