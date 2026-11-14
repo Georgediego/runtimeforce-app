@@ -10,6 +10,7 @@ from app.core.security.plan_access import (
     provider_feature, model_allowed_by_plan,
 )
 from app.services.billing.license_service import LicenseService
+from app.services.git.git_status_service import GitStatusService
 
 
 def request_token(request: Request) -> str:
@@ -102,6 +103,32 @@ def require_ssh_host_access(user_id: str, host: str, entitlements: Dict[str, Any
             "message": "This SSH host is outside the host allowance for your current plan.",
         })
     require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
+
+
+async def count_other_git_repos(
+    user_id: str,
+    workspace_manager: Any,
+    current_project_id: str | None,
+    entitlements: Dict[str, Any],
+) -> int:
+    projects = container.project_repo.list_projects(user_id)
+    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
+    repo_projects: set[str] = set()
+    for project in projects:
+        project_id = str(project.get("id") or "")
+        if not project_id or project_id == current_project_id:
+            continue
+        if str(project.get("github_remote_url") or "").strip():
+            repo_projects.add(project_id)
+            continue
+        workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
+        host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
+        if host and host not in {"localhost", "127.0.0.1"} and host not in allowed_hosts:
+            continue
+        driver = await workspace_manager.get_driver_for_project(user_id, project_id)
+        if driver and await GitStatusService.is_repo(driver):
+            repo_projects.add(project_id)
+    return len(repo_projects)
 
 
 def require_project_access(user_id: str, project_id: str, entitlements: Dict[str, Any]) -> None:
