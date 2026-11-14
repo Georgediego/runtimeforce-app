@@ -58,6 +58,7 @@ class LicenseService(ILicenseService):
                     plan=str(result.get("plan") or "free"),
                     valid_until=result.get("valid_until"),
                     entitlements=result,
+                    token_hash=token_key,
                 )
             return result
         except httpx.HTTPStatusError as exc:
