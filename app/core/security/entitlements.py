@@ -37,5 +37,7 @@ def require_plan_feature(feature_key: str):
         entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
     ) -> str:
         require_feature(entitlements, feature_key)
+        if feature_key == "git":
+            require_limit(entitlements, "max_projects", 0, "Active Projects")
         return user_id
     return dependency
