@@ -159,6 +159,10 @@ export const projectsUIController = {
             const allowedProjects = projects.slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).slice(0, maxProjects);
             const activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0] || null;
             if (activeProj) {
+                const serverActiveProject = projects.find((p) => p.is_active);
+                if (!serverActiveProject || serverActiveProject.id !== activeProj.id) {
+                    await projectsApi.activate(activeProj.id);
+                }
                 localStorage.setItem("rf_active_project_id", activeProj.id);
                 this.updateActiveHeader(activeProj);
             } else {
