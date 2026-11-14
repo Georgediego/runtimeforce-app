@@ -50,14 +50,29 @@ def user_ssh_hosts(user_id: str) -> set[str]:
 def allowed_ssh_hosts(user_id: str, entitlements: Dict[str, Any]) -> set[str]:
     hosts = user_ssh_hosts(user_id)
     maximum = plan_limit(entitlements, "max_ssh_hosts")
+    projects = container.project_repo.list_projects(user_id)
+    ordered_projects = sorted(
+        enumerate(projects),
+        key=lambda item: (str(item[1].get("created_at") or ""), str(item[1].get("id") or ""), item[0]),
+    )
+    max_projects = plan_limit(entitlements, "max_projects")
+    allowed_project_ids = {
+        str(project.get("id") or "")
+        for _, project in ordered_projects[:max_projects]
+        if project.get("id")
+    }
     active = container.project_repo.get_active_project(user_id)
     active_id = str((active or {}).get("id") or "")
-    active_workspace = (
-        container.workspace_repo.get_workspace_by_project_id(active_id, user_id)
-        if active_id else None
+    preferred_project = active if active_id in allowed_project_ids else (
+        ordered_projects[0][1] if ordered_projects and max_projects > 0 else None
+    )
+    preferred_id = str((preferred_project or {}).get("id") or "")
+    preferred_workspace = (
+        container.workspace_repo.get_workspace_by_project_id(preferred_id, user_id)
+        if preferred_id else None
     )
     preferred_host = str(
-        (active_workspace or {}).get("host") or (active or {}).get("ssh_host") or ""
+        (preferred_workspace or {}).get("host") or (preferred_project or {}).get("ssh_host") or ""
     ).strip().lower()
     ordered = ([preferred_host] if preferred_host in hosts else []) + sorted(hosts - {preferred_host})
     return set(ordered[:maximum])
