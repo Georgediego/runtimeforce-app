@@ -151,9 +151,9 @@ async def autoselect_all_providers(
         except Exception:
             decrypted_keys[p] = key_enc
 
-    if "ollama" not in decrypted_keys:
+    if _provider_allowed(entitlements, "ollama") and "ollama" not in decrypted_keys:
         decrypted_keys["ollama"] = "http://localhost:11434"
-    if "lm_studio" not in decrypted_keys:
+    if _provider_allowed(entitlements, "lm_studio") and "lm_studio" not in decrypted_keys:
         decrypted_keys["lm_studio"] = "http://localhost:1234"
 
     await discovery.discover_all(decrypted_keys)
