@@ -17,6 +17,7 @@ async def list_pending_approvals(
     entitlements: dict = Depends(get_plan_entitlements),
 ):
     require_feature(entitlements, "terminal")
+    require_limit(entitlements, "max_projects", 0, "Active Projects")
     return {"pending": await container.command_approval_service.list_pending(user_id)}
 
 @router.post("/{pending_id}/decision")
@@ -27,6 +28,7 @@ async def decide_command_approval(
     entitlements: dict = Depends(get_plan_entitlements),
 ):
     require_feature(entitlements, "terminal")
+    require_limit(entitlements, "max_projects", 0, "Active Projects")
     pending_items = await container.command_approval_service.list_pending(user_id)
     pending = next((item for item in pending_items if item.get("pending_id") == pending_id), None)
     if pending and command_requires_git(pending.get("command", "")):
