@@ -227,6 +227,7 @@ def test_git_repo_quota_blocks_existing_repository_outside_allowance(monkeypatch
     monkeypatch.setattr(entitlement_dependencies, "user_git_repo_ids", fake_repo_ids)
     entitlements = free_entitlements()
     entitlements["features"]["git"] = True
+    entitlements["limits"]["git_repos"] = 1
 
     async def run():
         state = await entitlement_dependencies.git_repo_quota_state(
