@@ -1,7 +1,7 @@
 /**
  * Projects UI Controller with Central GitHub OAuth Bridge.
  */
-import { projectsApi } from "../core/api_http_client.js";
+import { projectsApi, billingApi } from "../core/api_http_client.js";
 import { showToast, showPrompt, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 import { workspaceUIController } from "./workspace_ui_controller.js";
@@ -23,6 +23,20 @@ function getVal(id) {
 }
 
 export const projectsUIController = {
+    _limits: {},
+    _features: {},
+
+    async refreshPlanState() {
+        try {
+            const data = await billingApi.entitlements();
+            this._limits = data?.valid ? (data.limits || {}) : {};
+            this._features = data?.valid ? (data.features || {}) : {};
+        } catch {
+            this._limits = {};
+            this._features = {};
+        }
+    },
+
     init() {
         document.getElementById("refresh-projects-btn")?.addEventListener("click", () => this.loadProjectsList());
         document.getElementById("add-project-btn")?.addEventListener("click", () => this.openCreateProjectModal());
@@ -109,8 +123,17 @@ export const projectsUIController = {
         const container = document.getElementById("projects-list");
         if (!container) return;
         try {
+            await this.refreshPlanState();
             const data = await projectsApi.list();
             const projects = Array.isArray(data) ? data : data.projects || [];
+            const maxProjects = Number(this._limits.max_projects ?? this._limits.workspaces_limit ?? 0);
+            const addButton = document.getElementById("add-project-btn");
+            if (addButton) {
+                addButton.disabled = projects.length >= maxProjects;
+                addButton.title = addButton.disabled ? "Active Projects limit reached for your current plan" : "";
+                addButton.classList.toggle("opacity-40", addButton.disabled);
+                addButton.classList.toggle("cursor-not-allowed", addButton.disabled);
+            }
             if (!projects.length) {
                 localStorage.removeItem("rf_active_project_id");
                 container.innerHTML = '<div class="text-center text-xs text-[var(--ide-text-muted)] py-6">No projects configured</div>';
@@ -215,6 +238,14 @@ export const projectsUIController = {
     },
 
     async openCreateProjectModal() {
+        await this.refreshPlanState();
+        const currentData = await projectsApi.list();
+        const currentProjects = Array.isArray(currentData) ? currentData : currentData.projects || [];
+        const maxProjects = Number(this._limits.max_projects ?? this._limits.workspaces_limit ?? 0);
+        if (currentProjects.length >= maxProjects) {
+            showToast("Active Projects limit reached for your current plan.", "warning");
+            return;
+        }
         const name = await showPrompt("New Project", "Enter project name:", "", "Next", "Cancel");
         if (!name || !name.trim()) return;
         try {
@@ -267,6 +298,28 @@ export const projectsUIController = {
         try {
             const proj = await projectsApi.get(projectId);
             if (!proj) return;
+            await this.refreshPlanState();
+            const projectData = await projectsApi.list();
+            const projectList = Array.isArray(projectData) ? projectData : projectData.projects || [];
+            const maxGitRepos = Number(this._limits.git_repos ?? this._limits.git_repos_limit ?? 0);
+            const knownGitRepos = new Set(projectList.map((item) => String(item.github_remote_url || "").trim().replace(/\/$/, "").toLowerCase()).filter(Boolean));
+            const currentHasRepo = Boolean(String(proj.github_remote_url || "").trim());
+            const canAddGitRepo = currentHasRepo || knownGitRepos.size < maxGitRepos;
+            const gitTabButton = document.querySelector('.proj-settings-tab-btn[data-tab="git"]');
+            if (gitTabButton) {
+                gitTabButton.disabled = !canAddGitRepo;
+                gitTabButton.title = canAddGitRepo ? "" : "Git Repositories limit reached for your current plan";
+                gitTabButton.classList.toggle("opacity-40", !canAddGitRepo);
+                gitTabButton.classList.toggle("cursor-not-allowed", !canAddGitRepo);
+            }
+            const githubUrlInput = document.getElementById("ps-github-url");
+            if (githubUrlInput && !currentHasRepo && !canAddGitRepo) {
+                githubUrlInput.disabled = true;
+                githubUrlInput.title = "Git Repositories limit reached for your current plan";
+            } else if (githubUrlInput) {
+                githubUrlInput.disabled = false;
+                githubUrlInput.title = "";
+            }
 
             const headerTitle = document.getElementById("project-settings-header-title");
             if (headerTitle) headerTitle.textContent = `${proj.name || 'Project'} Settings`;
