@@ -592,7 +592,7 @@ import { eventBus } from "../core/event_bus.js";
         if (countEl) countEl.textContent = count + " NODES";
         if (edgeCountEl) edgeCountEl.textContent = edges.length + " EDGES";
         const activeText = processActive && activeIds.size ? " · " + activeIds.size + " ACTIVE" : "";
-        setStatus("RUNTIME GRAPH · " + count + " OBJECTS · " + edges.length + " LINKS" + activeText);
+        setStatus("MEMORY GRAPH · " + count + " OBJECTS · " + edges.length + " LINKS" + activeText);
     }
 
     // Targets come only from ids reported by the memory pipeline that exist in the loaded SQLite rows.
@@ -674,7 +674,7 @@ import { eventBus } from "../core/event_bus.js";
         activeIds.clear();
         activeEdgeIds.clear();
         applyActive();     // targets fall to 0 -> smooth fade; every node and edge stays on screen
-        if (nodes.length) setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
+        if (nodes.length) setStatus("MEMORY GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
     }
 
     function rememberActiveNodes() {
