@@ -11,7 +11,7 @@ from app.container import get_project_service, get_license_service, get_workspac
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, require_ssh_host_access, count_other_git_repos
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, require_ssh_host_access, count_other_git_repos, require_git_repo_access
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -131,6 +131,7 @@ async def update_project(
     old_pat = str(current.get("github_pat_enc") or "").strip()
     if (new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower()) or (new_pat and new_pat != old_pat):
         require_feature(entitlements, "git")
+        await require_git_repo_access(user_id, project_id, workspace_manager, entitlements)
     if new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower():
         used_repos = await count_other_git_repos(
             user_id, workspace_manager, project_id, entitlements
