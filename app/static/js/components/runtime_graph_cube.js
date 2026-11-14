@@ -21,11 +21,7 @@ import { eventBus } from "../core/event_bus.js";
     code: 0x65e9c4, workspace: 0x43c8e8, directory: 0x40bda7, role: 0x9bff69,
     agent: 0x9bff69, provider: 0x65e6a9, model: 0x9cff48, tool: 0x70f0c0, mode: 0xb5ff8a
   };
-  const glyph = {
-    memory: "▤", project: "⌂", conversation: "◌", file: "▧", code: "</>",
-    workspace: "⌂", directory: "▦", role: "✦", agent: "✦",
-    provider: "◈", model: "⌘", tool: "⚙", mode: "◎"
-  };
+
   const state = {
     nodes: new Map(), edges: new Map(), cells: [], memory: {nodes: [], edges: []},
     registry: {roles: [], tools: []}, selected: {}, workspace: [],
@@ -422,8 +418,11 @@ import { eventBus } from "../core/event_bus.js";
     addLog("Execution failed", message, "error");
     state.activeNodes.forEach(id => {
       const node = state.nodes.get(id);
-      if (node?.cell?.userData.outline) node.cell.userData.outline.material.color.setHex(0xff6258);
-      if (node?.cell?.userData.body) node.cell.userData.body.material.color.setHex(0xff6258);
+      if (node?.cell?.userData.point) {
+        node.cell.userData.point.material.color.setHex(0xff6258);
+        node.cell.userData.point.material.emissive.setHex(0x8a1717);
+      }
+      if (node?.cell?.userData.halo) node.cell.userData.halo.material.color.setHex(0xff6258);
     });
     state.pulses.forEach(pulse => pulse.mesh.material.color.setHex(0xff6258));
     state.edgeRoot.children.forEach(line => {
@@ -444,6 +443,7 @@ import { eventBus } from "../core/event_bus.js";
     state.running = true; state.failed = false; state.failedNodes.clear();
     state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
     state.activeNodes.clear(); state.activeEdges.clear();
+    rebuildEdges();
     state.rotationQueue.length = 0;
     const mode = document.getElementById("strategy-select")?.value || "";
     state.current.mode = mode;
