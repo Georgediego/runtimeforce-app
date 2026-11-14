@@ -4,6 +4,7 @@
 import { workspacesApi } from "../core/api_http_client.js";
 import { showToast, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
+import { planAccessState } from "../core/plan_access_state.js";
 
 let editor = null;
 let currentPath = null;
@@ -44,6 +45,11 @@ export const editorUIController = {
     },
 
     async openFile(path, name) {
+        await planAccessState.refresh();
+        if (!planAccessState.featureEnabled("editor")) {
+            showToast("Editor is not included in your current plan.", "warning");
+            return;
+        }
         if (isDirty) {
             const confirmed = await showConfirm("Unsaved Changes", `File "${currentPath}" has unsaved changes. Discard?`, "Discard", "Cancel");
             if (!confirmed) return;
@@ -108,6 +114,10 @@ export const editorUIController = {
     },
 
     async save() {
+        if (!planAccessState.featureEnabled("editor")) {
+            showToast("Editor is not included in your current plan.", "warning");
+            return;
+        }
         if (!currentPath || !editor) return;
         try {
             const activeProjectId = localStorage.getItem("rf_active_project_id");
