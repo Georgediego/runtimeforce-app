@@ -54,6 +54,10 @@ export const providersUIController = {
                         heading.textContent = feature === "full_pro_byok" ? "LOCKED · PRO" : "LOCKED · PLAN";
                         heading.title = feature + " is not enabled for this plan";
                     }
+                } else if (card) {
+                    card.classList.remove("opacity-50");
+                    const heading = card.querySelector(".key-status-" + provider.id);
+                    if (heading) heading.title = "";
                 }
             }
         }
@@ -63,6 +67,9 @@ export const providersUIController = {
             if (localButton.disabled) {
                 localButton.title = "Local LLMs are not included in this plan";
                 localButton.classList.add("opacity-50", "cursor-not-allowed");
+            } else {
+                localButton.title = "";
+                localButton.classList.remove("opacity-50", "cursor-not-allowed");
             }
         }
     },
@@ -706,6 +713,13 @@ export const providersUIController = {
     init() {
         this.syncSelectedModelsFromSQLite().then(() => this.updateStatus());
         eventBus.on("providers.updated", () => this.updateStatus());
+        document.addEventListener("visibilitychange", async () => {
+            if (document.visibilityState !== "visible") return;
+            await planAccessState.refresh();
+            this._features = planAccessState.entitlements.features || {};
+            this.applyPlanLocks();
+            await this.updateStatus();
+        });
 
         document.getElementById("autoselect-btn")?.addEventListener("click", () => {
             if (activePickerProvider) {
