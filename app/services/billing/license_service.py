@@ -116,7 +116,10 @@ class LicenseService(ILicenseService):
                     grace_value = cached.get("offline_grace_hours")
                 if grace_value is None and isinstance(cached.get("offline_grace"), dict):
                     grace_value = cached["offline_grace"].get("hours")
-                grace_hours = max(0, int(grace_value or 0))
+                try:
+                    grace_hours = max(0, int(grace_value or 0))
+                except (TypeError, ValueError):
+                    grace_hours = 0
                 if validated_at is not None and grace_hours > 0:
                     age = max(0, now - validated_at)
                     if age <= grace_hours * 3600 and self._not_expired(cached, now):
