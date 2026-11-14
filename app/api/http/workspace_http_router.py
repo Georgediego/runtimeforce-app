@@ -90,12 +90,9 @@ def _get_active_project_id(user_id: str) -> str:
 async def list_workspaces(
     project_id: Optional[str] = Query(None),
     user_id: str = Depends(require_authenticated_user),
-    entitlements: dict = Depends(get_plan_entitlements),
 ):
     try:
         target_project_id = project_id or _get_active_project_id(user_id)
-        if target_project_id:
-            require_project_access(user_id, target_project_id, entitlements)
         if not target_project_id:
             return {"workspaces": []}
         workspaces = container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=target_project_id)
@@ -110,12 +107,10 @@ async def list_workspaces(
 async def get_active_workspace(
     project_id: Optional[str] = Query(None),
     user_id: str = Depends(require_authenticated_user),
-    entitlements: dict = Depends(get_plan_entitlements),
 ):
     try:
         target_project_id = project_id or _get_active_project_id(user_id)
         if target_project_id:
-            require_project_access(user_id, target_project_id, entitlements)
             ws = container.workspace_repo.get_workspace_by_project_id(target_project_id, user_id)
             return {"active": ws}
         ws = container.workspace_repo.get_active_workspace(user_id)
