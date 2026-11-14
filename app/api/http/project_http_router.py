@@ -95,7 +95,9 @@ async def create_project(
     ssh_host = (payload.ssh_host or "").strip().lower()
     if ssh_host:
         known_hosts = _known_ssh_hosts(service, user_id, existing_projects)
-        if ssh_host not in known_hosts:
+        if plan_limit(entitlements, "max_ssh_hosts") <= 0:
+            require_limit(entitlements, "max_ssh_hosts", 0, "SSH Hosts")
+        elif ssh_host not in known_hosts:
             require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
     res = service.create_project(user_id, payload.dict(), plan=entitlements.get("plan", "free"), max_projects=max_projects)
     if "error" in res:
@@ -169,10 +171,12 @@ async def update_project(
             require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
     new_ssh_host = (payload.ssh_host or "").strip().lower()
     old_ssh_host = str(current.get("ssh_host") or "").strip().lower()
-    if new_ssh_host and new_ssh_host != old_ssh_host:
+    if new_ssh_host:
         projects = service.list_projects(user_id)
         known_hosts = _known_ssh_hosts(service, user_id, projects)
-        if new_ssh_host not in known_hosts:
+        if plan_limit(entitlements, "max_ssh_hosts") <= 0:
+            require_limit(entitlements, "max_ssh_hosts", 0, "SSH Hosts")
+        elif new_ssh_host != old_ssh_host and new_ssh_host not in known_hosts:
             require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
     updated = service.update_project(project_id, user_id, payload.dict())
     if not updated:
