@@ -16,7 +16,7 @@ from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
-from app.core.security.entitlements import tool_feature_key, provider_feature_key
+from app.core.security.entitlements import tool_feature_key, provider_feature_key, feature_enabled
 
 logger = logging.getLogger("runtimeforce.service.agent.coordinator")
 
@@ -168,6 +168,16 @@ class AgentLoopCoordinator:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
         plan_features = features if isinstance(features, dict) else {}
+        strategy_feature = {"AUTO": "auto", "MANUAL": "manual", "ATM": "atm", "CODING": "atm", "LOCAL": "local_llms"}.get(strategy_upper)
+        if strategy_feature and not feature_enabled({"valid": True, "features": plan_features}, strategy_feature):
+            yield {
+                "status": "error",
+                "error_code": "FEATURE_NOT_ENABLED",
+                "feature": strategy_feature,
+                "error": f"Chat mode '{strategy_upper}' is not enabled for this plan.",
+            }
+            yield {"status": "done"}
+            return
         workspace_task_requested = bool(re.search(
             r"\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\b|"
             r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|команд(у|ы|ой|ами)?|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
@@ -394,7 +404,7 @@ class AgentLoopCoordinator:
 
         candidate_models = [
             model for model in candidate_models
-            if plan_features.get(provider_feature_key(model.get("provider", ""))) is True
+            if feature_enabled({"valid": True, "features": plan_features}, provider_feature_key(model.get("provider", "")))
         ]
         local_providers = ("ollama", "lm_studio")
         if strategy_upper == "LOCAL":
@@ -462,7 +472,7 @@ class AgentLoopCoordinator:
         force_no_tools = False
         allowed_tools = [
             entry for entry in AGENT_TOOLS_MANIFEST
-            if plan_features.get(tool_feature_key(entry.get("function", {}).get("name", ""))) is True
+            if (not tool_feature_key(entry.get("function", {}).get("name", "")) or feature_enabled({"valid": True, "features": plan_features}, tool_feature_key(entry.get("function", {}).get("name", "")))
         ]
 
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
@@ -687,7 +697,7 @@ class AgentLoopCoordinator:
                 }
                 
                 required_feature = tool_feature_key(tool_name)
-                if required_feature and plan_features.get(required_feature) is not True:
+                if required_feature and not feature_enabled({"valid": True, "features": plan_features}, required_feature):
                     result = {
                         "error": f"Tool '{tool_name}' is not enabled for the current plan.",
                         "code": "feature_not_enabled",
