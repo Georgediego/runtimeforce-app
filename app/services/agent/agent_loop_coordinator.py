@@ -16,7 +16,7 @@ from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
-from app.core.security.plan_access import feature_enabled, command_requires_git, command_creates_git_repo, plan_limit
+from app.core.security.plan_access import feature_enabled, command_requires_git, plan_limit
 
 logger = logging.getLogger("runtimeforce.service.agent.coordinator")
 
