@@ -15,6 +15,7 @@ from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.llm.llm_discovery_service import LLMDiscoveryService, DiscoveryError
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.core.security.aes_crypto_service import AESCryptoService
+from app.core.security.entitlements import get_plan_entitlements, require_feature, provider_feature, model_allowed_by_plan
 
 logger = logging.getLogger("runtimeforce.api.http.models")
 router = APIRouter(prefix="/api/v1/models", tags=["models"])
@@ -80,7 +81,9 @@ async def discover_local_models(
     user_id: str = Depends(require_authenticated_user),
     discovery: LLMDiscoveryService = Depends(get_llm_discovery),
     keys_repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    require_feature(entitlements, "local_llms")
     try:
         provider_key_name = (request.provider_name or "local").lower().strip()
         res = await discovery.discover_local_provider(request.base_url, provider_name=provider_key_name)
@@ -118,6 +121,7 @@ async def list_models(
     registry: LLMRegistryService = Depends(get_llm_registry),
     discovery: LLMDiscoveryService = Depends(get_llm_discovery),
     keys_repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
     encrypted_keys = keys_repo.get_all_provider_keys(user_id)
     decrypted_keys = {}
@@ -132,8 +136,16 @@ async def list_models(
     if "lm_studio" not in decrypted_keys:
         decrypted_keys["lm_studio"] = "http://localhost:1234"
 
+    # Do not even probe providers disabled by the current plan.
+    decrypted_keys = {
+        provider: key for provider, key in decrypted_keys.items()
+        if _provider_enabled(entitlements, provider)
+    }
     await discovery.discover_all(decrypted_keys)
-    models = registry.get_available_models()
+    models = [
+        model for model in registry.get_available_models()
+        if model_allowed_by_plan(entitlements, model)
+    ]
 
     by_provider = {}
     for m in models:
@@ -153,3 +165,8 @@ async def list_models(
         "providers_with_keys": list(decrypted_keys.keys()),
         "hardware": _get_system_hardware()
     }
+
+
+def _provider_enabled(entitlements: Dict[str, Any], provider: str) -> bool:
+    from app.core.security.entitlements import feature_enabled
+    return feature_enabled(entitlements, provider_feature(provider))
