@@ -101,8 +101,11 @@ def model_allowed_by_plan(entitlements: Dict[str, Any], model: Any) -> bool:
 
 
 def command_requires_git(command: str) -> bool:
+    # Detect Git invocations even when nested in shell wrappers or inline scripts.
+    # False positives are preferable to letting a disabled Git capability escape
+    # through bash -c, Python subprocess, or another command wrapper.
     value = str(command or "")
-    return bool(re.search(r"(?<![A-Za-z0-9_])(?:git\s+\S+|gh\s+(?:repo|pr|issue|auth)\b)", value, re.IGNORECASE))
+    return bool(re.search(r"(?<![A-Za-z0-9_])(?:git|gh)(?![A-Za-z0-9_])", value, re.IGNORECASE))
 
 
 def command_creates_git_repo(command: str) -> bool:
