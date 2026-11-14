@@ -162,8 +162,8 @@ async def get_workspace_tree_children(
     try:
         require_feature(entitlements, "editor")
         require_limit(entitlements, "max_projects", 0, "Active Projects")
-        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
             logger.error(f"No workspace driver found for project {target_project_id}")
@@ -209,8 +209,8 @@ async def read_workspace_file(
     try:
         require_feature(entitlements, "editor")
         require_limit(entitlements, "max_projects", 0, "Active Projects")
-        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
             raise HTTPException(status_code=404, detail="No workspace connected for this project")
