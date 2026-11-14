@@ -136,6 +136,27 @@ async def user_git_repo_ids(
     return repo_ids
 
 
+async def git_repo_quota_state(
+    user_id: str,
+    project_id: str,
+    workspace_manager: Any,
+    entitlements: Dict[str, Any],
+) -> Dict[str, Any]:
+    maximum = plan_limit(entitlements, "git_repos")
+    repo_ids = await user_git_repo_ids(user_id, workspace_manager, entitlements)
+    current_has_repo = project_id in repo_ids
+    current_allowed = current_has_repo and project_id in set(repo_ids[:maximum])
+    can_create = not current_has_repo and maximum > 0 and len(repo_ids) < maximum
+    return {
+        "used": len(repo_ids),
+        "maximum": maximum,
+        "current_project_has_repo": current_has_repo,
+        "current_project_allowed": current_allowed if current_has_repo else True,
+        "can_use_git": bool(current_allowed or can_create),
+        "allowed_project_ids": repo_ids[:maximum],
+    }
+
+
 async def count_other_git_repos(
     user_id: str,
     workspace_manager: Any,
@@ -155,12 +176,12 @@ async def require_git_repo_access(
     maximum = plan_limit(entitlements, "git_repos")
     if maximum <= 0:
         require_limit(entitlements, "git_repos", 0, "Git Repositories")
-    repo_ids = await user_git_repo_ids(user_id, workspace_manager, entitlements)
-    if project_id in repo_ids and project_id not in set(repo_ids[:maximum]):
+    state = await git_repo_quota_state(user_id, project_id, workspace_manager, entitlements)
+    if state["current_project_has_repo"] and not state["current_project_allowed"]:
         raise HTTPException(status_code=403, detail={
             "code": "plan_limit_reached",
             "limit": "git_repos",
-            "used": len(repo_ids),
+            "used": state["used"],
             "maximum": maximum,
             "plan": entitlements.get("plan", "unknown"),
             "message": "This repository is outside the Git Repos allowance for your current plan.",
