@@ -114,4 +114,4 @@ class LicenseService(ILicenseService):
 
     @staticmethod
     def has_feature(entitlements: Dict[str, Any], feature_key: str) -> bool:
-        features = entitlements.get("features") or {}\n        return entitlements.get("valid") is True and features.get(feature_key) is True
+        return feature_enabled(entitlements, feature_key)
