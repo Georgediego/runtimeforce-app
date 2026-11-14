@@ -30,6 +30,24 @@ export const settingsUIController = {
             const button = document.getElementById(id);
             if (button) button.disabled = !updatesAllowed;
         });
+
+        const featureStates = [
+            { selector: '.right-tab-btn[data-panel="editor"]', feature: "editor" },
+            { selector: '.right-tab-btn[data-panel="terminal"]', feature: "terminal" },
+        ];
+        for (const item of featureStates) {
+            const allowed = this._features[item.feature] === true;
+            document.querySelectorAll(item.selector).forEach((button) => {
+                button.disabled = !allowed;
+                button.title = allowed ? "" : item.feature + " is not included in your current plan";
+                button.classList.toggle("opacity-40", !allowed);
+                button.classList.toggle("cursor-not-allowed", !allowed);
+            });
+        }
+        const editorSave = document.getElementById("editor-save-btn");
+        if (editorSave) editorSave.disabled = this._features.editor !== true;
+        const terminalInput = document.getElementById("terminal-cmd-input");
+        if (terminalInput) terminalInput.disabled = this._features.terminal !== true;
     },
 
     init() {
