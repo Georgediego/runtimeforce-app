@@ -78,6 +78,9 @@ export const projectsUIController = {
                     workspaceUIController.loadActiveWorkspace(),
                     chatUIController.loadSessionsList()
                 ]);
+            } else {
+                localStorage.removeItem("rf_active_project_id");
+                this.updateActiveHeader(null);
             }
         } catch (e) {
             console.warn("Failed to initialize active project on boot:", e);
@@ -145,14 +148,19 @@ export const projectsUIController = {
             }
             const savedId = localStorage.getItem("rf_active_project_id");
             const allowedProjects = projects.slice(0, maxProjects);
-            const activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0] || projects[0];
-            localStorage.setItem("rf_active_project_id", activeProj.id);
-            this.updateActiveHeader(activeProj);
+            const activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0] || null;
+            if (activeProj) {
+                localStorage.setItem("rf_active_project_id", activeProj.id);
+                this.updateActiveHeader(activeProj);
+            } else {
+                localStorage.removeItem("rf_active_project_id");
+                this.updateActiveHeader(null);
+            }
 
             container.innerHTML = projects
                 .map(
                     (p) => `
-                <div class="p-3 mb-2.5 rounded-xl bg-[var(--ide-elevated)] border ${p.id === activeProj.id ? "border-[var(--ide-accent)] bg-[var(--ide-accent)]/5" : "border-[var(--ide-border-subtle)]"} flex flex-col gap-2 glass-cover" data-id="${p.id}">
+                <div class="p-3 mb-2.5 rounded-xl bg-[var(--ide-elevated)] border ${activeProj && p.id === activeProj.id ? "border-[var(--ide-accent)] bg-[var(--ide-accent)]/5" : "border-[var(--ide-border-subtle)]"} flex flex-col gap-2 glass-cover" data-id="${p.id}">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2 min-w-0">
                             <span class="w-2 h-2 rounded-full ${p.id === activeProj.id ? "bg-[var(--ide-success)] animate-pulse" : "bg-gray-500"}"></span>
@@ -161,7 +169,7 @@ export const projectsUIController = {
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] font-bold">${p.current_version || "v1.0.0"}</span>
                     </div>
                     <div class="flex items-center justify-between pt-2 border-t border-[var(--ide-border-subtle)] gap-1">
-                        ${p.id !== activeProj.id ? `<button class="activate-proj-btn text-[10px] px-2 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer font-bold" data-id="${p.id}">Activate</button>` : '<span class="text-[10px] text-[var(--ide-success)] font-bold">Active</span>'}
+                        ${(!activeProj || p.id !== activeProj.id) ? `<button class="activate-proj-btn text-[10px] px-2 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer font-bold" data-id="${p.id}">Activate</button>` : '<span class="text-[10px] text-[var(--ide-success)] font-bold">Active</span>'}
                         <div class="flex items-center gap-1">
                             <button class="bump-ver-btn text-[10px] px-2 py-1 rounded bg-[var(--ide-surface)] hover:text-[var(--ide-accent)] cursor-pointer transition-colors" data-id="${p.id}" title="Release Version & Publish">+ Bump</button>
                             <button class="edit-proj-btn text-[10px] text-[var(--ide-text-secondary)] hover:text-[var(--ide-text-primary)] p-1 cursor-pointer" data-id="${p.id}" title="Project Settings">
