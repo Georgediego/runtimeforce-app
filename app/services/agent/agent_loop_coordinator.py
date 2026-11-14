@@ -710,7 +710,7 @@ class AgentLoopCoordinator:
                     tool_feature = "git"
 
                 command_text = args_raw.get("command", "") if isinstance(args_raw, dict) else ""
-                if plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and (not feature_enabled(plan_entitlements, "git") or plan_limit(plan_entitlements, "git_repos") <= 0):
+                if plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and (not feature_enabled(plan_entitlements, "git") or plan_limit(plan_entitlements, "git_repos") <= 0 or not git_repo_slot_available):
                     result = {"error": "GitHub / Git integration is not enabled for this plan.", "code": 403}
                 elif plan_entitlements is not None and tool_name == "execute_command" and command_creates_git_repo(command_text) and not git_repo_slot_available:
                     result = {"error": "Git repository limit reached for this plan.", "code": 403}
