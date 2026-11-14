@@ -12,7 +12,11 @@ class ApprovalDecisionPayload(BaseModel):
     choice: str
 
 @router.get("/pending")
-async def list_pending_approvals(user_id: str = Depends(require_authenticated_user)):
+async def list_pending_approvals(
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements),
+):
+    require_feature(entitlements, "terminal")
     return {"pending": await container.command_approval_service.list_pending(user_id)}
 
 @router.post("/{pending_id}/decision")
