@@ -139,7 +139,7 @@ export const orchestratorUIController = {
         container.querySelectorAll(".mode-card").forEach((card) => {
             card.addEventListener("click", () => {
                 const modeId = card.dataset.mode;
-                const featureKey = ({ auto: "auto", coding: "atm", local: "local_models", manual: "manual" })[modeId];
+                const featureKey = ({ auto: "auto", coding: "atm", local: "local_llms", manual: "manual" })[modeId];
                 if (!this._featureEnabled(featureKey)) {
                     showToast("This feature is not enabled for your current plan.", "warning");
                     return;
@@ -212,6 +212,11 @@ export const orchestratorUIController = {
     },
 
     handleStrategyChange(strategy) {
+        const featureKey = ({ auto: "auto", coding: "atm", local: "local_llms", manual: "manual" })[strategy];
+        if (!this._featureEnabled(featureKey)) {
+            showToast("This mode is not included in your current plan.", "warning");
+            return;
+        }
         const settingsPanel = document.getElementById("orchestrator-settings");
         const manualPanel = document.getElementById("settings-manual-panel");
         const atmPanel = document.getElementById("settings-atm-panel");
@@ -267,6 +272,7 @@ export const orchestratorUIController = {
         const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
 
         return models.filter((m) => {
+            if (!planAccessState.modelAllowed(m)) return false;
             if (enabledSet.size > 0 && !enabledSet.has(m.id)) return false;
             const isFree = m.tier === "free" || FREE_PROVIDERS_SET.has(m.provider);
             if (isFree && !allowFree) return false;
