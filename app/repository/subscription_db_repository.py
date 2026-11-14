@@ -60,7 +60,7 @@ class SubscriptionDBRepository(IStorageRepository):
     def get_user_id_by_token_hash(self, token_hash: str) -> Optional[str]:
         conn = self.db.get_connection()
         row = conn.execute(
-            "SELECT user_id FROM subscription_cache WHERE token_hash=?",
+            "SELECT user_id FROM subscription_cache WHERE token_hash=? ORDER BY cached_at DESC LIMIT 1",
             (token_hash,),
         ).fetchone()
         return str(row["user_id"]) if row and row["user_id"] else None
