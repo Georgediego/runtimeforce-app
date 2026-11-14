@@ -710,16 +710,19 @@ class AgentLoopCoordinator:
                     tool_feature = "git"
 
                 command_text = args_raw.get("command", "") if isinstance(args_raw, dict) else ""
-                if plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and (not feature_enabled(plan_entitlements, "git") or plan_limit(plan_entitlements, "git_repos") <= 0 or not git_repo_slot_available):
-                    result = {"error": "GitHub / Git integration is not enabled for this plan.", "code": 403}
-                elif plan_entitlements is not None and tool_name == "execute_command" and command_creates_git_repo(command_text) and not git_repo_slot_available:
-                    result = {"error": "Git repository limit reached for this plan.", "code": 403}
+                if plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and not feature_enabled(plan_entitlements, "git"):
+                    result = {"error": "GitHub / Git integration is not enabled for this plan.", "code": 403, "feature": "git"}
+                elif plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and plan_limit(plan_entitlements, "git_repos") <= 0:
+                    result = {"error": "Git Repos are not included in this plan.", "code": 403, "feature": "git_repos"}
+                elif plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and not git_repo_slot_available:
+                    result = {"error": "This repository is outside the Git Repos allowance for your current plan.", "code": 403, "feature": "git_repos"}
                 elif plan_entitlements is not None and tool_name in {"git_status", "git_diff", "git_commit", "git_log"} and not git_repo_slot_available:
-                    result = {"error": "This repository is outside the Git Repos allowance for your current plan.", "code": 403}
+                    result = {"error": "This repository is outside the Git Repos allowance for your current plan.", "code": 403, "feature": "git_repos"}
                 elif plan_entitlements is not None and tool_feature and not feature_enabled(plan_entitlements, tool_feature):
                     result = {
                         "error": f"Feature '{tool_feature}' is not enabled for this plan.",
                         "code": 403,
+                        "feature": tool_feature,
                     }
                 else:
                     result = await ToolDispatcherService.dispatch(tool_name, arguments_json, driver)
