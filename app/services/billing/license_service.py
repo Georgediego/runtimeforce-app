@@ -119,8 +119,11 @@ class LicenseService(ILicenseService):
 
     @staticmethod
     def _not_expired(entitlements: Dict[str, Any], now: float) -> bool:
-        expiry = _timestamp(entitlements.get("valid_until"))
-        return expiry is None or expiry > now
+        raw_expiry = entitlements.get("valid_until")
+        if raw_expiry in (None, ""):
+            return True
+        expiry = _timestamp(raw_expiry)
+        return expiry is not None and expiry > now
 
     async def validate_license(self, jwt_token: Optional[str]) -> Dict[str, Any]:
         return await self.get_entitlements(jwt_token)
