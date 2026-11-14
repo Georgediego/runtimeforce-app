@@ -87,6 +87,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     "code": "entitlements_unavailable",
                     "error": "Your plan could not be verified. Please reconnect and try again.",
                 })
+                await websocket.send_json({"status": "done"})
                 continue
             plan = str(entitlements.get("plan") or "free")
             feature_key = chat_strategy_feature(strategy)
@@ -96,14 +97,17 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     "code": "unsupported_strategy",
                     "error": "The selected chat mode is not supported.",
                 })
+                await websocket.send_json({"status": "done"})
                 continue
             if not feature_enabled(entitlements, feature_key):
                 await websocket.send_json({
                     "status": "error",
                     "code": "feature_not_enabled",
                     "feature": feature_key,
+                    "upgrade": (entitlements.get("feature_upgrades") or {}).get(feature_key),
                     "error": f"The {strategy.upper()} mode is not included in your current plan.",
                 })
+                await websocket.send_json({"status": "done"})
                 continue
 
             logger.info(
@@ -117,10 +121,12 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     existing_message_id = int(existing_message_id)
                 except (TypeError, ValueError):
                     await websocket.send_json({"status": "error", "error": "Invalid edited message id."})
+                    await websocket.send_json({"status": "done"})
                     continue
                 existing_message = conv_repo.get_message_by_id(existing_message_id)
                 if not existing_message or existing_message.get("session_id") != session_id or existing_message.get("role") != "user":
                     await websocket.send_json({"status": "error", "error": "Edited message not found in this session."})
+                    await websocket.send_json({"status": "done"})
                     continue
 
             project_id = conv_repo.get_session_project(session_id)
@@ -140,8 +146,10 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                         "status": "error",
                         "code": "feature_not_enabled",
                         "feature": "ssh",
+                        "upgrade": (entitlements.get("feature_upgrades") or {}).get("ssh"),
                         "error": "SSH workspaces are not included in your current plan.",
                     })
+                    await websocket.send_json({"status": "done"})
                     continue
 
             driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
@@ -150,6 +158,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     "status": "error",
                     "error": "No Workspace is connected to this project. Connect a local folder or SSH Workspace in Project Settings before running AI tasks."
                 })
+                await websocket.send_json({"status": "done"})
                 continue
 
             model_lock = data.get("model_lock")
@@ -193,6 +202,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     model_lock=model_lock,
                     plan=plan,
                     features=entitlements.get("features") or {},
+                    feature_upgrades=entitlements.get("feature_upgrades") or {},
                     user_id=user_id,
                     enabled_models=enabled_models,
                     project_id=project_id,
