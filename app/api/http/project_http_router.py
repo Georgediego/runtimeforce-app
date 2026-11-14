@@ -10,7 +10,7 @@ from app.core.security.jwt_auth_service import require_authenticated_user
 from app.container import get_project_service, get_license_service
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -111,8 +111,10 @@ async def create_project(
 async def get_project(
     project_id: str,
     user_id: str = Depends(require_authenticated_user),
-    service: ProjectService = Depends(get_project_service)
+    service: ProjectService = Depends(get_project_service),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    require_project_access(user_id, project_id, entitlements)
     proj = service.get_project_details(project_id, user_id)
     if not proj:
         raise HTTPException(404, "Project not found")
@@ -126,6 +128,7 @@ async def activate_project(
     entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
     require_limit(entitlements, "max_projects", 0, "Active Projects")
+    require_project_access(user_id, project_id, entitlements)
     project = service.get_project_details(project_id, user_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -153,6 +156,7 @@ async def update_project(
     service: ProjectService = Depends(get_project_service),
     entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    require_project_access(user_id, project_id, entitlements)
     current = service.get_project_details(project_id, user_id)
     if not current:
         raise HTTPException(404, "Project not found")
@@ -203,8 +207,10 @@ async def bump_version(
     project_id: str,
     payload: BumpVersionPayload,
     user_id: str = Depends(require_authenticated_user),
-    service: ProjectService = Depends(get_project_service)
+    service: ProjectService = Depends(get_project_service),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    require_project_access(user_id, project_id, entitlements)
     res = service.bump_version(project_id, user_id, payload.changelog, payload.bump_type, payload.commit_hash)
     if "error" in res:
         raise HTTPException(404, res["error"])
