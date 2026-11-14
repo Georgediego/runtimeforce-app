@@ -8,7 +8,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import chat_strategy_feature, feature_enabled
+from app.core.security.entitlements import chat_strategy_feature, feature_enabled, plan_limit
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
@@ -130,7 +130,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 or (not active_workspace and active_project and (active_project.get("ssh_host") or "").strip())
             )
             if uses_ssh:
-                ssh_limit = max(0, int((entitlements.get("limits") or {}).get("max_ssh_hosts", 0) or 0))
+                ssh_limit = plan_limit(entitlements, "max_ssh_hosts")
                 configured_hosts = set()
                 for saved_project in container.project_repo.list_projects(user_id):
                     legacy_host = str(saved_project.get("ssh_host") or "").strip().lower()
