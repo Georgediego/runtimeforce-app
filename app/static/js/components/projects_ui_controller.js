@@ -65,7 +65,7 @@ export const projectsUIController = {
             const data = await projectsApi.list();
             const projects = Array.isArray(data) ? data : data.projects || [];
             const maxProjects = planAccessState.limit("max_projects");
-            const allowedProjects = projects.slice(0, maxProjects);
+            const allowedProjects = projects.slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).slice(0, maxProjects);
             if (allowedProjects.length > 0) {
                 const savedId = localStorage.getItem("rf_active_project_id");
                 let activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0];
@@ -147,7 +147,7 @@ export const projectsUIController = {
                 return;
             }
             const savedId = localStorage.getItem("rf_active_project_id");
-            const allowedProjects = projects.slice(0, maxProjects);
+            const allowedProjects = projects.slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).slice(0, maxProjects);
             const activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0] || null;
             if (activeProj) {
                 localStorage.setItem("rf_active_project_id", activeProj.id);
