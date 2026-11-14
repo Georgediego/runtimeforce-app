@@ -82,6 +82,7 @@ export const settingsUIController = {
 
     init() {
         this.loadPlanFeatures();
+        eventBus.on("auth:success", () => this.loadPlanFeatures());
         document.getElementById("close-settings-btn")?.addEventListener("click", () => this.close());
         const modal = document.getElementById("settings-modal");
         modal?.addEventListener("click", (e) => {
