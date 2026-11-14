@@ -1,4 +1,4 @@
-import { billingApi } from "../core/api_http_client.js";
+import { planAccessState } from "../core/plan_access_state.js";
 
 const UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const UPDATE_SNOOZE_MS = 4 * 60 * 60 * 1000;
@@ -11,14 +11,8 @@ let pendingUpdate = null;
 let applyingUpdate = false;
 
 async function softwareUpdatesAllowed() {
-    try {
-        const data = await billingApi.entitlements();
-        const features = data?.valid ? (data.features || {}) : {};
-        const normalized = Object.fromEntries(Object.entries(features).map(([key, value]) => [key.trim().toLowerCase(), value]));
-        return normalized.software_updates === true || normalized["software updates"] === true;
-    } catch {
-        return false;
-    }
+    await planAccessState.refresh();
+    return planAccessState.featureEnabled("software_updates");
 }
 
 function authHeaders(extra = {}) {
