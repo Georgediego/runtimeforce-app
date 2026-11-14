@@ -16,7 +16,7 @@ from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
-from app.core.security.plan_access import feature_enabled
+from app.core.security.plan_access import feature_enabled, command_requires_git, command_creates_git_repo
 
 logger = logging.getLogger("runtimeforce.service.agent.coordinator")
 
@@ -164,6 +164,7 @@ class AgentLoopCoordinator:
         atm_designer_model: Optional[str] = None,
         existing_message_id: Optional[int] = None,
         plan_entitlements: Optional[Dict[str, Any]] = None,
+        git_repo_slot_available: bool = True,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
@@ -681,7 +682,12 @@ class AgentLoopCoordinator:
                 elif tool_name in {"git_status", "git_diff", "git_commit", "git_log"}:
                     tool_feature = "git"
 
-                if plan_entitlements is not None and tool_feature and not feature_enabled(plan_entitlements, tool_feature):
+                command_text = args_raw.get("command", "") if isinstance(args_raw, dict) else ""
+                if plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and not feature_enabled(plan_entitlements, "git"):
+                    result = {"error": "GitHub / Git integration is not enabled for this plan.", "code": 403}
+                elif plan_entitlements is not None and tool_name == "execute_command" and command_creates_git_repo(command_text) and not git_repo_slot_available:
+                    result = {"error": "Git repository limit reached for this plan.", "code": 403}
+                elif plan_entitlements is not None and tool_feature and not feature_enabled(plan_entitlements, tool_feature):
                     result = {
                         "error": f"Feature '{tool_feature}' is not enabled for this plan.",
                         "code": 403,
