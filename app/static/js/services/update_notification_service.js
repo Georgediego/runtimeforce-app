@@ -14,7 +14,8 @@ async function softwareUpdatesAllowed() {
     try {
         const data = await billingApi.entitlements();
         const features = data?.valid ? (data.features || {}) : {};
-        return features.software_updates === true || features["software updates"] === true;
+        const normalized = Object.fromEntries(Object.entries(features).map(([key, value]) => [key.trim().toLowerCase(), value]));
+        return normalized.software_updates === true || normalized["software updates"] === true;
     } catch {
         return false;
     }
