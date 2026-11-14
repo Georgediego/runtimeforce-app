@@ -85,3 +85,27 @@ def test_git_command_detection():
     assert command_requires_git("gh repo clone owner/repo")
     assert command_creates_git_repo("git clone https://github.com/a/b.git")
     assert not command_creates_git_repo("git status")
+
+
+
+def test_agent_coordinator_rejects_atm_before_running_tools():
+    import asyncio
+
+    from app.services.agent.agent_loop_coordinator import AgentLoopCoordinator
+
+    async def run():
+        coordinator = AgentLoopCoordinator(orchestrator_service=None)
+        stream = coordinator.run_agent_loop(
+            session_id="plan-test",
+            messages=[{"role": "user", "content": "run a task"}],
+            driver=None,
+            strategy="coding",
+            plan="free",
+            plan_entitlements=free_entitlements(),
+        )
+        first = await anext(stream)
+        assert first["status"] == "error"
+        assert first["code"] == 403
+        assert first["feature"] == "atm"
+
+    asyncio.run(run())
