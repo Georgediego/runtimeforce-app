@@ -417,10 +417,39 @@ class AgentLoopCoordinator:
                 route_error = str(e)
                 logger.warning(f"[AgentCoordinator] LLM route failed: {e}")
 
-        candidate_models = [
-            model for model in candidate_models
-            if plan_features.get(provider_feature_key(model.get("provider", ""))) is True
-        ]
+        # Enforce execution entitlements using the exact registry metadata.
+        # Provider-level flags incorrectly classify Free models from mixed-tier
+        # providers (especially OpenRouter) as paid BYOK models.
+        eligible_models = []
+        for model in candidate_models:
+            model_id = model.get("model_id", "")
+            metadata = (
+                self._llm_router.registry.get_model(model_id)
+                if self._llm_router and getattr(self._llm_router, "registry", None)
+                else None
+            )
+            if metadata is None:
+                logger.warning("[AgentCoordinator] Rejecting unregistered model: %s", model_id)
+                continue
+
+            provider_id = (metadata.provider or "").lower()
+            tier = (metadata.tier or "").lower()
+            if provider_id in ("ollama", "lm_studio", "local") or tier == "local":
+                required_feature = "local_models"
+            elif tier == "free" or model_id.lower().endswith(":free"):
+                required_feature = None
+            else:
+                required_feature = "local_byok"
+
+            if required_feature and plan_features.get(required_feature) is not True:
+                logger.info(
+                    "[AgentCoordinator] Model excluded by entitlement: model=%s feature=%s",
+                    model_id, required_feature
+                )
+                continue
+            eligible_models.append(model)
+
+        candidate_models = eligible_models
         local_providers = ("ollama", "lm_studio")
         if strategy_upper == "LOCAL":
             candidate_models = [
