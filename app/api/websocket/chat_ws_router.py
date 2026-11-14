@@ -8,7 +8,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import feature_enabled, model_allowed_by_plan
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
@@ -193,6 +193,10 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             if not container.llm_registry.get_available_models():
                 try:
                     decrypted_keys = container.byok_key_service.get_decrypted_keys(user_id, token)
+                    decrypted_keys = {
+                        provider: key for provider, key in decrypted_keys.items()
+                        if feature_enabled(entitlements, provider_feature(provider))
+                    }
                     await container.llm_discovery.discover_all(decrypted_keys)
                 except Exception as disc_err:
                     logger.warning(f"Proactive model discovery failed: {disc_err}")
@@ -215,6 +219,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     atm_critic_model=atm_critic,
                     atm_designer_model=atm_designer,
                     existing_message_id=existing_message_id,
+                    plan_entitlements=entitlements,
                 )
 
                 with container.command_approval_service.context(session_id=session_id, project_id=project_id):
