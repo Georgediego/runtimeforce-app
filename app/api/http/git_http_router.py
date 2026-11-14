@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, allowed_ssh_hosts
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, allowed_ssh_hosts, require_ssh_host_access
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -102,6 +102,9 @@ async def git_usage(
     project = container.project_repo.get_project(target_project_id, user_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    workspace = container.workspace_repo.get_workspace_by_project_id(target_project_id, user_id)
+    current_host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
+    require_ssh_host_access(user_id, current_host, entitlements)
     current_driver = await workspace_manager.get_driver_for_project(user_id, target_project_id)
     current_has_repo = bool(str(project.get("github_remote_url") or "").strip())
     if not current_has_repo and current_driver:
