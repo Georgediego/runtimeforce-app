@@ -5,7 +5,8 @@
  * active project from localStorage — prevents "all workspaces shown" leaks
  * when editing a project that is not currently active.
  */
-import { workspacesApi, projectsApi, billingApi } from "../core/api_http_client.js";
+import { workspacesApi, projectsApi } from "../core/api_http_client.js";
+import { planAccessState } from "../core/plan_access_state.js";
 import { showToast, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -21,12 +22,11 @@ export const workspaceUIController = {
 
     async refreshSSHPlanState() {
         try {
-            const [entitlements, projectData] = await Promise.all([
-                billingApi.entitlements(),
+            const [, projectData] = await Promise.all([
+                planAccessState.refresh(),
                 projectsApi.list(),
             ]);
-            const limits = entitlements?.valid ? (entitlements.limits || {}) : {};
-            this._sshHostLimit = Number(limits.max_ssh_hosts ?? 0);
+            this._sshHostLimit = planAccessState.limit("max_ssh_hosts");
             const projects = Array.isArray(projectData) ? projectData : (projectData.projects || []);
             const hosts = new Set();
             for (const project of projects) {
@@ -51,9 +51,7 @@ export const workspaceUIController = {
         const button = document.getElementById("add-ssh-ws-btn");
         if (!button) return;
         const requestedHost = String(document.getElementById("ssh-host")?.value || "").trim().toLowerCase();
-        const allowed = this._sshHostLimit > 0 && (
-            this._knownSSHHosts.has(requestedHost) || this._knownSSHHosts.size < this._sshHostLimit
-        );
+        const allowed = planAccessState.canAddSSHHost(requestedHost, this._knownSSHHosts);
         button.disabled = !allowed;
         button.title = allowed ? "" : "SSH host limit reached or SSH access is not included in your plan";
         button.classList.toggle("opacity-40", !allowed);
