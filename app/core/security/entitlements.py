@@ -1,7 +1,11 @@
 """Centralized, fail-closed plan feature and provider entitlement checks."""
 from fastapi import Depends, HTTPException, Request
 
-from app.container import get_license_service
+def _license_service_dependency() -> LicenseService:
+    # Import lazily to avoid container -> agent coordinator -> entitlements cycle.
+    from app.container import get_license_service
+    return get_license_service()
+
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.services.billing.license_service import LicenseService
 
@@ -121,7 +125,7 @@ def require_plan_feature(feature_key: str):
     async def dependency(
         request: Request,
         user_id: str = Depends(require_authenticated_user),
-        license_service: LicenseService = Depends(get_license_service),
+        license_service: LicenseService = Depends(_license_service_dependency),
     ) -> str:
         token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         token = token or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
