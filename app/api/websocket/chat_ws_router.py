@@ -8,7 +8,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access
 from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.chat_ws")
@@ -158,12 +158,13 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
             ssh_host = str((workspace or {}).get("host") or (project or {}).get("ssh_host") or "").strip().lower()
             if ssh_host and ssh_host not in {"localhost", "127.0.0.1"}:
-                hosts = _user_ssh_hosts(user_id)
-                max_hosts = plan_limit(entitlements, "max_ssh_hosts")
-                if ssh_host not in allowed_ssh_hosts(user_id, entitlements):
+                try:
+                    require_ssh_host_access(user_id, ssh_host, entitlements)
+                except HTTPException as exc:
+                    detail = exc.detail if isinstance(exc.detail, dict) else {}
                     await websocket.send_json({
                         "status": "error", "code": 403, "feature": "max_ssh_hosts",
-                        "error": "This SSH host is outside the host allowance for your current plan.",
+                        "error": detail.get("message", "This SSH host is outside the host allowance for your current plan."),
                     })
                     continue
             driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
