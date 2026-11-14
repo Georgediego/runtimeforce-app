@@ -260,9 +260,13 @@ async def execute_command(
 @router.post("/{workspace_id}/activate")
 async def activate_workspace_by_path_id(
     workspace_id: str,
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        workspace = container.workspace_repo.get_workspace_by_id(workspace_id, user_id)
+        if workspace:
+            _require_project_ssh_access(user_id, str(workspace.get("project_id") or ""), entitlements)
         container.workspace_repo.set_active_workspace(workspace_id, user_id)
         return {"status": "activated", "workspace_id": workspace_id}
     except Exception as e:
@@ -272,11 +276,15 @@ async def activate_workspace_by_path_id(
 @router.post("/activate")
 async def activate_workspace_payload(
     payload: dict,
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
         ws_id = payload.get("workspace_id") or payload.get("id")
         if ws_id:
+            workspace = container.workspace_repo.get_workspace_by_id(ws_id, user_id)
+            if workspace:
+                _require_project_ssh_access(user_id, str(workspace.get("project_id") or ""), entitlements)
             container.workspace_repo.set_active_workspace(ws_id, user_id)
         return {"status": "activated", "workspace_id": ws_id}
     except Exception as e:
