@@ -115,7 +115,7 @@ async def user_git_repo_ids(
     # repositories are entitled after a downgrade.
     projects = sorted(
         enumerate(projects),
-        key=lambda item: (str(item[1].get("created_at") or ""), item[0]),
+        key=lambda item: (str(item[1].get("created_at") or ""), str(item[1].get("id") or ""), item[0]),
     )
     allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
     repo_ids: list[str] = []
