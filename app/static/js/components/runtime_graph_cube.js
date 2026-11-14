@@ -16,16 +16,7 @@ import { eventBus } from "../core/event_bus.js";
   const collapsedKey = "rf_memory_graph_collapsed";
   const token = () => (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
   const projectId = () => localStorage.getItem("rf_active_project_id") || "";
-  const palette = {
-    memory: 0x39f5a0, project: 0x52e8b2, conversation: 0x50dca5, file: 0x5ad8b7,
-    code: 0x65e9c4, workspace: 0x43c8e8, directory: 0x40bda7, role: 0x9bff69,
-    agent: 0x9bff69, provider: 0x65e6a9, model: 0x9cff48, tool: 0x70f0c0, mode: 0xb5ff8a
-  };
-  const glyph = {
-    memory: "▤", project: "⌂", conversation: "◌", file: "▧", code: "</>",
-    workspace: "⌂", directory: "▦", role: "✦", agent: "✦",
-    provider: "◈", model: "⌘", tool: "⚙", mode: "◎"
-  };
+  const palette = { memory: 0x39f5a0 };
   const state = {
     nodes: new Map(), edges: new Map(), cells: [], memory: {nodes: [], edges: []},
     registry: {roles: [], tools: []}, selected: {}, workspace: [],
@@ -99,48 +90,14 @@ import { eventBus } from "../core/event_bus.js";
     state.nodes.clear();
     state.edges.clear();
 
+    // Graph topology comes exclusively from persisted SQLite graph data.
     state.memory.nodes.forEach(node => {
-      addNode("mem:" + node.id, node.type || "memory", node.label || node.id,
+      addNode("mem:" + node.id, "memory", node.label || node.id,
         "SQLite graph node · " + node.id, "graph_nodes");
     });
     state.memory.edges.forEach(edge => {
       addEdge("memory:" + edge.id, "mem:" + edge.source, "mem:" + edge.target,
         "memory", edge.relation || "RELATED_TO");
-    });
-
-    state.registry.roles.forEach(role => {
-      const id = "role:" + String(role.name).toLowerCase();
-      addNode(id, "role", role.name, "Agent role · allowed tools: " + (role.allowed_tools || []).join(", "), "ROLE_PROFILES");
-      (role.allowed_tools || []).forEach(toolName => {
-        const toolId = "tool:" + toolName;
-        if (state.registry.tools.some(tool => tool.name === toolName)) {
-          addEdge("role-tool:" + role.name + ":" + toolName, id, toolId, "declared", "Role tool permission");
-        }
-      });
-    });
-    state.registry.tools.forEach(tool => {
-      addNode("tool:" + tool.name, "tool", tool.name, tool.description || "Registered orchestrator tool", "AGENT_TOOLS_MANIFEST");
-    });
-
-    Object.entries(state.selected).forEach(([provider, models]) => {
-      const providerId = "provider:" + provider.toLowerCase();
-      addNode(providerId, "provider", provider, "Provider with selected models", "provider_keys");
-      (models || []).forEach(modelId => {
-        const id = "model:" + modelId;
-        addNode(id, "model", String(modelId).split("/").pop(), String(modelId), "selected_models");
-        addEdge("provider-model:" + provider.toLowerCase() + ":" + modelId,
-          providerId, id, "configured", "Selected model for provider");
-      });
-    });
-
-    const strategy = document.getElementById("strategy-select");
-    if (strategy) Array.from(strategy.options).forEach(option => {
-      addNode("mode:" + option.value, "mode", option.textContent.trim(), "Chat mode", "strategy-select");
-    });
-
-    state.workspace.forEach(item => {
-      addNode("ws:" + item.path, item.kind || "workspace", item.name, item.path, "workspace_tree");
-      if (item.parent) addEdge("contains:" + item.path, "ws:" + item.parent, "ws:" + item.path, "filesystem", "Contains");
     });
 
     buildCube();
@@ -164,56 +121,24 @@ import { eventBus } from "../core/event_bus.js";
     }
   }
 
-  function makeIconTexture(kind) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 96; canvas.height = 96;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, 96, 96);
-    ctx.beginPath(); ctx.arc(48, 48, 43, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(2,18,12,.92)"; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = "#4bffad"; ctx.stroke();
-    ctx.fillStyle = "#caffdf"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.font = kind === "code" ? "bold 22px monospace" : "bold 43px sans-serif";
-    ctx.fillText(glyph[kind] || "•", 48, 49);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  }
-
   function makeCell(node, coord) {
     const group = new THREE.Group();
-    group.position.set(coord.x * state.spacing, coord.y * state.spacing, coord.z * state.spacing);
-    group.userData.coord = {...coord};
-    group.userData.nodeId = node ? node.id : "";
-    const baseGeometry = new THREE.BoxGeometry(state.cubeSize, state.cubeSize, state.cubeSize);
-    const edges = new THREE.EdgesGeometry(baseGeometry);
-    baseGeometry.dispose();
-    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({
-      color: node ? (palette[node.kind] || 0x39f5a0) : 0x174a35,
-      transparent: true, opacity: node ? 0.9 : 0.16
-    }));
-    group.add(line);
-    if (node) {
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(state.cubeSize * 0.94, state.cubeSize * 0.94, state.cubeSize * 0.94),
-        new THREE.MeshPhongMaterial({
-          color: palette[node.kind] || 0x39f5a0, transparent: true,
-          opacity: 0.13, shininess: 90, specular: 0x72ffba
-        })
-      );
-      body.userData.nodeId = node.id;
-      group.add(body);
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: makeIconTexture(node.kind), transparent: true, depthWrite: false
-      }));
-      sprite.scale.set(0.34, 0.34, 1);
-      sprite.position.z = state.cubeSize * 0.53;
-      sprite.userData.nodeId = node.id;
-      group.add(sprite);
-      group.userData.body = body;
-      group.userData.outline = line;
-      group.userData.sprite = sprite;
-    }
+    group.position.copy(coord);
+    group.userData.nodeId = node.id;
+    const point = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 16, 16),
+      new THREE.MeshPhongMaterial({color: 0x39f5a0, emissive: 0x0b6b3d, emissiveIntensity: 0.35, shininess: 110})
+    );
+    point.userData.nodeId = node.id;
+    group.add(point);
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.085, 12, 12),
+      new THREE.MeshBasicMaterial({color: 0x39f5a0, transparent: true, opacity: 0.10, depthWrite: false})
+    );
+    halo.userData.nodeId = node.id;
+    group.add(halo);
+    group.userData.point = point;
+    group.userData.halo = halo;
     return group;
   }
 
@@ -234,33 +159,20 @@ import { eventBus } from "../core/event_bus.js";
     });
     state.pulses.clear();
 
-    const count = state.nodes.size;
-    state.side = count <= 8 ? 2 : Math.max(3, Math.ceil(Math.cbrt(count)));
-    state.spacing = Math.min(0.9, 2.5 / state.side);
-    state.cubeSize = state.spacing * 0.84;
-    const ordered = Array.from(state.nodes.values()).sort((a, b) =>
-      a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label)
-    );
-    const nodeAt = new Map();
-    ordered.forEach((node, index) => {
-      const x = index % state.side;
-      const y = Math.floor(index / state.side) % state.side;
-      const z = Math.floor(index / (state.side * state.side));
-      nodeAt.set(x + ":" + y + ":" + z, node);
+    // Fibonacci sphere: every point represents one real persisted graph node.
+    const nodes = Array.from(state.nodes.values());
+    const radius = 1.55;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    nodes.forEach((node, index) => {
+      const y = nodes.length <= 1 ? 0 : 1 - (2 * index) / (nodes.length - 1);
+      const ring = Math.sqrt(Math.max(0, 1 - y * y));
+      const theta = goldenAngle * index;
+      const coord = new THREE.Vector3(Math.cos(theta) * ring * radius, y * radius, Math.sin(theta) * ring * radius);
+      const cell = makeCell(node, coord);
+      state.nodes.get(node.id).cell = cell;
+      state.cells.push(cell);
+      state.cubeRoot.add(cell);
     });
-    const center = (state.side - 1) / 2;
-    for (let z = 0; z < state.side; z++) {
-      for (let y = 0; y < state.side; y++) {
-        for (let x = 0; x < state.side; x++) {
-          const node = nodeAt.get(x + ":" + y + ":" + z) || null;
-          const coord = {x: x - center, y: y - center, z: z - center};
-          const cell = makeCell(node, coord);
-          if (node) state.nodes.get(node.id).cell = cell;
-          state.cells.push(cell);
-          state.cubeRoot.add(cell);
-        }
-      }
-    }
     rebuildEdges();
     updateHud();
     state.dirty = true;
@@ -359,14 +271,14 @@ import { eventBus } from "../core/event_bus.js";
       old.mesh.geometry.dispose(); old.mesh.material.dispose();
     }
     const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.045, 8, 8),
-      new THREE.MeshBasicMaterial({color: tone === "error" ? 0xff5d52 : 0x9dffbd})
+      new THREE.SphereGeometry(0.055, 12, 12),
+      new THREE.MeshBasicMaterial({color: tone === "error" ? 0xff5d52 : 0xcaffdf})
     );
     state.scene.add(mesh);
-    state.pulses.set(edgeId, {mesh, from: source.position.clone(), to: target.position.clone(), started: performance.now(), duration: 1150});
+    state.pulses.set(edgeId, {mesh, from: source.position.clone(), to: target.position.clone(), started: performance.now(), duration: 1500});
     state.activeEdges.add(edgeId);
     const line = state.edgeRoot.children.find(item => item.userData.edgeId === edgeId);
-    if (line) { line.material.color.setHex(tone === "error" ? 0xff6258 : 0x9dffbd); line.material.opacity = 0.98; }
+    if (line) { line.material.color.setHex(tone === "error" ? 0xff6258 : 0x9dffbd); line.material.opacity = 1; }
     state.dirty = true;
   }
 
@@ -470,14 +382,11 @@ import { eventBus } from "../core/event_bus.js";
         if (event.phase === "completed") {
           const completedIds = (item.active_node_ids || []).map(id => "mem:" + id);
           addLog("Memory context ready", completedIds.length + " nodes selected");
-          window.setTimeout(() => {
-            completedIds.forEach(id => state.activeNodes.delete(id));
-            state.dirty = true;
-          }, 850);
+          // Keep activated nodes and edges visible until the next run.
           window.setTimeout(async () => {
             await loadMemory();
             (item.active_edge_ids || []).forEach(id => pulseEdge("memory:" + id));
-          }, 1300);
+          }, 900);
         }
       }
     } else if (status === "phase") {
@@ -623,7 +532,8 @@ import { eventBus } from "../core/event_bus.js";
 
   function finishRun(result) {
     state.running = false;
-    state.activeNodes.clear(); state.activeEdges.clear(); state.failedNodes.clear();
+    // Preserve activity highlights after completion; startRun clears them for the next iteration.
+    state.failedNodes.clear();
     state.rotationQueue.length = 0;
     state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
     if (result === "aborted") {
@@ -690,9 +600,6 @@ import { eventBus } from "../core/event_bus.js";
 
   function refreshAll() {
     loadMemory();
-    loadRegistry();
-    loadModels();
-    loadWorkspace();
   }
 
   function initScene() {
@@ -781,9 +688,11 @@ import { eventBus } from "../core/event_bus.js";
         if (!cell || !cell.userData.body || !cell.userData.outline) return;
         const activeNode = state.activeNodes.has(node.id);
         const failedNode = state.failedNodes.has(node.id);
-        cell.userData.body.material.opacity = activeNode ? 0.42 : (failedNode ? 0.3 : 0.13);
-        cell.userData.outline.material.color.setHex(failedNode ? 0xff6258 : (activeNode ? 0xa6ffc9 : (palette[node.kind] || 0x39f5a0)));
-        cell.userData.outline.material.opacity = activeNode || failedNode ? 1 : 0.9;
+        const pulse = activeNode ? (0.72 + Math.sin(now * 0.006) * 0.28) : 1;
+        cell.userData.point.material.color.setHex(failedNode ? 0xff6258 : (activeNode ? 0xd9ffe8 : 0x39f5a0));
+        cell.userData.point.material.emissive.setHex(failedNode ? 0x8a1717 : (activeNode ? 0x31ff9a : 0x0b6b3d));
+        cell.userData.point.material.emissiveIntensity = activeNode ? 1.8 * pulse : 0.35;
+        cell.userData.halo.material.opacity = activeNode ? 0.38 * pulse : 0.10;
       });
       if (state.rotation) {
         const turn = state.rotation;
@@ -800,14 +709,15 @@ import { eventBus } from "../core/event_bus.js";
         if (t >= 1) {
           state.scene.remove(pulse.mesh);
           pulse.mesh.geometry.dispose(); pulse.mesh.material.dispose();
-          state.pulses.delete(id); state.activeEdges.delete(id);
-          const edge = state.edges.get(id);
-          const line = state.edgeRoot.children.find(item => item.userData.edgeId === id);
-          if (line && edge) {
-            line.material.color.setHex(edge.kind === "memory" ? 0x4dffad : 0x238e63);
-            line.material.opacity = edge.kind === "memory" ? 0.68 : 0.38;
-          }
+          state.pulses.delete(id);
+          // Keep the activated relationship highlighted.
         }
+      });
+      const glow = 0.78 + Math.sin(now * 0.004) * 0.18;
+      state.edgeRoot.children.forEach(line => {
+        const activeEdge = state.activeEdges.has(line.userData.edgeId);
+        line.material.color.setHex(activeEdge ? 0xaaffce : 0x4dffad);
+        line.material.opacity = activeEdge ? glow : 0.30;
       });
       state.renderer.render(state.scene, state.camera);
       state.dirty = false;
