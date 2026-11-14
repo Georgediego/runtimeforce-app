@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -37,6 +37,21 @@ class PushPullPayload(BaseModel):
     project_id: Optional[str] = None
     remote: Optional[str] = "origin"
     branch: Optional[str] = None
+
+async def _count_other_git_repos(user_id: str, workspace_manager: WorkspaceManagerService, current_project_id: Optional[str]) -> int:
+    repo_projects = set()
+    for project in container.project_repo.list_projects(user_id):
+        project_id = str(project.get("id") or "")
+        if not project_id or project_id == current_project_id:
+            continue
+        if str(project.get("github_remote_url") or "").strip():
+            repo_projects.add(project_id)
+            continue
+        driver = await workspace_manager.get_driver_for_project(user_id, project_id)
+        if driver and await GitStatusService.is_repo(driver):
+            repo_projects.add(project_id)
+    return len(repo_projects)
+
 
 async def _is_github_remote(driver: Any, remote: str) -> bool:
     try:
@@ -79,11 +94,17 @@ async def git_status(
 @router.post("/init")
 async def git_init(
     user_id: str = Depends(require_plan_feature("git")),
-    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    entitlements: dict = Depends(get_plan_entitlements),
 ):
     driver = await workspace_manager.get_driver(user_id)
     if not driver:
         raise HTTPException(status_code=404, detail="No active workspace")
+    active_project = container.project_repo.get_active_project(user_id)
+    current_project_id = str(active_project.get("id") or "") if active_project else None
+    if not await GitStatusService.is_repo(driver):
+        used_repos = await _count_other_git_repos(user_id, workspace_manager, current_project_id)
+        require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
     return await GitCommitService.init_repo(driver)
 
 @router.get("/diff")
