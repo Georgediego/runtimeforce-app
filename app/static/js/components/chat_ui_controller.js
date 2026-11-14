@@ -27,6 +27,7 @@ let elapsedSeconds = 0;
 let currentPendingMessageId = null;
 let treeReloadTimer = null;
 let pendingStreamError = "";
+let pendingFeatureUpgrade = null;
 let generationFinalized = false;
 let userAbortedGeneration = false;
 const traceMilestones = new Set();
@@ -559,6 +560,8 @@ export const chatUIController = {
 
     async sendMessage(overrideText = null, isEditing = false, existingMessageId = null) {
         if (isStopping || (isGenerating && overrideText === null)) return;
+        pendingStreamError = "";
+        pendingFeatureUpgrade = null;
         const input = document.getElementById("prompt-input");
         const rawUserPrompt = overrideText !== null ? overrideText : input?.value.trim() || "";
         if (!rawUserPrompt && !attachedFiles.length) return;
@@ -715,6 +718,23 @@ export const chatUIController = {
 
     escapeHtml(str) {
         return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    },
+
+    renderFeatureUpgradeBox(container, message, access) {
+        if (!container) return;
+        const upgrade = access?.upgrade || null;
+        const planName = upgrade?.plan_name || "";
+        const featureName = String(access?.feature || "feature").replace(/[_-]+/g, " ");
+        container.innerHTML = '<div class="assistant-error-box p-3 rounded-lg bg-[var(--ide-accent)]/10 border border-[var(--ide-accent)]/30 text-[var(--ide-text-primary)] text-xs flex flex-col gap-2 my-2">' +
+            '<div class="font-bold flex items-center gap-2 text-[var(--ide-accent)]"><i data-lucide="lock-keyhole" class="w-4 h-4"></i>Feature not included in your plan</div>' +
+            '<div class="text-[11px] leading-relaxed text-[var(--ide-text-secondary)]">' + this.escapeHtml(message || ("The " + featureName + " feature is not enabled for your plan.")) + '</div>' +
+            (planName ? '<div class="text-[11px]">Available with: <strong>' + this.escapeHtml(planName) + '</strong></div>' : '<div class="text-[11px]">No active plan currently provides this feature. Contact the administrator.</div>') +
+            (upgrade ? '<div class="pt-2 border-t border-[var(--ide-accent)]/20 flex justify-end"><button type="button" class="feature-upgrade-btn px-3 py-1.5 rounded bg-[var(--ide-accent)] text-black font-bold text-[11px] hover:brightness-110 transition-colors">View upgrade options</button></div>' : '') +
+            '</div>';
+        if (window.lucide) window.lucide.createIcons({ root: container });
+        container.querySelector(".feature-upgrade-btn")?.addEventListener("click", () => {
+            window.open("https://runtimeforce.dev/pricing", "_blank", "noopener,noreferrer");
+        });
     },
 
     renderErrorBox(container, errText) {
@@ -919,6 +939,12 @@ export const chatUIController = {
         } else if (event.status === "error" || event.status === "failed") {
             currentPhaseLabel = "Request failed";
             pendingStreamError = event.error || "Execution error";
+            if (event.code === "feature_not_enabled" || event.error_code === "FEATURE_NOT_ENABLED") {
+                pendingFeatureUpgrade = {
+                    feature: event.feature || "",
+                    upgrade: event.upgrade || null,
+                };
+            }
             this.appendTrace("ERROR", pendingStreamError);
             // A candidate may fail while orchestration is still trying another model.
             // Display the error only if the stream ends without a final answer.
@@ -926,8 +952,15 @@ export const chatUIController = {
             generationFinalized = true;
             assistantDiv?.parentElement?.classList.remove("assistant-bubble-generating");
             this.setGeneratingState(false);
+            if (pendingFeatureUpgrade) {
+                this.renderFeatureUpgradeBox(assistantDiv, pendingStreamError, pendingFeatureUpgrade);
+                pendingFeatureUpgrade = null;
+                pendingStreamError = "";
+                return;
+            }
             if (pendingStreamError || (!fullResponseText && !fullReasoningText)) {
                 this.renderErrorBox(assistantDiv, pendingStreamError || "Generation completed without returning an answer.");
+                pendingStreamError = "";
                 return;
             }
             currentPhaseLabel = "Completed";
