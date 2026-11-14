@@ -71,6 +71,7 @@ def require_plan_feature(feature_key: str):
         require_feature(entitlements, feature_key)
         if feature_key == "git":
             require_limit(entitlements, "max_projects", 0, "Active Projects")
+            require_limit(entitlements, "git_repos", 0, "Git Repositories")
             _require_active_ssh_host_allowed(user_id, entitlements)
         return user_id
     return dependency
