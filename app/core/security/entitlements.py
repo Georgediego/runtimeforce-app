@@ -105,21 +105,26 @@ def require_ssh_host_access(user_id: str, host: str, entitlements: Dict[str, Any
     require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
 
 
-async def count_other_git_repos(
+async def user_git_repo_ids(
     user_id: str,
     workspace_manager: Any,
-    current_project_id: str | None,
     entitlements: Dict[str, Any],
-) -> int:
+) -> list[str]:
     projects = container.project_repo.list_projects(user_id)
+    # Stable ordering prevents switching the active project from changing which
+    # repositories are entitled after a downgrade.
+    projects = sorted(
+        enumerate(projects),
+        key=lambda item: (str(item[1].get("created_at") or ""), item[0]),
+    )
     allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
-    repo_projects: set[str] = set()
-    for project in projects:
+    repo_ids: list[str] = []
+    for _, project in projects:
         project_id = str(project.get("id") or "")
-        if not project_id or project_id == current_project_id:
+        if not project_id:
             continue
         if str(project.get("github_remote_url") or "").strip():
-            repo_projects.add(project_id)
+            repo_ids.append(project_id)
             continue
         workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
         host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
@@ -127,8 +132,39 @@ async def count_other_git_repos(
             continue
         driver = await workspace_manager.get_driver_for_project(user_id, project_id)
         if driver and await GitStatusService.is_repo(driver):
-            repo_projects.add(project_id)
-    return len(repo_projects)
+            repo_ids.append(project_id)
+    return repo_ids
+
+
+async def count_other_git_repos(
+    user_id: str,
+    workspace_manager: Any,
+    current_project_id: str | None,
+    entitlements: Dict[str, Any],
+) -> int:
+    repo_ids = await user_git_repo_ids(user_id, workspace_manager, entitlements)
+    return sum(1 for project_id in repo_ids if project_id != current_project_id)
+
+
+async def require_git_repo_access(
+    user_id: str,
+    project_id: str,
+    workspace_manager: Any,
+    entitlements: Dict[str, Any],
+) -> None:
+    maximum = plan_limit(entitlements, "git_repos")
+    if maximum <= 0:
+        require_limit(entitlements, "git_repos", 0, "Git Repositories")
+    repo_ids = await user_git_repo_ids(user_id, workspace_manager, entitlements)
+    if project_id in repo_ids and project_id not in set(repo_ids[:maximum]):
+        raise HTTPException(status_code=403, detail={
+            "code": "plan_limit_reached",
+            "limit": "git_repos",
+            "used": len(repo_ids),
+            "maximum": maximum,
+            "plan": entitlements.get("plan", "unknown"),
+            "message": "This repository is outside the Git Repos allowance for your current plan.",
+        })
 
 
 def require_project_access(user_id: str, project_id: str, entitlements: Dict[str, Any]) -> None:
