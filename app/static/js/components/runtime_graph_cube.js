@@ -389,97 +389,21 @@ import { eventBus } from "../core/event_bus.js";
           }, 900);
         }
       }
-    } else if (status === "phase") {
-      if (event.role) {
-        const agent = String(event.role);
-        state.activeNodes.forEach(id => { if (id.startsWith("role:")) state.activeNodes.delete(id); });
-        state.current.agent = agent;
-        const id = "role:" + agent.toLowerCase();
-        if (!state.nodes.has(id)) {
-          addNode(id, "role", agent, "Observed active agent role", "agent_event");
-          buildCube();
-        }
-        state.activeNodes.add(id);
-        enqueueTurn(id, "role");
+    } else if (status === "phase" || status === "model_try" || status === "tool_start" || status === "tool_end") {
+      // Runtime telemetry updates the HUD only. It must never invent graph nodes or edges.
+      if (status === "phase") state.current.agent = String(event.role || state.current.agent || "");
+      if (status === "model_try") {
+        state.current.model = String(event.model || "");
+        state.current.provider = String(event.provider || state.current.model.split("/")[0] || "");
       }
-      setStatus(event.label || "PROCESSING");
-      addLog("Agent phase", event.label || event.role || "");
-    } else if (status === "model_try") {
-      state.activeNodes.forEach(id => { if (id.startsWith("model:") || id.startsWith("provider:")) state.activeNodes.delete(id); });
-      const model = String(event.model || "");
-      const provider = String(event.provider || model.split("/")[0] || "");
-      state.current.model = model;
-      state.current.provider = provider;
-      if (event.role) state.current.agent = String(event.role);
-      let modelId = resolveModelNode(model);
-      const providerId = "provider:" + provider.toLowerCase();
-      const roleId = "role:" + String(state.current.agent || "").toLowerCase();
-      let needsBuild = false;
-      if (!state.nodes.has(providerId)) {
-        addNode(providerId, "provider", provider, "Observed active provider", "model_try");
-        needsBuild = true;
-      }
-      if (roleId && !state.nodes.has(roleId)) {
-        addNode(roleId, "role", state.current.agent, "Observed active agent role", "model_try");
-        needsBuild = true;
-      }
-      if (!modelId) {
-        modelId = "model:runtime:" + model;
-        addNode(modelId, "model", model.split("/").pop(), model, "model_try");
-        needsBuild = true;
-      }
-      if (needsBuild) buildCube();
-      state.activeNodes.add(modelId); state.activeNodes.add(providerId);
-      if (state.nodes.has(roleId)) state.activeNodes.add(roleId);
-      let relation = Array.from(state.edges.values()).find(edge => edge.source === providerId && edge.target === modelId);
-      if (!relation && state.nodes.has(providerId) && state.nodes.has(modelId)) {
-        const relationId = "observed-model:" + provider.toLowerCase() + ":" + model;
-        addEdge(relationId, providerId, modelId, "runtime", "Observed model selection event");
-        relation = state.edges.get(relationId);
-        rebuildEdges();
-      }
-      if (relation) pulseEdge(relation.id);
-      enqueueTurn(modelId, "model");
-      setStatus("INFERENCE");
-      addLog("Model selected", model + " · " + provider);
-    } else if (status === "tool_start") {
-      const name = String(event.tool_name || "");
-      state.current.tool = name;
-      const toolId = "tool:" + name;
-      const role = String(event.role || state.current.agent || "");
-      let needsBuild = false;
-      if (!state.nodes.has(toolId)) {
-        addNode(toolId, "tool", name, "Observed active orchestrator tool", "tool_start");
-        needsBuild = true;
-      }
-      const roleId = role ? "role:" + role.toLowerCase() : "";
-      if (role && !state.nodes.has(roleId)) {
-        addNode(roleId, "role", role, "Observed active agent role", "tool_start");
-        needsBuild = true;
-      }
-      if (needsBuild) buildCube();
-      state.activeNodes.add(toolId);
-      if (role) {
-        state.current.agent = role;
-        let relation = Array.from(state.edges.values()).find(edge => edge.source === roleId && edge.target === toolId);
-        if (!relation) {
-          const relationId = "observed-tool:" + role.toLowerCase() + ":" + name;
-          addEdge(relationId, roleId, toolId, "runtime", "Observed tool invocation event");
-          relation = state.edges.get(relationId);
-          if (relation) rebuildEdges();
-        }
-        if (relation) pulseEdge(relation.id);
-      }
-      enqueueTurn(toolId, "tool");
-      setStatus("TOOL EXECUTION");
-      addLog("Tool invoked", name);
-    } else if (status === "tool_end") {
-      state.activeNodes.delete("tool:" + String(event.tool_name || state.current.tool || ""));
-      state.current.tool = "";
-      setStatus("TOOL COMPLETED");
-      addLog("Tool completed", event.tool_name || "");
-    } else if (status === "reasoning" || status === "streaming") {
-      setStatus(status === "streaming" ? "GENERATING" : "REASONING");
+      if (status === "tool_start") state.current.tool = String(event.tool_name || "");
+      if (status === "tool_end") state.current.tool = "";
+      setStatus(status === "phase" ? (event.label || "PROCESSING") :
+        status === "model_try" ? "INFERENCE" :
+        status === "tool_start" ? "TOOL EXECUTION" : "TOOL COMPLETED");
+      addLog(status === "phase" ? "Agent phase" : status === "model_try" ? "Model selected" :
+        status === "tool_start" ? "Tool invoked" : "Tool completed",
+        event.label || event.model || event.tool_name || event.role || "");
     } else if (status === "warning") {
       addLog("Orchestrator warning", event.warning || "", "warn");
     } else if (status === "error" || status === "failed") {
@@ -498,8 +422,11 @@ import { eventBus } from "../core/event_bus.js";
     addLog("Execution failed", message, "error");
     state.activeNodes.forEach(id => {
       const node = state.nodes.get(id);
-      if (node?.cell?.userData.outline) node.cell.userData.outline.material.color.setHex(0xff6258);
-      if (node?.cell?.userData.body) node.cell.userData.body.material.color.setHex(0xff6258);
+      if (node?.cell?.userData.point) {
+        node.cell.userData.point.material.color.setHex(0xff6258);
+        node.cell.userData.point.material.emissive.setHex(0x8a1717);
+      }
+      if (node?.cell?.userData.halo) node.cell.userData.halo.material.color.setHex(0xff6258);
     });
     state.pulses.forEach(pulse => pulse.mesh.material.color.setHex(0xff6258));
     state.edgeRoot.children.forEach(line => {
@@ -509,12 +436,8 @@ import { eventBus } from "../core/event_bus.js";
       }
     });
     state.dirty = true;
-    window.setTimeout(() => {
-      state.failed = false; state.failedNodes.clear();
-      state.activeNodes.clear(); state.activeEdges.clear();
-      state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
-      buildCube(); setStatus("IDLE"); updateHud();
-    }, 1800);
+    // Keep the failed process highlighted until the next explicit run.
+    state.dirty = true;
   }
 
   function startRun() {
@@ -678,14 +601,14 @@ import { eventBus } from "../core/event_bus.js";
 
   function renderLoop(now) {
     if (state.disposed) return;
-    const active = state.running || state.rotation || state.rotationQueue.length || state.pulses.size;
+    const active = state.running || state.rotation || state.rotationQueue.length || state.pulses.size || state.activeNodes.size || state.activeEdges.size;
     const interval = active ? 33 : 100;
     if (now - state.lastRender >= interval || state.dirty) {
       state.lastRender = now;
       if (state.controls) state.controls.update();
       state.nodes.forEach(node => {
         const cell = node.cell;
-        if (!cell || !cell.userData.body || !cell.userData.outline) return;
+        if (!cell || !cell.userData.point || !cell.userData.halo) return;
         const activeNode = state.activeNodes.has(node.id);
         const failedNode = state.failedNodes.has(node.id);
         const pulse = activeNode ? (0.72 + Math.sin(now * 0.006) * 0.28) : 1;
@@ -701,7 +624,11 @@ import { eventBus } from "../core/event_bus.js";
         turn.pivot.rotation[turn.axis] = eased * Math.PI / 2;
         if (t >= 1) finishTurn(turn);
       } else beginTurn();
-      if (state.rotation) updateLiveEdges();
+      if (state.cubeRoot) {
+        state.cubeRoot.rotation.y += 0.0014;
+        state.cubeRoot.rotation.x = Math.sin(now * 0.00018) * 0.08;
+      }
+      updateLiveEdges();
 
       state.pulses.forEach((pulse, id) => {
         const t = Math.min(1, (now - pulse.started) / pulse.duration);
