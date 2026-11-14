@@ -63,7 +63,7 @@ def _require_project_ssh_access(user_id: str, project_id: str, entitlements: dic
         })
 
 
-async def _count_other_git_repos(user_id: str, current_project_id: str) -> int:
+async def _count_other_git_repos(user_id: str, current_project_id: str, entitlements: dict) -> int:
     repo_projects = set()
     for project in container.project_repo.list_projects(user_id):
         project_id = str(project.get("id") or "")
@@ -71,6 +71,10 @@ async def _count_other_git_repos(user_id: str, current_project_id: str) -> int:
             continue
         if str(project.get("github_remote_url") or "").strip():
             repo_projects.add(project_id)
+            continue
+        try:
+            _require_project_ssh_access(user_id, project_id, entitlements)
+        except HTTPException:
             continue
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
         if driver and await GitStatusService.is_repo(driver):
@@ -250,7 +254,7 @@ async def execute_command(
         if command_requires_git(payload.command):
             require_feature(entitlements, "git")
             if command_creates_git_repo(payload.command):
-                used_repos = await _count_other_git_repos(user_id, target_project_id)
+                used_repos = await _count_other_git_repos(user_id, target_project_id, entitlements)
                 require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
