@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, require_ssh_host_access, count_other_git_repos
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
