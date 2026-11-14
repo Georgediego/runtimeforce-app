@@ -179,10 +179,26 @@ class AgentLoopCoordinator:
 
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
         if strict_enabled is not None:
-            strict_enabled = [
-                model_id for model_id in strict_enabled
-                if plan_features.get(provider_feature_key(model_id.split("/", 1)[0])) is True
-            ]
+            # Enforce entitlements using the registry metadata for the exact model.
+            # A provider-wide "local_byok" check incorrectly blocks Free-tier cloud
+            # models (Gemini/Groq/Cerebras/SambaNova and free OpenRouter models).
+            # Local runtimes still require local_models; paid cloud models require
+            # local_byok. Unknown models fail closed and require local_byok.
+            allowed_models = []
+            for model_id in strict_enabled:
+                metadata = self._llm_router.registry.get_model(model_id) if self._llm_router else None
+                provider = str(getattr(metadata, "provider", "") or model_id.split("/", 1)[0]).strip().lower()
+                tier = str(getattr(metadata, "tier", "") or "").strip().lower()
+                if provider in {"ollama", "lm_studio", "local"} or tier == "local":
+                    required_feature = "local_models"
+                elif tier == "free" or model_id.lower().endswith(":free"):
+                    required_feature = None
+                else:
+                    required_feature = "local_byok"
+
+                if required_feature is None or plan_features.get(required_feature) is True:
+                    allowed_models.append(model_id)
+            strict_enabled = allowed_models
         db_allowed_all = []
         if self._provider_keys_repo:
             selected_map = self._provider_keys_repo.get_all_selected_models(user_id)
