@@ -172,7 +172,7 @@ export const projectsUIController = {
                 <div class="p-3 mb-2.5 rounded-xl bg-[var(--ide-elevated)] border ${activeProj && p.id === activeProj.id ? "border-[var(--ide-accent)] bg-[var(--ide-accent)]/5" : "border-[var(--ide-border-subtle)]"} flex flex-col gap-2 glass-cover" data-id="${p.id}">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2 min-w-0">
-                            <span class="w-2 h-2 rounded-full ${p.id === activeProj.id ? "bg-[var(--ide-success)] animate-pulse" : "bg-gray-500"}"></span>
+                            <span class="w-2 h-2 rounded-full ${activeProj && p.id === activeProj.id ? "bg-[var(--ide-success)] animate-pulse" : "bg-gray-500"}"></span>
                             <span class="text-xs font-bold text-[var(--ide-text-primary)] truncate">${p.name}</span>
                         </div>
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] font-bold">${p.current_version || "v1.0.0"}</span>
