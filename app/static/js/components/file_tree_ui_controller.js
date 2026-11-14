@@ -4,11 +4,18 @@
 import { workspacesApi } from "../core/api_http_client.js";
 import { eventBus } from "../core/event_bus.js";
 import { projectsUIController } from "./projects_ui_controller.js";
+import { planAccessState } from "../core/plan_access_state.js";
 
 export const fileTreeUIController = {
     async loadTree() {
         const container = document.getElementById("file-tree");
         if (!container) return;
+        await planAccessState.refresh();
+        if (!planAccessState.featureEnabled("editor")) {
+            container.innerHTML = '<div class="p-4 text-center text-xs text-[var(--ide-text-muted)]"><span class="inline-flex items-center gap-1.5 font-bold"><i data-lucide="lock" class="w-3.5 h-3.5"></i> Editor locked</span><p class="mt-2">Editor is not included in your current plan.</p></div>';
+            if (window.lucide) window.lucide.createIcons({ root: container });
+            return;
+        }
         this.updateWorkspaceCard();
         container.innerHTML = '<div class="text-center text-xs text-[var(--ide-text-muted)] py-4"><i data-lucide="loader" class="w-4 h-4 inline animate-spin"></i> Loading...</div>';
         if (window.lucide) window.lucide.createIcons({ root: container });
