@@ -203,9 +203,13 @@ def require_project_access(user_id: str, project_id: str, entitlements: Dict[str
     projects = container.project_repo.list_projects(user_id)
     if len(projects) <= maximum:
         return
+    ordered_projects = sorted(
+        enumerate(projects),
+        key=lambda item: (str(item[1].get("created_at") or ""), str(item[1].get("id") or ""), item[0]),
+    )
     allowed_project_ids = {
         str(project.get("id") or "")
-        for project in projects[:maximum]
+        for _, project in ordered_projects[:maximum]
         if project.get("id")
     }
     if str(project_id) in allowed_project_ids:
