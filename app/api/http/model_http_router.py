@@ -6,7 +6,7 @@ import sys
 import logging
 import platform
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
@@ -119,8 +119,14 @@ async def list_models(
     registry: LLMRegistryService = Depends(get_llm_registry),
     discovery: LLMDiscoveryService = Depends(get_llm_discovery),
     keys_repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
-    request=None,
+    request: Request = None,
+    license_service=Depends(__import__("app.container", fromlist=["get_license_service"]).get_license_service),
 ):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() if request else ""
+    token = token or (request.cookies.get("access_token", "") if request else "") or (request.cookies.get("jwt_token", "") if request else "")
+    entitlements = await license_service.get_entitlements(token)
+    if not entitlements.get("valid"):
+        raise HTTPException(status_code=403, detail="Account entitlements could not be verified")
     encrypted_keys = keys_repo.get_all_provider_keys(user_id)
     decrypted_keys = {}
     for p, key_enc in encrypted_keys.items():
@@ -134,11 +140,17 @@ async def list_models(
     if "lm_studio" not in decrypted_keys:
         decrypted_keys["lm_studio"] = "http://localhost:1234"
 
+    decrypted_keys = {
+        provider: key for provider, key in decrypted_keys.items()
+        if feature_enabled(entitlements, provider_feature_key(provider))
+    }
     await discovery.discover_all(decrypted_keys)
     models = registry.get_available_models()
 
     by_provider = {}
     for m in models:
+        if not feature_enabled(entitlements, provider_feature_key(m.provider)):
+            continue
         by_provider.setdefault(m.provider, []).append({
             "id": m.id,
             "name": m.name,
@@ -153,5 +165,7 @@ async def list_models(
     return {
         "models": by_provider,
         "providers_with_keys": list(decrypted_keys.keys()),
+        "features": entitlements.get("features") or {},
+        "limits": entitlements.get("limits") or {},
         "hardware": _get_system_hardware()
     }
