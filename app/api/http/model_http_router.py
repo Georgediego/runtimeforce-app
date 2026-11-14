@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.core.security.entitlements import require_plan_feature, feature_enabled, provider_feature_key
-from app.container import get_llm_registry, get_llm_discovery, get_provider_keys_repo
+from app.container import get_llm_registry, get_llm_discovery, get_provider_keys_repo, get_license_service
 from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.llm.llm_discovery_service import LLMDiscoveryService, DiscoveryError
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
@@ -115,12 +115,12 @@ async def remove_provider(
 
 @router.get("")
 async def list_models(
+    request: Request,
     user_id: str = Depends(require_authenticated_user),
     registry: LLMRegistryService = Depends(get_llm_registry),
     discovery: LLMDiscoveryService = Depends(get_llm_discovery),
     keys_repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
-    request: Request = None,
-    license_service=Depends(__import__("app.container", fromlist=["get_license_service"]).get_license_service),
+    license_service=Depends(get_license_service),
 ):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() if request else ""
     token = token or (request.cookies.get("access_token", "") if request else "") or (request.cookies.get("jwt_token", "") if request else "")
