@@ -85,14 +85,19 @@ def provider_feature(provider_id: str) -> str:
 
 
 def model_allowed_by_plan(entitlements: Dict[str, Any], model: Any) -> bool:
+    provider = str(getattr(model, "provider", "") or "").strip().lower().replace("-", "_")
     tier = str(getattr(model, "tier", "standard") or "standard").lower()
-    provider = str(getattr(model, "provider", "") or "").lower()
-    if tier == "local" or provider in LOCAL_PROVIDERS:
+
+    # Provider classification is authoritative. Several free-cloud providers
+    # publish models whose catalog tier is "standard"; tier must not upgrade
+    # them to the Pro BYOK feature.
+    if provider in LOCAL_PROVIDERS or provider.startswith("local_") or provider.endswith("_local") or tier == "local":
         return feature_enabled(entitlements, "local_llms")
-    if tier in {"pro", "standard", "paid"} or provider in PRO_BYOK_PROVIDERS:
+    if provider in FREE_CLOUD_PROVIDERS:
+        return feature_enabled(entitlements, "free_cloud_byok")
+    if provider in PRO_BYOK_PROVIDERS or tier in {"pro", "standard", "paid"}:
         return feature_enabled(entitlements, "full_pro_byok")
     return feature_enabled(entitlements, "free_cloud_byok")
-
 
 
 def command_requires_git(command: str) -> bool:
