@@ -331,7 +331,9 @@ async def create_workspace(
         )
         if is_ssh_workspace:
             known_hosts = _get_user_ssh_hosts(user_id)
-            if host_value not in known_hosts:
+            if plan_limit(entitlements, "max_ssh_hosts") <= 0:
+                require_limit(entitlements, "max_ssh_hosts", 0, "SSH Hosts")
+            elif host_value not in known_hosts:
                 require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
         ws_id = payload.get("id") or str(uuid.uuid4())
         target_project_id = payload.get("project_id") or _get_active_project_id(user_id)
