@@ -182,3 +182,34 @@ def test_offline_grace_fails_closed_when_flag_disabled_or_window_expired():
         assert expired["valid"] is False
 
     asyncio.run(run())
+
+
+
+def test_ssh_host_allowance_prioritizes_active_host_after_downgrade(monkeypatch):
+    from app.core.security import entitlements as entitlement_dependencies
+
+    class ProjectRepo:
+        def list_projects(self, user_id):
+            return [
+                {"id": "active", "ssh_host": "z-active.example"},
+                {"id": "older", "ssh_host": "a-older.example"},
+            ]
+
+        def get_active_project(self, user_id):
+            return {"id": "active", "ssh_host": "z-active.example"}
+
+    class WorkspaceRepo:
+        def get_all_workspaces(self, user_id, project_id):
+            return []
+
+        def get_workspace_by_project_id(self, project_id, user_id):
+            return None
+
+    monkeypatch.setattr(entitlement_dependencies.container, "project_repo", ProjectRepo())
+    monkeypatch.setattr(entitlement_dependencies.container, "workspace_repo", WorkspaceRepo())
+    entitlements = free_entitlements()
+    assert entitlement_dependencies.allowed_ssh_hosts("user-1", entitlements) == {"z-active.example"}
+    entitlement_dependencies.require_ssh_host_access("user-1", "z-active.example", entitlements)
+    with pytest.raises(HTTPException) as error:
+        entitlement_dependencies.require_ssh_host_access("user-1", "a-older.example", entitlements)
+    assert error.value.status_code == 403
