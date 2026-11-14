@@ -155,6 +155,7 @@ class AgentLoopCoordinator:
         temperature: float = 0.2,
         plan: str = "free",
         features: Optional[Dict[str, Any]] = None,
+        feature_upgrades: Optional[Dict[str, Any]] = None,
         user_id: str = "default_user",
         enabled_models: Optional[List[str]] = None,
         project_id: str = "default_project",
@@ -168,6 +169,7 @@ class AgentLoopCoordinator:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
         plan_features = features if isinstance(features, dict) else {}
+        plan_feature_upgrades = feature_upgrades if isinstance(feature_upgrades, dict) else {}
         workspace_task_requested = bool(re.search(
             r"\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\b|"
             r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|команд(у|ы|ой|ами)?|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
@@ -742,11 +744,22 @@ class AgentLoopCoordinator:
                 
                 required_feature = tool_feature_key(tool_name)
                 if required_feature and plan_features.get(required_feature) is not True:
-                    result = {
-                        "error": f"Tool '{tool_name}' is not enabled for the current plan.",
+                    error_message = f"Tool '{tool_name}' is not enabled for the current plan."
+                    upgrade = plan_feature_upgrades.get(required_feature)
+                    logger.info(
+                        "[AgentCoordinator] Feature denied: tool=%s feature=%s upgrade_plan=%s",
+                        tool_name, required_feature, (upgrade or {}).get("plan_code", "unavailable")
+                    )
+                    yield {
+                        "status": "error",
                         "code": "feature_not_enabled",
+                        "error_code": "FEATURE_NOT_ENABLED",
                         "feature": required_feature,
+                        "upgrade": upgrade,
+                        "error": error_message,
                     }
+                    yield {"status": "done"}
+                    return
                 else:
                     result = await ToolDispatcherService.dispatch(tool_name, arguments_json, driver)
 
