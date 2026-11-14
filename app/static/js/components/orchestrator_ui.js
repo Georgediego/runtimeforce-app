@@ -60,14 +60,53 @@ export const orchestratorUIController = {
             });
         }
 
-        strategySelect?.addEventListener("change", (e) => this.handleStrategyChange(e.target.value));
+        strategySelect?.addEventListener("change", (e) => {
+            const featureKey = ({ auto: "auto", coding: "atm", local: "local_llms", manual: "manual" })[e.target.value];
+            if (!this._featureEnabled(featureKey)) {
+                showToast("This mode is not included in your current plan.", "warning");
+                e.target.value = this._lastAllowedStrategy || "auto";
+                return;
+            }
+            this._lastAllowedStrategy = e.target.value;
+            this.handleStrategyChange(e.target.value);
+        });
         eventBus.on("auth:success", async () => { await this.loadEntitlements(); this.initModeCards(); await this.loadModels(); });
         this.initCustomDropdowns();
         initCustomSelects();
         await this.loadEntitlements();
+        if (strategySelect) {
+            const currentFeature = ({ auto: "auto", coding: "atm", local: "local_llms", manual: "manual" })[strategySelect.value];
+            if (!this._featureEnabled(currentFeature)) {
+                const fallback = ["auto", "manual", "local", "coding"].find((mode) => {
+                    const key = ({ auto: "auto", manual: "manual", local: "local_llms", coding: "atm" })[mode];
+                    return this._featureEnabled(key);
+                });
+                if (fallback) strategySelect.value = fallback;
+            }
+            this._lastAllowedStrategy = strategySelect.value;
+        }
         this.initModeCards();
         await this.loadModels();
-        if (strategySelect) this.handleStrategyChange(strategySelect.value);
+        if (strategySelect && this._featureEnabled(({ auto: "auto", coding: "atm", local: "local_llms", manual: "manual" })[strategySelect.value])) {
+            this.handleStrategyChange(strategySelect.value);
+        }
+    },
+
+    _featureEnabled(featureKey) {
+        if (!featureKey) return false;
+        const aliases = {
+            local_llms: ["local_llms", "local_models", "local llms"],
+            git: ["git", "github_git", "github_git_integration", "git_integration"],
+            software_updates: ["software_updates", "software updates"],
+            free_cloud_byok: ["free_cloud_byok", "free cloud byok"],
+            full_pro_byok: ["full_pro_byok", "full pro byok"],
+            offline_grace: ["offline_grace", "offline grace"],
+        };
+        const keys = aliases[featureKey] || [featureKey];
+        for (const key of keys) {
+            if (Object.prototype.hasOwnProperty.call(this._features, key)) return this._features[key] === true;
+        }
+        return false;
     },
 
     async loadEntitlements() {
@@ -86,14 +125,14 @@ export const orchestratorUIController = {
         const modes = [
             { id: "auto", feature: "auto", name: "Auto", icon: "zap", color: "border-blue-500/40 text-blue-400 bg-blue-500/5", desc: "Smart local routing" },
             { id: "coding", feature: "atm", name: "Autonomous Team (ATM)", icon: "users", color: "border-emerald-500/40 text-emerald-400 bg-emerald-500/5", desc: "Architect -> Engineer -> Implementer -> Designer" },
-            { id: "local", feature: "local_models", name: "Local", icon: "server", color: "border-purple-500/40 text-purple-400 bg-purple-500/5", desc: "Offline-first (Ollama/LM Studio)" },
+            { id: "local", feature: "local_llms", name: "Local", icon: "server", color: "border-purple-500/40 text-purple-400 bg-purple-500/5", desc: "Offline-first (Ollama/LM Studio)" },
             { id: "manual", feature: "manual", name: "Manual", icon: "settings", color: "border-amber-500/40 text-amber-400 bg-amber-500/5", desc: "Lock to specific model" },
         ];
         const currentStrategy = document.getElementById("strategy-select")?.value || "auto";
         container.innerHTML = modes
             .map((m) => {
                 const isActive = m.id === currentStrategy;
-                const enabled = this._features[m.feature] === true;
+                const enabled = this._featureEnabled(m.feature);
                 return `
                 <div class="mode-card cursor-pointer p-3 rounded-xl border transition-all duration-200 ${m.color} ${!enabled ? "opacity-40 cursor-not-allowed" : isActive ? "ring-2 ring-[var(--ide-accent)] shadow-lg" : "opacity-80 hover:opacity-100"}" data-mode="${m.id}">
                     <div class="flex items-center justify-between mb-1">
@@ -112,7 +151,7 @@ export const orchestratorUIController = {
             card.addEventListener("click", () => {
                 const modeId = card.dataset.mode;
                 const featureKey = ({ auto: "auto", coding: "atm", local: "local_models", manual: "manual" })[modeId];
-                if (this._features[featureKey] !== true) {
+                if (!this._featureEnabled(featureKey)) {
                     showToast("This feature is not enabled for your current plan.", "warning");
                     return;
                 }
