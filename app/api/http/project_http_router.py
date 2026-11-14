@@ -40,6 +40,7 @@ def _known_ssh_hosts(service: ProjectService, user_id: str, projects: list) -> s
         str(project.get("ssh_host") or "").strip().lower()
         for project in projects
         if str(project.get("ssh_host") or "").strip()
+        and str(project.get("ssh_host") or "").strip().lower() not in {"localhost", "127.0.0.1"}
     }
     workspace_repo = getattr(service, "workspace_repo", None)
     if workspace_repo:
@@ -49,7 +50,7 @@ def _known_ssh_hosts(service: ProjectService, user_id: str, projects: list) -> s
                 continue
             for workspace in workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
                 host = str(workspace.get("host") or "").strip().lower()
-                if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
+                if host and host not in {"localhost", "127.0.0.1"}:
                     hosts.add(host)
     return hosts
 
