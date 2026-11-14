@@ -5,7 +5,7 @@
  * active project from localStorage — prevents "all workspaces shown" leaks
  * when editing a project that is not currently active.
  */
-import { workspacesApi, projectsApi } from "../core/api_http_client.js";
+import { workspacesApi } from "../core/api_http_client.js";
 import { planAccessState } from "../core/plan_access_state.js";
 import { showToast, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
@@ -19,30 +19,21 @@ function resolveScopedProjectId(explicitId) {
 export const workspaceUIController = {
     _sshHostLimit: 0,
     _knownSSHHosts: new Set(),
+    _allowedSSHHosts: new Set(),
 
     async refreshSSHPlanState() {
         try {
-            const [, projectData] = await Promise.all([
+            const [, usage] = await Promise.all([
                 planAccessState.refresh(),
-                projectsApi.list(),
+                workspacesApi.sshUsage(),
             ]);
-            this._sshHostLimit = planAccessState.limit("max_ssh_hosts");
-            const projects = Array.isArray(projectData) ? projectData : (projectData.projects || []);
-            const hosts = new Set();
-            for (const project of projects) {
-                const projectHost = String(project.ssh_host || "").trim().toLowerCase();
-                if (projectHost && !["localhost", "127.0.0.1"].includes(projectHost)) hosts.add(projectHost);
-                const workspaceData = await workspacesApi.list(project.id).catch(() => ({ workspaces: [] }));
-                const workspaces = Array.isArray(workspaceData) ? workspaceData : (workspaceData.workspaces || []);
-                for (const workspace of workspaces) {
-                    const host = String(workspace.host || "").trim().toLowerCase();
-                    if (host && !["localhost", "127.0.0.1"].includes(host)) hosts.add(host);
-                }
-            }
-            this._knownSSHHosts = hosts;
+            this._sshHostLimit = Number(usage.maximum ?? planAccessState.limit("max_ssh_hosts"));
+            this._knownSSHHosts = new Set((usage.known_hosts || []).map((host) => String(host).trim().toLowerCase()));
+            this._allowedSSHHosts = new Set((usage.allowed_hosts || []).map((host) => String(host).trim().toLowerCase()));
         } catch {
             this._sshHostLimit = 0;
             this._knownSSHHosts = new Set();
+            this._allowedSSHHosts = new Set();
         }
         this.updateSSHHostControl();
     },
@@ -51,7 +42,7 @@ export const workspaceUIController = {
         const button = document.getElementById("add-ssh-ws-btn");
         if (!button) return;
         const requestedHost = String(document.getElementById("ssh-host")?.value || "").trim().toLowerCase();
-        const allowed = planAccessState.canAddSSHHost(requestedHost, this._knownSSHHosts);
+        const allowed = planAccessState.canAddSSHHost(requestedHost, this._knownSSHHosts, this._allowedSSHHosts);
         button.disabled = !allowed;
         button.title = allowed ? "" : "SSH host limit reached or SSH access is not included in your plan";
         button.classList.toggle("opacity-40", !allowed);
