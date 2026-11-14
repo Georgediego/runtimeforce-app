@@ -171,11 +171,13 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 continue
 
             git_repo_slot_available = False
+            git_repo_creation_slot_available = False
             if feature_enabled(entitlements, "git") and plan_limit(entitlements, "git_repos") > 0:
                 git_quota = await git_repo_quota_state(
                     user_id, project_id, container.workspace_manager_service, entitlements
                 )
                 git_repo_slot_available = git_quota["can_use_git"]
+                git_repo_creation_slot_available = git_quota["can_create_repo"]
 
             model_lock = data.get("model_lock")
             enabled_models = data.get("enabled_models")
@@ -278,6 +280,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     existing_message_id=existing_message_id,
                     plan_entitlements=entitlements,
                     git_repo_slot_available=git_repo_slot_available,
+                    git_repo_creation_slot_available=git_repo_creation_slot_available,
                 )
 
                 with container.command_approval_service.context(session_id=session_id, project_id=project_id):
