@@ -1,5 +1,6 @@
 """Pure plan-entitlement helpers shared by HTTP, WebSocket, and agent execution."""
 from typing import Any, Dict
+import re
 from fastapi import HTTPException
 
 
@@ -87,3 +88,14 @@ def model_allowed_by_plan(entitlements: Dict[str, Any], model: Any) -> bool:
     if tier in {"pro", "standard", "paid"} or provider in PRO_BYOK_PROVIDERS:
         return feature_enabled(entitlements, "full_pro_byok")
     return feature_enabled(entitlements, "free_cloud_byok")
+
+
+
+def command_requires_git(command: str) -> bool:
+    value = str(command or "")
+    return bool(re.search(r"(?<![A-Za-z0-9_])(?:git\s+\S+|gh\s+(?:repo|pr|issue|auth)\b)", value, re.IGNORECASE))
+
+
+def command_creates_git_repo(command: str) -> bool:
+    value = str(command or "")
+    return bool(re.search(r"\bgit\s+(?:clone|init)\b", value, re.IGNORECASE))
