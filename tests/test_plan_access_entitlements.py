@@ -334,6 +334,9 @@ def test_online_entitlement_refresh_persists_under_verified_email(monkeypatch):
             }
 
     class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
         async def __aenter__(self):
             return self
 
