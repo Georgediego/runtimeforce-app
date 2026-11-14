@@ -13,7 +13,9 @@ from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit
+from app.core.security.plan_access import command_requires_git, command_creates_git_repo
+from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.workspace_http")
 router = APIRouter(prefix="/api/v1/workspaces", tags=["Workspaces"])
@@ -40,6 +42,21 @@ def _get_user_ssh_hosts(user_id: str) -> set[str]:
             if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
                 hosts.add(host)
     return hosts
+
+
+async def _count_other_git_repos(user_id: str, current_project_id: str) -> int:
+    repo_projects = set()
+    for project in container.project_repo.list_projects(user_id):
+        project_id = str(project.get("id") or "")
+        if not project_id or project_id == current_project_id:
+            continue
+        if str(project.get("github_remote_url") or "").strip():
+            repo_projects.add(project_id)
+            continue
+        driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
+        if driver and await GitStatusService.is_repo(driver):
+            repo_projects.add(project_id)
+    return len(repo_projects)
 
 
 def _get_active_project_id(user_id: str) -> str:
@@ -201,6 +218,11 @@ async def execute_command(
     try:
         require_feature(entitlements, "terminal")
         target_project_id = payload.project_id or _get_active_project_id(user_id)
+        if command_requires_git(payload.command):
+            require_feature(entitlements, "git")
+            if command_creates_git_repo(payload.command):
+                used_repos = await _count_other_git_repos(user_id, target_project_id)
+                require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
             raise HTTPException(status_code=404, detail="No workspace connected for this project")
