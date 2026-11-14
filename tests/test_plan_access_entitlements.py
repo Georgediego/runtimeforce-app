@@ -248,3 +248,29 @@ def test_git_repo_quota_blocks_existing_repository_outside_allowance(monkeypatch
         assert error.value.detail["limit"] == "git_repos"
 
     asyncio.run(run())
+
+
+
+def test_ssh_allowance_uses_allowed_project_host_when_active_project_is_locked(monkeypatch):
+    from app.core.security import entitlements as entitlement_dependencies
+
+    class ProjectRepo:
+        def list_projects(self, user_id):
+            return [
+                {"id": "older", "ssh_host": "older.example", "created_at": "2025-01-01"},
+                {"id": "active-newer", "ssh_host": "newer.example", "created_at": "2025-02-01"},
+            ]
+
+        def get_active_project(self, user_id):
+            return {"id": "active-newer", "ssh_host": "newer.example"}
+
+    class WorkspaceRepo:
+        def get_all_workspaces(self, user_id, project_id):
+            return []
+
+        def get_workspace_by_project_id(self, project_id, user_id):
+            return None
+
+    monkeypatch.setattr(entitlement_dependencies.container, "project_repo", ProjectRepo())
+    monkeypatch.setattr(entitlement_dependencies.container, "workspace_repo", WorkspaceRepo())
+    assert entitlement_dependencies.allowed_ssh_hosts("user-1", free_entitlements()) == {"older.example"}
