@@ -8,6 +8,12 @@ let checking = false;
 let pendingUpdate = null;
 let applyingUpdate = false;
 
+function authHeaders(extra = {}) {
+    const rawToken = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
+    const token = rawToken.startsWith("Bearer ") ? rawToken.slice(7) : rawToken;
+    return { ...extra, ...(token ? { "Authorization": "Bearer " + token } : {}) };
+}
+
 function readStoredJson(key) {
     try { return JSON.parse(localStorage.getItem(key) || "null"); }
     catch { return null; }
@@ -154,7 +160,7 @@ async function applyUpdate() {
         const response = await fetch("/api/v1/updates/apply", {
             method: "POST",
             cache: "no-store",
-            headers: { "Accept": "application/json" },
+            headers: authHeaders({ "Accept": "application/json" }),
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.accepted) {
@@ -166,7 +172,7 @@ async function applyUpdate() {
         while (Date.now() < deadline) {
             await new Promise((resolve) => window.setTimeout(resolve, 2000));
             try {
-                const stateResponse = await fetch("/api/v1/updates/status", { cache: "no-store" });
+                const stateResponse = await fetch("/api/v1/updates/status", { cache: "no-store", headers: authHeaders() });
                 if (stateResponse.ok) {
                     const state = await stateResponse.json();
                     if (state.status === "error") throw new Error(state.message || "The update failed.");
@@ -217,7 +223,7 @@ async function checkForUpdates({ force = false } = {}) {
         const response = await fetch("/api/v1/updates/check", {
             method: "GET",
             cache: "no-store",
-            headers: { "Accept": "application/json" },
+            headers: authHeaders({ "Accept": "application/json" }),
         });
         const status = document.getElementById("rf-update-settings-status");
         const current = document.getElementById("rf-update-settings-current");
