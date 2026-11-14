@@ -209,5 +209,11 @@ def require_plan_feature(feature_key: str):
             require_limit(entitlements, "max_projects", 0, "Active Projects")
             require_limit(entitlements, "git_repos", 0, "Git Repositories")
             _require_active_ssh_host_allowed(user_id, entitlements)
+            active_project = container.project_repo.get_active_project(user_id)
+            active_project_id = str((active_project or {}).get("id") or "")
+            if active_project_id:
+                await require_git_repo_access(
+                    user_id, active_project_id, container.workspace_manager_service, entitlements
+                )
         return user_id
     return dependency
