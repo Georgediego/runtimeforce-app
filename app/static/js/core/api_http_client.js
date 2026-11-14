@@ -93,6 +93,10 @@ export const workspacesApi = {
 };
 
 export const gitApi = {
+    usage: (projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request(`/api/v1/git/usage?project_id=${encodeURIComponent(pid)}`);
+    },
     status: () => request("/api/v1/git/status"),
     init: () => request("/api/v1/git/init", { method: "POST" }),
     diff: (path, staged = false) =>
