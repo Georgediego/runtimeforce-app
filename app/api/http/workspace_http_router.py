@@ -129,8 +129,8 @@ async def get_workspace_tree(
     try:
         require_feature(entitlements, "editor")
         require_limit(entitlements, "max_projects", 0, "Active Projects")
-        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
             logger.error(f"No workspace driver found for project {target_project_id}")
@@ -146,6 +146,8 @@ async def get_workspace_tree(
     except PermissionError as e:
         logger.error(f"Workspace permission denied: {e}")
         raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting workspace tree: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -176,6 +178,8 @@ async def get_workspace_tree_children(
     except PermissionError as e:
         logger.error(f"Workspace permission denied: {e}")
         raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting tree children for path {path}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -212,6 +216,8 @@ async def read_workspace_file(
             raise HTTPException(status_code=404, detail="No workspace connected for this project")
         content = await WorkspaceFileService.read_file(driver, path)
         return {"path": path, "content": content}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error reading file {path}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -227,8 +233,8 @@ async def save_workspace_file(
         require_limit(entitlements, "max_projects", 0, "Active Projects")
         path = payload.get("path")
         content = payload.get("content", "")
-        _require_project_ssh_access(user_id, project_id, entitlements)
         project_id = payload.get("project_id") or _get_active_project_id(user_id)
+        _require_project_ssh_access(user_id, project_id, entitlements)
         if not path:
             raise HTTPException(status_code=400, detail="File path is required")
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
@@ -236,6 +242,8 @@ async def save_workspace_file(
             raise HTTPException(status_code=404, detail="No workspace connected for this project")
         await WorkspaceFileService.write_file(driver, path, content)
         return {"status": "success", "path": path}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error writing file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -249,8 +257,8 @@ async def execute_command(
     try:
         require_feature(entitlements, "terminal")
         require_limit(entitlements, "max_projects", 0, "Active Projects")
-        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = payload.project_id or _get_active_project_id(user_id)
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         if command_requires_git(payload.command):
             require_feature(entitlements, "git")
             if command_creates_git_repo(payload.command):
@@ -262,6 +270,8 @@ async def execute_command(
         with container.command_approval_service.context(session_id=payload.session_id or "", project_id=target_project_id):
             res = await driver.execute_command(payload.command, cwd=payload.cwd, password=payload.password)
         return res
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error executing command '{payload.command}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -279,6 +289,8 @@ async def activate_workspace_by_path_id(
             _require_project_ssh_access(user_id, str(workspace.get("project_id") or ""), entitlements)
         container.workspace_repo.set_active_workspace(workspace_id, user_id)
         return {"status": "activated", "workspace_id": workspace_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error activating workspace {workspace_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -298,6 +310,8 @@ async def activate_workspace_payload(
                 _require_project_ssh_access(user_id, str(workspace.get("project_id") or ""), entitlements)
             container.workspace_repo.set_active_workspace(ws_id, user_id)
         return {"status": "activated", "workspace_id": ws_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error activating workspace: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -325,6 +339,8 @@ async def create_workspace(
         
         success = container.workspace_repo.create_workspace(ws_id, user_id, **payload)
         return {"status": "created" if success else "failed", "workspace_id": ws_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating workspace: {e}")
         raise HTTPException(status_code=500, detail=str(e))
