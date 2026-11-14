@@ -64,6 +64,7 @@ export const settingsUIController = {
         document.querySelectorAll('.left-tab-btn[data-panel="git"], .proj-settings-tab-btn[data-tab="git"]').forEach((element) => {
             element.classList.toggle("opacity-40", !gitAllowed);
             element.classList.toggle("cursor-not-allowed", !gitAllowed);
+            element.classList.toggle("pointer-events-none", !gitAllowed);
             element.setAttribute("aria-disabled", gitAllowed ? "false" : "true");
             element.title = gitAllowed ? "" : "GitHub / Git integration is not included in your current plan";
             if ("disabled" in element) element.disabled = !gitAllowed;
