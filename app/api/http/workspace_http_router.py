@@ -32,14 +32,14 @@ def _get_user_ssh_hosts(user_id: str) -> set[str]:
     hosts = set()
     for project in container.project_repo.list_projects(user_id):
         project_host = str(project.get("ssh_host") or "").strip().lower()
-        if project_host:
+        if project_host and project_host not in {"localhost", "127.0.0.1"}:
             hosts.add(project_host)
         project_id = str(project.get("id") or "")
         if not project_id:
             continue
         for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
             host = str(workspace.get("host") or "").strip().lower()
-            if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
+            if host and host not in {"localhost", "127.0.0.1"}:
                 hosts.add(host)
     return hosts
 
