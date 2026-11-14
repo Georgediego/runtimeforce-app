@@ -74,8 +74,11 @@ export const orchestratorUIController = {
         try {
             const data = await billingApi.entitlements();
             this._features = data?.valid ? (data.features || {}) : {};
-            if (this._features.local_llms === true) this._features.local_models = true;
-            if (this._features.local_models === true) this._features.local_llms = true;
+            if (Object.prototype.hasOwnProperty.call(this._features, "local_llms")) {
+                this._features.local_models = this._features.local_llms === true;
+            } else {
+                this._features.local_llms = this._features.local_models === true;
+            }
         } catch (error) {
             this._features = {};
             console.warn("Unable to load verified plan features:", error);
