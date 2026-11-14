@@ -1,7 +1,8 @@
 /**
  * Projects UI Controller with Central GitHub OAuth Bridge.
  */
-import { projectsApi, billingApi } from "../core/api_http_client.js";
+import { projectsApi } from "../core/api_http_client.js";
+import { planAccessState } from "../core/plan_access_state.js";
 import { showToast, showPrompt, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 import { workspaceUIController } from "./workspace_ui_controller.js";
@@ -27,25 +28,13 @@ export const projectsUIController = {
     _features: {},
 
     _featureEnabled(featureKey) {
-        const aliases = {
-            git: ["git", "github_git", "github_git_integration", "git_integration", "github / git integration"],
-        };
-        const normalized = Object.fromEntries(Object.entries(this._features).map(([key, value]) => [key.trim().toLowerCase(), value]));
-        for (const key of (aliases[featureKey] || [featureKey])) {
-            if (Object.prototype.hasOwnProperty.call(normalized, key.toLowerCase())) return normalized[key.toLowerCase()] === true;
-        }
-        return false;
+        return planAccessState.featureEnabled(featureKey);
     },
 
     async refreshPlanState() {
-        try {
-            const data = await billingApi.entitlements();
-            this._limits = data?.valid ? (data.limits || {}) : {};
-            this._features = data?.valid ? (data.features || {}) : {};
-        } catch {
-            this._limits = {};
-            this._features = {};
-        }
+        await planAccessState.refresh();
+        this._limits = planAccessState.entitlements.limits || {};
+        this._features = planAccessState.entitlements.features || {};
     },
 
     init() {
@@ -137,7 +126,7 @@ export const projectsUIController = {
             await this.refreshPlanState();
             const data = await projectsApi.list();
             const projects = Array.isArray(data) ? data : data.projects || [];
-            const maxProjects = Number(this._limits.max_projects ?? this._limits.workspaces_limit ?? 0);
+            const maxProjects = planAccessState.limit("max_projects");
             const addButton = document.getElementById("add-project-btn");
             if (addButton) {
                 addButton.disabled = projects.length >= maxProjects;
@@ -312,7 +301,7 @@ export const projectsUIController = {
             await this.refreshPlanState();
             const projectData = await projectsApi.list();
             const projectList = Array.isArray(projectData) ? projectData : projectData.projects || [];
-            const maxGitRepos = Number(this._limits.git_repos ?? this._limits.git_repos_limit ?? 0);
+            const maxGitRepos = planAccessState.limit("git_repos");
             const knownGitRepos = new Set(projectList.map((item) => String(item.github_remote_url || "").trim().replace(/\/$/, "").toLowerCase()).filter(Boolean));
             const currentHasRepo = Boolean(String(proj.github_remote_url || "").trim());
             const canAddGitRepo = this._featureEnabled("git") && maxGitRepos > 0 && (currentHasRepo || knownGitRepos.size < maxGitRepos);
