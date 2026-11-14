@@ -42,8 +42,8 @@ FEATURE_ALIASES = {
 }
 
 LOCAL_PROVIDERS = {"ollama", "lm_studio", "lm-studio", "local"}
-FREE_CLOUD_PROVIDERS = {"gemini", "groq", "sambanova", "cerebras"}
-PRO_CLOUD_PROVIDERS = {"openai", "anthropic", "deepseek", "xai", "openrouter"}
+FREE_CLOUD_PROVIDERS = {"gemini", "openrouter", "groq", "sambanova", "cerebras"}
+PRO_CLOUD_PROVIDERS = {"openai", "anthropic", "deepseek", "xai"}
 
 
 def tool_feature_key(tool_name: str):
