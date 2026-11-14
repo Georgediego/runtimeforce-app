@@ -94,6 +94,7 @@ export const providersUIController = {
         this.bindCardEvents();
         await this.syncSelectedModelsFromSQLite();
         await this.updateStatus();
+        this.applyPlanLocks();
     },
 
     async fetchHardwareDiagnostics() {
