@@ -6,9 +6,34 @@ import { providersUIController } from "./providers_ui_controller.js";
 import { showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 import { updateNotificationService } from "../services/update_notification_service.js";
+import { billingApi } from "../core/api_http_client.js";
 
 export const settingsUIController = {
+    _features: {},
+
+    async loadPlanFeatures() {
+        try {
+            const data = await billingApi.entitlements();
+            this._features = data?.valid ? (data.features || {}) : {};
+        } catch {
+            this._features = {};
+        }
+        const updatesAllowed = this._features.software_updates === true || this._features["software updates"] === true;
+        const updatesButton = document.querySelector('.settings-nav-btn[data-tab="updates"]');
+        if (updatesButton) {
+            updatesButton.disabled = !updatesAllowed;
+            updatesButton.title = updatesAllowed ? "" : "Software Updates are not included in your current plan";
+            updatesButton.classList.toggle("opacity-40", !updatesAllowed);
+            updatesButton.classList.toggle("cursor-not-allowed", !updatesAllowed);
+        }
+        ["rf-update-settings-check-btn", "rf-update-settings-apply-btn"].forEach((id) => {
+            const button = document.getElementById(id);
+            if (button) button.disabled = !updatesAllowed;
+        });
+    },
+
     init() {
+        this.loadPlanFeatures();
         document.getElementById("close-settings-btn")?.addEventListener("click", () => this.close());
         const modal = document.getElementById("settings-modal");
         modal?.addEventListener("click", (e) => {
@@ -59,6 +84,10 @@ export const settingsUIController = {
     },
 
     async switchTab(targetTab) {
+        if (targetTab === "updates" && !(this._features.software_updates === true || this._features["software updates"] === true)) {
+            showToast("Software Updates are not included in your current plan.", "warning");
+            return;
+        }
         document.querySelectorAll(".settings-tab").forEach((t) => {
             t.classList.add("hidden");
             t.style.display = "none";
