@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 import httpx
 from app.core.security.jwt_auth_service import JWTAuthService
 from app.core.interfaces.license_service_interface import ILicenseService
-from app.core.security.entitlements import feature_enabled
 
 logger = logging.getLogger("runtimeforce.service.billing.license")
 DEFAULT_SERVER_URL = "https://runtimeforce.dev"
@@ -92,7 +91,7 @@ class LicenseService(ILicenseService):
             except Exception:
                 cached = None
 
-        if cached and cached.get("valid") is True and feature_enabled(cached, "offline_grace"):
+        if cached and cached.get("valid") is True and ((cached.get("features") or {}).get("offline_grace") is True or (cached.get("features") or {}).get("offline grace") is True):
             limits = cached.get("limits") or {}
             try:
                 grace_hours = max(0, int(limits.get("offline_grace_hours", 0) or 0))
@@ -114,4 +113,4 @@ class LicenseService(ILicenseService):
 
     @staticmethod
     def has_feature(entitlements: Dict[str, Any], feature_key: str) -> bool:
-        return feature_enabled(entitlements, feature_key)
+        features = entitlements.get("features") or {}\n        return entitlements.get("valid") is True and features.get(feature_key) is True
