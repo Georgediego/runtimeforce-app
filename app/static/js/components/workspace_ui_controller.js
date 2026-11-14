@@ -33,9 +33,11 @@ export const workspaceUIController = {
                 const projectHost = String(project.ssh_host || "").trim().toLowerCase();
                 if (projectHost && !["localhost", "127.0.0.1"].includes(projectHost)) hosts.add(projectHost);
                 const workspaceData = await workspacesApi.list(project.id).catch(() => ({ workspaces: [] }));
-                for (const workspace of (workspaceData.workspaces || [])) {
+                const workspaces = Array.isArray(workspaceData) ? workspaceData : (workspaceData.workspaces || []);
+                for (const workspace of workspaces) {
                     const host = String(workspace.host || "").trim().toLowerCase();
-                    if (host && !["localhost", "127.0.0.1"].includes(host)) hosts.add(host);
+                    const isSSH = ["ssh", "remote"].includes(String(workspace.type || "").toLowerCase());
+                    if (host && !["localhost", "127.0.0.1"].includes(host) && isSSH) hosts.add(host);
                 }
             }
             this._knownSSHHosts = hosts;
