@@ -53,8 +53,9 @@ export const planAccessState = {
             const allowed = this.featureEnabled(item.feature)
                 && (item.feature !== "git" || this.limit("git_repos") > 0);
             document.querySelectorAll(item.selector).forEach((element) => {
-                element.disabled = !allowed;
+                if ("disabled" in element) element.disabled = !allowed;
                 element.setAttribute("aria-disabled", String(!allowed));
+                element.style.pointerEvents = allowed ? "" : "none";
                 element.title = allowed ? "" : item.label + " is not included in your current plan";
                 element.classList.toggle("opacity-40", !allowed);
                 element.classList.toggle("cursor-not-allowed", !allowed);
