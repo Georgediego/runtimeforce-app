@@ -2,6 +2,7 @@ import { billingApi } from "./api_http_client.js";
 
 const FEATURE_ALIASES = {
     local_llms: ["local_llms", "local_models", "local llms"],
+    atm: ["atm"],
     git: ["git", "github_git", "github_git_integration", "git_integration", "github / git integration"],
     software_updates: ["software_updates", "software updates"],
     free_cloud_byok: ["free_cloud_byok", "free cloud byok"],
@@ -67,6 +68,22 @@ export const planAccessState = {
             }
         }
         return 0;
+    },
+
+    modelAllowed(model) {
+        if (this.entitlements.valid !== true || !model) return false;
+        const provider = String(model.provider || "").trim().toLowerCase().replace(/-/g, "_");
+        const tier = String(model.tier || "standard").toLowerCase();
+        if (["ollama", "lm_studio", "local", "local_llm"].includes(provider) || provider.startsWith("local_") || provider.endsWith("_local") || tier === "local") {
+            return this.featureEnabled("local_llms");
+        }
+        if (["gemini", "openrouter", "groq", "sambanova", "cerebras"].includes(provider)) {
+            return this.featureEnabled("free_cloud_byok");
+        }
+        if (["openai", "anthropic", "deepseek", "xai"].includes(provider) || ["pro", "standard", "paid"].includes(tier)) {
+            return this.featureEnabled("full_pro_byok");
+        }
+        return this.featureEnabled("free_cloud_byok");
     },
 
     canAddProject(currentCount) {
