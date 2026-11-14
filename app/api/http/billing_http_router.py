@@ -25,4 +25,4 @@ async def get_entitlements(
     license_service: LicenseService = Depends(get_license_service),
 ):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    return await license_service.get_entitlements(token)
+    return await license_service.get_entitlements(token, user_id=user_id)
