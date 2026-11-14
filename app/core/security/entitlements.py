@@ -68,7 +68,15 @@ def require_plan_feature(feature_key: str):
         if not entitlements.get("valid"):
             raise HTTPException(status_code=403, detail="Account entitlements could not be verified")
         if not feature_enabled(entitlements, feature_key):
-            raise HTTPException(status_code=403, detail=f"Feature '{feature_key}' is not enabled for this plan")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "feature_not_enabled",
+                    "feature": feature_key,
+                    "upgrade": (entitlements.get("feature_upgrades") or {}).get(feature_key),
+                    "message": f"Feature '{feature_key}' is not enabled for this plan",
+                },
+            )
         return user_id
 
     return dependency
