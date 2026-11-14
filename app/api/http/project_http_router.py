@@ -117,8 +117,18 @@ async def get_project(
 async def activate_project(
     project_id: str,
     user_id: str = Depends(require_authenticated_user),
-    service: ProjectService = Depends(get_project_service)
+    service: ProjectService = Depends(get_project_service),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    project = service.get_project_details(project_id, user_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    workspace = project.get("workspace") or {}
+    host = str(workspace.get("host") or project.get("ssh_host") or "").strip().lower()
+    if host and host not in {"localhost", "127.0.0.1"}:
+        allowed_hosts = set(sorted(_known_ssh_hosts(service, user_id, service.list_projects(user_id)))[:plan_limit(entitlements, "max_ssh_hosts")])
+        if host not in allowed_hosts:
+            require_limit(entitlements, "max_ssh_hosts", len(_known_ssh_hosts(service, user_id, service.list_projects(user_id))), "SSH Hosts")
     service.activate_project(project_id, user_id)
     return {"status": "success", "active_id": project_id}
 
