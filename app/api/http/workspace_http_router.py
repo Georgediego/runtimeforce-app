@@ -261,6 +261,7 @@ async def execute_command(
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         if command_requires_git(payload.command):
             require_feature(entitlements, "git")
+            require_limit(entitlements, "git_repos", 0, "Git Repositories")
             if command_creates_git_repo(payload.command):
                 used_repos = await _count_other_git_repos(user_id, target_project_id, entitlements)
                 require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
