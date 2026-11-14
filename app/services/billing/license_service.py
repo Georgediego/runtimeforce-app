@@ -66,6 +66,8 @@ class LicenseService(ILicenseService):
             # A definitive 4xx response is not an outage: never extend old privileges.
             if exc.response.status_code < 500:
                 self._cache.pop(token_key, None)
+                if self.subscription_repo and user_id:
+                    self.subscription_repo.delete("", user_id)
                 logger.warning("Entitlements rejected by server (HTTP %s)", exc.response.status_code)
                 return {
                     "valid": False, "plan": "free", "features": {}, "limits": {},
