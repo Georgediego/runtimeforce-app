@@ -5,8 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+253## [Unreleased]
 
+### Security
+- Enforce admin-defined plan features and project, SSH host, and Git repository quotas across local APIs, WebSocket chat, agent tools, and UI controls.
+- Fail closed for unspecified custom-plan features and restore offline authentication only from a previously verified token fingerprint while Offline Grace remains valid.
 ### Added
 - Add a shared frontend plan-access state for feature flags, model eligibility, and project/SSH/Git repository limits.
 - Add regression tests for Free-plan feature gates, model provider classification, quotas, ATM coordinator denial, and admin feature-key normalization.
