@@ -58,7 +58,7 @@ export const providersUIController = {
                     card.classList.add("opacity-50");
                     const heading = card.querySelector(".key-status-" + provider.id);
                     if (heading) {
-                        heading.textContent = "Locked by plan";
+                        heading.textContent = feature === "full_pro_byok" ? "LOCKED · PRO" : "LOCKED · PLAN";
                         heading.title = feature + " is not enabled for this plan";
                     }
                 }
@@ -90,6 +90,7 @@ export const providersUIController = {
 
         await this.fetchHardwareDiagnostics();
         this.renderLocalModelsSection();
+        this.applyPlanLocks();
         this.bindCardEvents();
         await this.syncSelectedModelsFromSQLite();
         await this.updateStatus();
@@ -234,6 +235,10 @@ export const providersUIController = {
         const name = nameInput?.value.trim() || "";
         const url = urlInput?.value.trim() || "";
 
+        if (!this._featureEnabled("local_llms")) {
+            showToast("Local LLMs are not included in your current plan.", "warning");
+            return;
+        }
         if (!name || !url) {
             showToast("Please enter provider name and Base URL", "warning");
             return;
