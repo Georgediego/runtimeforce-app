@@ -109,8 +109,12 @@ export const orchestratorUIController = {
             offline_grace: ["offline_grace", "offline grace"],
         };
         const keys = aliases[featureKey] || [featureKey];
+        const normalizedFeatures = Object.fromEntries(
+            Object.entries(this._features).map(([key, value]) => [key.trim().toLowerCase(), value])
+        );
         for (const key of keys) {
-            if (Object.prototype.hasOwnProperty.call(this._features, key)) return this._features[key] === true;
+            const normalizedKey = key.trim().toLowerCase();
+            if (Object.prototype.hasOwnProperty.call(normalizedFeatures, normalizedKey)) return normalizedFeatures[normalizedKey] === true;
         }
         return false;
     },
