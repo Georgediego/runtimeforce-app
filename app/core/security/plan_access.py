@@ -108,6 +108,10 @@ def command_requires_git(command: str) -> bool:
     return bool(re.search(r"(?<![A-Za-z0-9_])(?:git|gh)(?![A-Za-z0-9_])", value, re.IGNORECASE))
 
 
+def command_clones_git_repo(command: str) -> bool:
+    return bool(re.search(r"\\bgit\\s+clone\\b", str(command or ""), re.IGNORECASE))
+
+
 def command_creates_git_repo(command: str) -> bool:
     value = str(command or "")
     return bool(re.search(r"\bgit\s+(?:clone|init)\b", value, re.IGNORECASE))
