@@ -10,6 +10,7 @@ from app.core.security.jwt_auth_service import require_authenticated_user
 from app.container import get_project_service, get_license_service
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -53,22 +54,29 @@ async def create_project(
     user_id: str = Depends(require_authenticated_user),
     service: ProjectService = Depends(get_project_service),
     license_service: LicenseService = Depends(get_license_service),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
-    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
-    entitlements = await license_service.get_entitlements(token)
-    if not entitlements.get("valid"):
-        raise HTTPException(403, detail="Account entitlements could not be verified")
-    limits = entitlements.get("limits") or {}
-    # Project access is derived from the authoritative project limit.
-    # Do not require a duplicate features.projects flag: cached entitlements
-    # may omit it while a dynamic plan still grants project slots.
-    max_projects = limits.get("max_projects", 1)
-    try:
-        max_projects = max(0, int(max_projects))
-    except (TypeError, ValueError):
-        max_projects = 0
-    if max_projects <= 0:
-        raise HTTPException(403, detail="Project creation is not enabled for this plan")
+    max_projects = plan_limit(entitlements, "max_projects")
+    existing_projects = service.list_projects(user_id)
+    if len(existing_projects) >= max_projects:
+        require_limit(entitlements, "max_projects", len(existing_projects), "Active Projects")
+
+    github_remote = (payload.github_remote_url or "").strip()
+    if github_remote:
+        require_feature(entitlements, "git")
+        known_repos = {
+            str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
+            for project in existing_projects
+            if str(project.get("github_remote_url") or "").strip()
+        }
+        if github_remote.rstrip("/").lower() not in known_repos:
+            require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
+
+    ssh_host = (payload.ssh_host or "").strip().lower()
+    if ssh_host:
+        known_hosts = {str(project.get("ssh_host") or "").strip().lower() for project in existing_projects}
+        if ssh_host not in known_hosts:
+            require_limit(entitlements, "max_ssh_hosts", len(known_hosts - {""}), "SSH Hosts")
     res = service.create_project(user_id, payload.dict(), plan=entitlements.get("plan", "free"), max_projects=max_projects)
     if "error" in res:
         status_code = 403 if res.get("status") == "limit_reached" else 500
@@ -100,8 +108,31 @@ async def update_project(
     project_id: str,
     payload: ProjectPayload,
     user_id: str = Depends(require_authenticated_user),
-    service: ProjectService = Depends(get_project_service)
+    service: ProjectService = Depends(get_project_service),
+    entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    current = service.get_project_details(project_id, user_id)
+    if not current:
+        raise HTTPException(404, "Project not found")
+    new_remote = (payload.github_remote_url or "").strip()
+    old_remote = str(current.get("github_remote_url") or "").strip()
+    if new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower():
+        require_feature(entitlements, "git")
+        projects = service.list_projects(user_id)
+        known_repos = {
+            str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
+            for project in projects
+            if str(project.get("github_remote_url") or "").strip()
+        }
+        require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
+    new_ssh_host = (payload.ssh_host or "").strip().lower()
+    old_ssh_host = str(current.get("ssh_host") or "").strip().lower()
+    if new_ssh_host and new_ssh_host != old_ssh_host:
+        projects = service.list_projects(user_id)
+        known_hosts = {str(project.get("ssh_host") or "").strip().lower() for project in projects}
+        known_hosts.discard("")
+        if new_ssh_host not in known_hosts:
+            require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
     updated = service.update_project(project_id, user_id, payload.dict())
     if not updated:
         raise HTTPException(404, "Project not found or no changes made")
