@@ -130,9 +130,13 @@ async def user_git_repo_ids(
         host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
         if host and host not in {"localhost", "127.0.0.1"} and host not in allowed_hosts:
             continue
-        driver = await workspace_manager.get_driver_for_project(user_id, project_id)
-        if driver and await GitStatusService.is_repo(driver):
-            repo_ids.append(project_id)
+        try:
+            driver = await workspace_manager.get_driver_for_project(user_id, project_id)
+            if driver and await GitStatusService.is_repo(driver):
+                repo_ids.append(project_id)
+        except Exception:
+            # An unavailable workspace must not make unrelated Git APIs fail.
+            continue
     return repo_ids
 
 
