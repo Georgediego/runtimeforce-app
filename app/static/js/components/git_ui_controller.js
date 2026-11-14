@@ -2,12 +2,13 @@
  * Git UI Controller.
  * "Initialize Repository" redirects to Project Settings -> Git tab.
  */
-import { gitApi } from "../core/api_http_client.js";
+import { gitApi, billingApi } from "../core/api_http_client.js";
 import { showToast } from "./toast_ui_controller.js";
 import { projectsUIController } from "./projects_ui_controller.js";
 
 export const gitUIController = {
-    init() {
+    async init() {
+        await this.applyPlanGate();
         document.getElementById("git-init-btn")?.addEventListener("click", () => this.handleInitClick());
         document.getElementById("commit-btn")?.addEventListener("click", () => this.openCommitModal());
         document.getElementById("cancel-commit-btn")?.addEventListener("click", () => this.closeCommitModal());
@@ -16,6 +17,40 @@ export const gitUIController = {
         document.getElementById("close-diff-viewer-btn")?.addEventListener("click", () => this.closeDiffModal());
         document.getElementById("git-push-btn")?.addEventListener("click", () => this.executePush());
         document.getElementById("git-pull-btn")?.addEventListener("click", () => this.executePull());
+    },
+
+    async applyPlanGate() {
+        const gitTab = document.querySelector('.left-tab-btn[data-panel="git"]');
+        const gitPanel = document.getElementById("left-panel-git");
+        try {
+            const entitlements = await billingApi.entitlements();
+            const allowed = entitlements?.valid === true && (
+                entitlements.features?.git === true ||
+                entitlements.features?.github_git === true ||
+                entitlements.features?.github_integration === true
+            );
+            if (allowed) return;
+            if (gitTab) {
+                gitTab.classList.add("opacity-40", "cursor-not-allowed");
+                gitTab.style.pointerEvents = "none";
+                gitTab.setAttribute("aria-disabled", "true");
+                gitTab.title = "Git integration is not included in the current plan.";
+                const lock = document.createElement("span");
+                lock.className = "absolute right-0.5 bottom-0.5 text-amber-400";
+                lock.innerHTML = '<i data-lucide="lock" class="w-2.5 h-2.5"></i>';
+                gitTab.classList.add("relative");
+                gitTab.appendChild(lock);
+                if (window.lucide) window.lucide.createIcons({ root: gitTab });
+            }
+            if (gitPanel) gitPanel.classList.add("hidden");
+        } catch (error) {
+            if (gitTab) {
+                gitTab.classList.add("opacity-40", "cursor-not-allowed");
+                gitTab.style.pointerEvents = "none";
+                gitTab.title = "Plan permissions could not be verified.";
+            }
+            console.warn("Git plan gate unavailable:", error);
+        }
     },
 
     async handleInitClick() {
