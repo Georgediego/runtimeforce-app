@@ -131,12 +131,24 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             )
             if uses_ssh:
                 ssh_limit = max(0, int((entitlements.get("limits") or {}).get("max_ssh_hosts", 0) or 0))
-                if ssh_limit <= 0:
+                configured_hosts = set()
+                for saved_project in container.project_repo.list_projects(user_id):
+                    legacy_host = str(saved_project.get("ssh_host") or "").strip().lower()
+                    if legacy_host:
+                        configured_hosts.add((legacy_host, int(saved_project.get("ssh_port") or 22)))
+                    saved_project_id = saved_project.get("id")
+                    if saved_project_id:
+                        for saved_workspace in container.workspace_repo.get_all_workspaces(user_id, saved_project_id):
+                            if str(saved_workspace.get("type") or "").lower() == "ssh":
+                                host = str(saved_workspace.get("host") or "").strip().lower()
+                                if host:
+                                    configured_hosts.add((host, int(saved_workspace.get("port") or 22)))
+                if ssh_limit <= 0 or len(configured_hosts) > ssh_limit:
                     await websocket.send_json({
                         "status": "error",
                         "code": "limit_reached",
                         "limit": "max_ssh_hosts",
-                        "error": "SSH access is disabled by the SSH Hosts limit for this plan.",
+                        "error": "SSH access is blocked because configured hosts exceed this plan's SSH Hosts limit. Remove excess hosts first.",
                     })
                     continue
 
