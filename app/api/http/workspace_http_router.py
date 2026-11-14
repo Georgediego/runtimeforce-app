@@ -57,6 +57,8 @@ async def list_workspaces(
             return {"workspaces": []}
         workspaces = container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=target_project_id)
         return {"workspaces": workspaces}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error listing workspaces: {e}")
         return {"workspaces": []}
