@@ -5,7 +5,7 @@
  * active project from localStorage — prevents "all workspaces shown" leaks
  * when editing a project that is not currently active.
  */
-import { workspacesApi } from "../core/api_http_client.js";
+import { workspacesApi, projectsApi, billingApi } from "../core/api_http_client.js";
 import { showToast, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -16,6 +16,49 @@ function resolveScopedProjectId(explicitId) {
 }
 
 export const workspaceUIController = {
+    _sshHostLimit: 0,
+    _knownSSHHosts: new Set(),
+
+    async refreshSSHPlanState() {
+        try {
+            const [entitlements, projectData] = await Promise.all([
+                billingApi.entitlements(),
+                projectsApi.list(),
+            ]);
+            const limits = entitlements?.valid ? (entitlements.limits || {}) : {};
+            this._sshHostLimit = Number(limits.max_ssh_hosts ?? 0);
+            const projects = Array.isArray(projectData) ? projectData : (projectData.projects || []);
+            const hosts = new Set();
+            for (const project of projects) {
+                const projectHost = String(project.ssh_host || "").trim().toLowerCase();
+                if (projectHost && !["localhost", "127.0.0.1"].includes(projectHost)) hosts.add(projectHost);
+                const workspaceData = await workspacesApi.list(project.id).catch(() => ({ workspaces: [] }));
+                for (const workspace of (workspaceData.workspaces || [])) {
+                    const host = String(workspace.host || "").trim().toLowerCase();
+                    if (host && !["localhost", "127.0.0.1"].includes(host)) hosts.add(host);
+                }
+            }
+            this._knownSSHHosts = hosts;
+        } catch {
+            this._sshHostLimit = 0;
+            this._knownSSHHosts = new Set();
+        }
+        this.updateSSHHostControl();
+    },
+
+    updateSSHHostControl() {
+        const button = document.getElementById("add-ssh-ws-btn");
+        if (!button) return;
+        const requestedHost = String(document.getElementById("ssh-host")?.value || "").trim().toLowerCase();
+        const allowed = this._sshHostLimit > 0 && (
+            this._knownSSHHosts.has(requestedHost) || this._knownSSHHosts.size < this._sshHostLimit
+        );
+        button.disabled = !allowed;
+        button.title = allowed ? "" : "SSH host limit reached or SSH access is not included in your plan";
+        button.classList.toggle("opacity-40", !allowed);
+        button.classList.toggle("cursor-not-allowed", !allowed);
+    },
+
     setActiveEditingProject(projectId) {
         editingProjectId = projectId || null;
     },
@@ -43,6 +86,7 @@ export const workspaceUIController = {
         const container = document.getElementById("ws-list");
         if (!container) return;
         const scopedProjectId = resolveScopedProjectId(projectIdOverride);
+        await this.refreshSSHPlanState();
 
         if (!scopedProjectId) {
             container.innerHTML = '<div class="text-center text-xs text-[var(--ide-text-muted)] py-4">No project selected</div>';
@@ -202,6 +246,9 @@ export const workspaceUIController = {
                 showToast(`SSH Error: ${e.message}`, "error");
             }
         });
+
+        document.getElementById("ssh-host")?.addEventListener("input", () => this.updateSSHHostControl());
+        this.refreshSSHPlanState();
 
         document.getElementById("ssh-auth-type")?.addEventListener("change", (e) => {
             const val = e.target.value;
