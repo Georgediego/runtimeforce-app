@@ -157,10 +157,10 @@ export const planAccessState = {
         return (knownHosts?.size || 0) < maximum;
     },
 
-    canAddGitRepo(existingCount, currentProjectHasRepo = false) {
+    canAddGitRepo(existingCount, currentProjectHasRepo = false, currentProjectAllowed = true) {
         const maximum = this.limit("git_repos");
-        return this.featureEnabled("git") && maximum > 0 && (
-            currentProjectHasRepo || Number(existingCount) < maximum
-        );
+        if (!this.featureEnabled("git") || maximum <= 0) return false;
+        if (currentProjectHasRepo) return currentProjectAllowed === true;
+        return Number(existingCount) < maximum;
     },
 };
