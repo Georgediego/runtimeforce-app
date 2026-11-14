@@ -45,6 +45,15 @@ class JWTAuthService:
                     RUNTIMEFORCE_AUTH_URL,
                     headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
                 )
+            if response.status_code in {401, 403}:
+                _AUTH_CACHE.pop(cache_key, None)
+                return None
+            if response.status_code >= 500:
+                raise httpx.HTTPStatusError(
+                    f"RuntimeForce auth verification failed with HTTP {response.status_code}",
+                    request=response.request,
+                    response=response,
+                )
             if response.status_code != 200:
                 _AUTH_CACHE.pop(cache_key, None)
                 return None
@@ -69,6 +78,29 @@ class JWTAuthService:
             return user
         except Exception as exc:
             logger.warning("RuntimeForce account verification failed (%s)", type(exc).__name__)
+            # Offline authentication is permitted only for a token fingerprint
+            # previously verified online and only while its cached plan allows grace.
+            try:
+                from app.container import container
+
+                subscription_repo = getattr(container, "subscription_repo", None)
+                license_service = getattr(container, "license_service", None)
+                cached_email = (
+                    subscription_repo.get_user_id_by_token_hash(cache_key)
+                    if subscription_repo else None
+                )
+                if cached_email and license_service:
+                    entitlements = await license_service.get_entitlements(token, user_id=cached_email)
+                    if entitlements.get("valid") is True:
+                        user = {
+                            "id": cached_email,
+                            "email": cached_email,
+                            "tier": str(entitlements.get("plan") or "free"),
+                        }
+                        _AUTH_CACHE[cache_key] = {"checked_at": now, "user": user}
+                        return user
+            except Exception as offline_exc:
+                logger.warning("Offline account verification failed (%s)", type(offline_exc).__name__)
             return None
 
     @staticmethod
