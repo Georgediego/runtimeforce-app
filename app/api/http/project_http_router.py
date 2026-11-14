@@ -8,12 +8,32 @@ from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.core.security.entitlements import require_plan_feature
-from app.container import get_project_service, get_license_service
+from app.container import get_project_service, get_license_service, container
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
 
 logger = logging.getLogger("runtimeforce.api.http.project")
+
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
+
+
+def _unique_ssh_hosts(user_id: str, projects, exclude_project_id: Optional[str] = None):
+    hosts = set()
+    for project in projects:
+        project_id = project.get("id")
+        if project_id == exclude_project_id:
+            continue
+        host = str(project.get("ssh_host") or "").strip().lower()
+        if host:
+            hosts.add((host, int(project.get("ssh_port") or 22)))
+        if project_id:
+            for workspace in container.workspace_repo.get_all_workspaces(user_id, project_id):
+                if str(workspace.get("type") or "").lower() != "ssh":
+                    continue
+                workspace_host = str(workspace.get("host") or "").strip().lower()
+                if workspace_host:
+                    hosts.add((workspace_host, int(workspace.get("port") or 22)))
+
 
 class ProjectPayload(BaseModel):
     name: str
@@ -67,8 +87,9 @@ async def create_project(
         if "ssh" in features and features.get("ssh") is not True:
             raise HTTPException(403, detail="SSH workspaces are not enabled for this plan")
         max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
-        current_ssh_hosts = sum(1 for project in existing_projects if (project.get("ssh_host") or "").strip())
-        if current_ssh_hosts >= max_ssh_hosts:
+        current_ssh_hosts = _unique_ssh_hosts(user_id, existing_projects)
+        ssh_key = (payload.ssh_host.strip().lower(), int(payload.ssh_port or 22))
+        if ssh_key not in current_ssh_hosts and len(current_ssh_hosts) >= max_ssh_hosts:
             raise HTTPException(403, detail="SSH host limit reached for this plan")
 
     if payload.github_remote_url and payload.github_remote_url.strip():
@@ -141,11 +162,9 @@ async def update_project(
         if "ssh" in features and features.get("ssh") is not True:
             raise HTTPException(403, detail="SSH workspaces are not enabled for this plan")
         max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
-        other_ssh_hosts = sum(
-            1 for project in projects
-            if project.get("id") != project_id and (project.get("ssh_host") or "").strip()
-        )
-        if other_ssh_hosts >= max_ssh_hosts:
+        other_ssh_hosts = _unique_ssh_hosts(user_id, projects, exclude_project_id=project_id)
+        ssh_key = (new_ssh_host.lower(), int(payload.ssh_port or 22))
+        if ssh_key not in other_ssh_hosts and len(other_ssh_hosts) >= max_ssh_hosts:
             raise HTTPException(403, detail="SSH host limit reached for this plan")
 
     new_remote = (payload.github_remote_url or "").strip()
