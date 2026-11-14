@@ -33,6 +33,7 @@ async def decide_command_approval(
     pending = next((item for item in pending_items if item.get("pending_id") == pending_id), None)
     if pending and command_requires_git(pending.get("command", "")):
         require_feature(entitlements, "git")
+        require_limit(entitlements, "git_repos", 0, "Git Repositories")
         if command_creates_git_repo(pending.get("command", "")):
             current_project_id = str(pending.get("project_id") or "")
             used_repos = {
