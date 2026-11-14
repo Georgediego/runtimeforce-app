@@ -44,13 +44,13 @@ async def _count_other_git_repos(user_id: str, workspace_manager: WorkspaceManag
     projects = container.project_repo.list_projects(user_id)
     for project in projects:
         project_host = str(project.get("ssh_host") or "").strip().lower()
-        if project_host:
+        if project_host and project_host not in {"localhost", "127.0.0.1"}:
             all_hosts.add(project_host)
         project_id = str(project.get("id") or "")
         if project_id:
             for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
                 host = str(workspace.get("host") or "").strip().lower()
-                if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
+                if host and host not in {"localhost", "127.0.0.1"}:
                     all_hosts.add(host)
     allowed_hosts = set(sorted(all_hosts)[:plan_limit(entitlements, "max_ssh_hosts")])
     for project in projects:
