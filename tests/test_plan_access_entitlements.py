@@ -109,3 +109,20 @@ def test_agent_coordinator_rejects_atm_before_running_tools():
         assert first["feature"] == "atm"
 
     asyncio.run(run())
+
+
+
+def test_project_access_keeps_only_projects_within_current_allowance(monkeypatch):
+    from app.core.security import entitlements as entitlement_dependencies
+
+    class ProjectRepo:
+        def list_projects(self, user_id):
+            return [{"id": "active"}, {"id": "older"}]
+
+    monkeypatch.setattr(entitlement_dependencies.container, "project_repo", ProjectRepo())
+    entitlements = free_entitlements()
+    entitlement_dependencies.require_project_access("user-1", "active", entitlements)
+    with pytest.raises(HTTPException) as error:
+        entitlement_dependencies.require_project_access("user-1", "older", entitlements)
+    assert error.value.status_code == 403
+    assert error.value.detail["limit"] == "max_projects"
