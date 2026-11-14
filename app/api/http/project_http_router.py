@@ -21,11 +21,10 @@ def _unique_ssh_hosts(user_id: str, projects, exclude_project_id: Optional[str] 
     hosts = set()
     for project in projects:
         project_id = project.get("id")
-        if project_id == exclude_project_id:
-            continue
-        host = str(project.get("ssh_host") or "").strip().lower()
-        if host:
-            hosts.add((host, int(project.get("ssh_port") or 22)))
+        if project_id != exclude_project_id:
+            host = str(project.get("ssh_host") or "").strip().lower()
+            if host:
+                hosts.add((host, int(project.get("ssh_port") or 22)))
         if project_id:
             for workspace in container.workspace_repo.get_all_workspaces(user_id, project_id):
                 if str(workspace.get("type") or "").lower() != "ssh":
