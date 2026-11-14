@@ -17,8 +17,10 @@ ENTITLEMENT_REFRESH_SECONDS = 30
 
 
 def _timestamp(value):
-    if not value:
+    if value in (None, ""):
         return None
+    if isinstance(value, (int, float)):
+        return float(value)
     try:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         if parsed.tzinfo is None:
