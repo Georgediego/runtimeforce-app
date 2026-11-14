@@ -85,7 +85,7 @@ def provider_feature(provider_id: str) -> str:
 
 
 def model_allowed_by_plan(entitlements: Dict[str, Any], model: Any) -> bool:
-    tier = str(getattr(model, "tier", "free") or "free").lower()
+    tier = str(getattr(model, "tier", "standard") or "standard").lower()
     provider = str(getattr(model, "provider", "") or "").lower()
     if tier == "local" or provider in LOCAL_PROVIDERS:
         return feature_enabled(entitlements, "local_llms")
