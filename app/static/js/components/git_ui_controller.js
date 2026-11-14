@@ -24,10 +24,11 @@ export const gitUIController = {
         const gitPanel = document.getElementById("left-panel-git");
         try {
             const entitlements = await billingApi.entitlements();
+            const features = entitlements?.features || {};
             const allowed = entitlements?.valid === true && (
-                entitlements.features?.git === true ||
-                entitlements.features?.github_git === true ||
-                entitlements.features?.github_integration === true
+                Object.prototype.hasOwnProperty.call(features, "git")
+                    ? features.git === true
+                    : features.github_git === true || features.github_integration === true
             );
             if (allowed) return;
             if (gitTab) {
