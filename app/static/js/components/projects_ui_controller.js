@@ -185,7 +185,7 @@ export const projectsUIController = {
                 .join("");
 
             if (projects.length > maxProjects) {
-                const allowedProjectIds = new Set(projects.slice(0, maxProjects).map((project) => String(project.id)));
+                const allowedProjectIds = new Set(allowedProjects.map((project) => String(project.id)));
                 for (const project of projects) {
                     if (allowedProjectIds.has(String(project.id))) continue;
                     const card = Array.from(container.querySelectorAll("[data-id]"))
