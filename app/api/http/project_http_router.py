@@ -12,7 +12,7 @@ from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
 from app.services.git.git_status_service import GitStatusService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, allowed_ssh_hosts, require_ssh_host_access
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -36,33 +36,6 @@ class ProjectPayload(BaseModel):
     version_scheme: Optional[str] = "semver"
     prerelease_tag: Optional[str] = ""
     current_version: Optional[str] = "v1.0.0"
-
-async def _count_other_git_repos(
-    user_id: str,
-    service: ProjectService,
-    workspace_manager: WorkspaceManagerService,
-    entitlements: Dict[str, Any],
-    exclude_project_id: Optional[str] = None,
-) -> int:
-    projects = service.list_projects(user_id)
-    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
-    repo_projects = set()
-    for project in projects:
-        project_id = str(project.get("id") or "")
-        if not project_id or project_id == exclude_project_id:
-            continue
-        if str(project.get("github_remote_url") or "").strip():
-            repo_projects.add(project_id)
-            continue
-        workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
-        host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
-        if host and host not in {"localhost", "127.0.0.1"} and host not in allowed_hosts:
-            continue
-        driver = await workspace_manager.get_driver_for_project(user_id, project_id)
-        if driver and await GitStatusService.is_repo(driver):
-            repo_projects.add(project_id)
-    return len(repo_projects)
-
 
 class BumpVersionPayload(BaseModel):
     changelog: str
@@ -95,8 +68,8 @@ async def create_project(
     if github_remote or (payload.github_pat_enc or "").strip():
         require_feature(entitlements, "git")
     if github_remote:
-        used_repos = await _count_other_git_repos(
-            user_id, service, workspace_manager, entitlements
+        used_repos = await count_other_git_repos(
+            user_id, workspace_manager, None, entitlements
         )
         require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
 
@@ -160,8 +133,8 @@ async def update_project(
     if (new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower()) or (new_pat and new_pat != old_pat):
         require_feature(entitlements, "git")
     if new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower():
-        used_repos = await _count_other_git_repos(
-            user_id, service, workspace_manager, entitlements, exclude_project_id=project_id
+        used_repos = await count_other_git_repos(
+            user_id, workspace_manager, project_id, entitlements
         )
         require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
     new_ssh_host = (payload.ssh_host or "").strip().lower()
