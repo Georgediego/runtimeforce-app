@@ -61,11 +61,14 @@ export const projectsUIController = {
 
     async initActiveProject() {
         try {
+            await this.refreshPlanState();
             const data = await projectsApi.list();
             const projects = Array.isArray(data) ? data : data.projects || [];
-            if (projects.length > 0) {
+            const maxProjects = planAccessState.limit("max_projects");
+            const allowedProjects = projects.slice(0, maxProjects);
+            if (allowedProjects.length > 0) {
                 const savedId = localStorage.getItem("rf_active_project_id");
-                let activeProj = projects.find((p) => p.is_active) || projects.find((p) => p.id === savedId) || projects[0];
+                let activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0];
                 
                 localStorage.setItem("rf_active_project_id", activeProj.id);
                 this.updateActiveHeader(activeProj);
@@ -141,7 +144,8 @@ export const projectsUIController = {
                 return;
             }
             const savedId = localStorage.getItem("rf_active_project_id");
-            const activeProj = projects.find((p) => p.is_active) || projects.find((p) => p.id === savedId) || projects[0];
+            const allowedProjects = projects.slice(0, maxProjects);
+            const activeProj = allowedProjects.find((p) => p.is_active) || allowedProjects.find((p) => p.id === savedId) || allowedProjects[0] || projects[0];
             localStorage.setItem("rf_active_project_id", activeProj.id);
             this.updateActiveHeader(activeProj);
 
