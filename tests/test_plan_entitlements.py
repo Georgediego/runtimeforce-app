@@ -37,7 +37,7 @@ def test_chat_strategy_feature_map(strategy, feature):
         ("cerebras", "free_cloud_byok"),
         ("openai", "full_pro_byok"),
         ("anthropic", "full_pro_byok"),
-        ("openrouter", "full_pro_byok"),
+        ("openrouter", "free_cloud_byok"),
         ("unknown-provider", "full_pro_byok"),
     ],
 )
