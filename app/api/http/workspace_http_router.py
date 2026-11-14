@@ -13,6 +13,7 @@ from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit
 
 logger = logging.getLogger("runtimeforce.workspace_http")
 router = APIRouter(prefix="/api/v1/workspaces", tags=["Workspaces"])
@@ -23,6 +24,23 @@ class ExecuteCommandPayload(BaseModel):
     password: Optional[str] = None
     project_id: Optional[str] = None
     session_id: Optional[str] = None
+
+
+def _get_user_ssh_hosts(user_id: str) -> set[str]:
+    hosts = set()
+    for project in container.project_repo.list_projects(user_id):
+        project_host = str(project.get("ssh_host") or "").strip().lower()
+        if project_host:
+            hosts.add(project_host)
+        project_id = str(project.get("id") or "")
+        if not project_id:
+            continue
+        for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
+            host = str(workspace.get("host") or "").strip().lower()
+            if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
+                hosts.add(host)
+    return hosts
+
 
 def _get_active_project_id(user_id: str) -> str:
     active_proj = container.project_repo.get_active_project(user_id)
@@ -63,9 +81,11 @@ async def get_active_workspace(
 async def get_workspace_tree(
     project_id: Optional[str] = Query(None),
     path: Optional[str] = Query(None),
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_feature(entitlements, "editor")
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -90,9 +110,11 @@ async def get_workspace_tree(
 async def get_workspace_tree_children(
     path: str = Query(...),
     project_id: Optional[str] = Query(None),
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_feature(entitlements, "editor")
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -131,9 +153,11 @@ async def get_local_environment(user_id: str = Depends(require_authenticated_use
 async def read_workspace_file(
     path: str = Query(...),
     project_id: Optional[str] = Query(None),
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_feature(entitlements, "editor")
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -147,9 +171,11 @@ async def read_workspace_file(
 @router.post("/file")
 async def save_workspace_file(
     payload: dict,
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_feature(entitlements, "editor")
         path = payload.get("path")
         content = payload.get("content", "")
         project_id = payload.get("project_id") or _get_active_project_id(user_id)
@@ -167,9 +193,11 @@ async def save_workspace_file(
 @router.post("/execute")
 async def execute_command(
     payload: ExecuteCommandPayload,
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_feature(entitlements, "terminal")
         target_project_id = payload.project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -210,9 +238,19 @@ async def activate_workspace_payload(
 @router.post("")
 async def create_workspace(
     payload: dict,
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        host_value = str(payload.get("host") or payload.get("ssh_host") or "").strip().lower()
+        is_ssh_workspace = bool(host_value) and (
+            str(payload.get("type") or "").lower() in {"ssh", "remote"}
+            or host_value not in {"localhost", "127.0.0.1"}
+        )
+        if is_ssh_workspace:
+            known_hosts = _get_user_ssh_hosts(user_id)
+            if host_value not in known_hosts:
+                require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
         ws_id = payload.get("id") or str(uuid.uuid4())
         target_project_id = payload.get("project_id") or _get_active_project_id(user_id)
         payload["project_id"] = target_project_id
