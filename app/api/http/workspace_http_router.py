@@ -13,7 +13,7 @@ from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts
 from app.core.security.plan_access import command_requires_git, command_creates_git_repo
 from app.services.git.git_status_service import GitStatusService
 
@@ -29,19 +29,7 @@ class ExecuteCommandPayload(BaseModel):
 
 
 def _get_user_ssh_hosts(user_id: str) -> set[str]:
-    hosts = set()
-    for project in container.project_repo.list_projects(user_id):
-        project_host = str(project.get("ssh_host") or "").strip().lower()
-        if project_host and project_host not in {"localhost", "127.0.0.1"}:
-            hosts.add(project_host)
-        project_id = str(project.get("id") or "")
-        if not project_id:
-            continue
-        for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
-            host = str(workspace.get("host") or "").strip().lower()
-            if host and host not in {"localhost", "127.0.0.1"}:
-                hosts.add(host)
-    return hosts
+    return user_ssh_hosts(user_id)
 
 
 def _require_project_ssh_access(user_id: str, project_id: str, entitlements: dict) -> None:
@@ -50,9 +38,9 @@ def _require_project_ssh_access(user_id: str, project_id: str, entitlements: dic
     host = str((workspace or {}).get("host") or (project or {}).get("ssh_host") or "").strip().lower()
     if not host or host in {"localhost", "127.0.0.1"}:
         return
-    all_hosts = sorted(_get_user_ssh_hosts(user_id))
+    all_hosts = user_ssh_hosts(user_id)
     limit = plan_limit(entitlements, "max_ssh_hosts")
-    if host not in set(all_hosts[:limit]):
+    if host not in allowed_ssh_hosts(user_id, entitlements):
         raise HTTPException(status_code=403, detail={
             "code": "plan_limit_reached",
             "limit": "max_ssh_hosts",
