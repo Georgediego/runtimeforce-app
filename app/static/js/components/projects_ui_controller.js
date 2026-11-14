@@ -65,7 +65,7 @@ export const projectsUIController = {
             const projects = Array.isArray(data) ? data : data.projects || [];
             if (projects.length > 0) {
                 const savedId = localStorage.getItem("rf_active_project_id");
-                let activeProj = projects.find((p) => p.id === savedId) || projects.find((p) => p.is_active) || projects[0];
+                let activeProj = projects.find((p) => p.is_active) || projects.find((p) => p.id === savedId) || projects[0];
                 
                 localStorage.setItem("rf_active_project_id", activeProj.id);
                 this.updateActiveHeader(activeProj);
@@ -141,7 +141,7 @@ export const projectsUIController = {
                 return;
             }
             const savedId = localStorage.getItem("rf_active_project_id");
-            const activeProj = projects.find((p) => p.id === savedId) || projects.find((p) => p.is_active) || projects[0];
+            const activeProj = projects.find((p) => p.is_active) || projects.find((p) => p.id === savedId) || projects[0];
             localStorage.setItem("rf_active_project_id", activeProj.id);
             this.updateActiveHeader(activeProj);
 
@@ -171,6 +171,24 @@ export const projectsUIController = {
                 </div>`
                 )
                 .join("");
+
+            if (projects.length > maxProjects) {
+                for (const project of projects) {
+                    if (project.id === activeProj.id) continue;
+                    const card = Array.from(container.querySelectorAll("[data-id]"))
+                        .find((element) => element.dataset.id === String(project.id));
+                    if (!card) continue;
+                    const badge = document.createElement("span");
+                    badge.className = "text-[9px] font-bold text-[var(--ide-text-muted)]";
+                    badge.textContent = "🔒 PLAN LOCK";
+                    card.querySelector(".flex.items-center.justify-between")?.appendChild(badge);
+                    card.querySelectorAll(".activate-proj-btn, .bump-ver-btn, .edit-proj-btn").forEach((button) => {
+                        button.disabled = true;
+                        button.title = "Upgrade your plan to access this project";
+                        button.classList.add("opacity-40", "cursor-not-allowed");
+                    });
+                }
+            }
 
             if (window.lucide) window.lucide.createIcons({ root: container });
 
