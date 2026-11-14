@@ -1898,49 +1898,25 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 .tree-node-name::selection{background:rgba(7,247,122,.28);color:var(--ide-text-primary)}
 
 
-/* Runtime Graph — Neon Emerald Astrolabe */
+/* Runtime Graph — live spherical network */
 #file-explorer-col{min-height:0}
-#rf-memory-widget.rf-astrolabe{
-  position:relative;z-index:2;flex:0 0 46%;min-height:270px;max-height:54%;
-  width:100%;margin-top:auto;padding:0;display:flex;overflow:hidden;
-  border-top:1px solid rgba(55,255,158,.2);
-  background:radial-gradient(ellipse at 50% 48%,rgba(8,68,43,.18),rgba(2,10,7,.94) 76%);
-}
-#rf-memory-widget .rf-astrolabe-body{position:relative;flex:1;min-height:0;width:100%;overflow:hidden}
-.rf-astrolabe-collapse{position:absolute;right:8px;top:8px;z-index:7;width:24px;height:23px;display:grid;place-items:center;border:1px solid rgba(74,214,151,.25);border-radius:6px;background:rgba(3,20,13,.72);color:#9cefc0;cursor:pointer;backdrop-filter:blur(5px)}
-.rf-astrolabe-collapse:hover{border-color:#52ffad;color:#d4ffe5;background:rgba(8,55,35,.85)}
-#rf-memory-widget.is-collapsed .rf-astrolabe-collapse{position:relative;top:auto;right:auto;margin-left:auto}
-#rf-memory-widget.is-collapsed .rf-astrolabe-collapse i{transform:rotate(180deg)}
-.rf-astrolabe-stage,#rf-astrolabe-viewport{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
-#rf-astrolabe-viewport canvas{display:block;width:100%;height:100%;outline:none;cursor:grab}
-.rf-astrolabe-hud{position:absolute;left:10px;top:9px;z-index:3;max-width:62%;pointer-events:none;text-shadow:0 1px 5px #00170d}
-.rf-astrolabe-state{display:flex;align-items:center;gap:7px;margin-bottom:6px}
-.rf-astrolabe-state i{width:6px;height:6px;border-radius:50%;background:#52ffad;box-shadow:0 0 10px #52ffad}
-#rf-memory-widget[data-state="active"] .rf-astrolabe-state i{box-shadow:0 0 14px #52ffad}
-#rf-memory-widget[data-state="failed"] .rf-astrolabe-state i{background:#ff665b;box-shadow:0 0 12px #ff665b}
-.rf-astrolabe-state b{font:800 8px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#9dffbf}
-#rf-memory-widget[data-state="failed"] .rf-astrolabe-state b{color:#ff8177}
-.rf-astrolabe-readout{display:grid;gap:3px}
-.rf-astrolabe-readout span{display:flex;gap:5px;align-items:baseline;font:700 6px 'Inter',sans-serif;letter-spacing:.08em;color:rgba(151,210,178,.62)}
-.rf-astrolabe-readout b{font:600 7px 'JetBrains Mono',monospace;letter-spacing:0;color:#c2f9d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
-.rf-astrolabe-controls{position:absolute;right:8px;top:8px;z-index:5;display:flex;gap:5px}
-.rf-astrolabe-controls button{width:24px;height:23px;display:grid;place-items:center;border:1px solid rgba(74,214,151,.25);border-radius:6px;background:rgba(3,20,13,.72);color:#9cefc0;cursor:pointer;backdrop-filter:blur(5px)}
-.rf-astrolabe-controls button:hover{border-color:#52ffad;color:#d4ffe5;background:rgba(8,55,35,.85)}
-.rf-astrolabe-inspector{position:absolute;left:8px;bottom:8px;z-index:4;display:flex;flex-direction:column;gap:3px;max-width:48%;padding:6px 8px;border:1px solid rgba(67,221,151,.2);border-radius:7px;background:rgba(2,15,10,.72);backdrop-filter:blur(7px);pointer-events:none}
-.rf-astrolabe-inspector>b{font:700 8px 'Inter',sans-serif;color:#c4ffdc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rf-astrolabe-inspector>span{display:flex;gap:8px;font:700 6px 'JetBrains Mono',monospace;color:#6fcea0}
-.rf-astrolabe-inspector small{font:7px 'JetBrains Mono',monospace;color:rgba(175,218,192,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rf-astrolabe-events{position:absolute;right:8px;bottom:8px;z-index:4;display:flex;flex-direction:column;gap:4px;width:43%;max-height:100px;overflow:hidden;pointer-events:none}
-.rf-astrolabe-event{display:flex;align-items:center;gap:5px;min-width:0;padding:3px 5px;border:1px solid rgba(70,190,135,.12);border-radius:5px;background:rgba(2,17,11,.66);backdrop-filter:blur(5px)}
-.rf-astrolabe-event>i{width:4px;height:4px;flex:0 0 4px;border-radius:50%;background:#49eaa0;box-shadow:0 0 6px rgba(73,234,160,.7)}
-.rf-astrolabe-event.is-error>i{background:#ff665b;box-shadow:0 0 6px #ff665b}
-.rf-astrolabe-event.is-warn>i{background:#ffbf62;box-shadow:0 0 6px #ffbf62}
-.rf-astrolabe-event>span{display:flex;flex:1;min-width:0;flex-direction:column;gap:1px}
-.rf-astrolabe-event b{font:600 7px 'Inter',sans-serif;color:#c3f6d7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rf-astrolabe-event small{font:6px 'JetBrains Mono',monospace;color:rgba(160,205,180,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rf-astrolabe-event time{font:6px 'JetBrains Mono',monospace;color:rgba(160,205,180,.48);white-space:nowrap}
-#rf-memory-widget.is-collapsed{flex-basis:28px;min-height:28px;max-height:28px;padding:3px 8px;background:transparent;border:0}
-#rf-memory-widget.is-collapsed .rf-astrolabe-body{display:none}
-@media(max-height:760px){#rf-memory-widget.rf-astrolabe{min-height:220px;flex-basis:43%}.rf-astrolabe-events{max-height:76px}}
-@media(max-height:620px){#rf-memory-widget.rf-astrolabe{min-height:185px;flex-basis:40%}.rf-astrolabe-readout{gap:2px}.rf-astrolabe-events{max-height:56px}}
-@media(max-width:900px){.rf-astrolabe-inspector{max-width:55%}.rf-astrolabe-events{width:40%}}
+#rf-memory-widget.rf-network-graph{position:relative;z-index:2;flex:0 0 46%;min-height:270px;max-height:54%;width:100%;margin-top:auto;padding:0;display:flex;overflow:hidden;border-top:1px solid rgba(90,140,190,.16);background:#050912}
+#rf-memory-widget .rf-network-body{position:relative;flex:1;min-height:0;width:100%;overflow:hidden;background:radial-gradient(ellipse at 52% 48%,rgba(23,39,61,.24),rgba(4,8,15,.98) 75%)}
+#rf-network-canvas{display:block;width:100%;height:100%;outline:0;cursor:crosshair}
+.rf-network-status{position:absolute;left:9px;top:8px;display:flex;align-items:center;gap:7px;pointer-events:none;color:#93a8c1;font:700 7px 'JetBrains Mono',monospace;letter-spacing:.08em}
+.rf-network-status i{width:5px;height:5px;border-radius:50%;background:#80d9ff;box-shadow:0 0 8px #80d9ff}
+#rf-memory-widget[data-state="active"] .rf-network-status i{background:#ffd36b;box-shadow:0 0 10px #ffd36b}
+#rf-memory-widget[data-state="failed"] .rf-network-status i{background:#ff665f;box-shadow:0 0 10px #ff665f}
+.rf-network-status span{margin-left:4px;color:#5f748d;font-weight:500}
+.rf-network-inspector{position:absolute;left:8px;bottom:8px;max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 6px;background:rgba(4,10,19,.72);border:1px solid rgba(111,153,194,.16);border-radius:4px;color:#b7c9dc;font:7px 'JetBrains Mono',monospace;pointer-events:none}
+.rf-network-events{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:3px;max-width:38%;pointer-events:none}
+.rf-network-event{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(153,180,207,.7);font:6px 'JetBrains Mono',monospace;text-align:right}
+.rf-network-event.is-active{color:#f3d48a}.rf-network-event.is-error{color:#ff8178}
+.rf-network-collapse{position:absolute;right:7px;top:7px;z-index:5;width:22px;height:21px;display:grid;place-items:center;border:1px solid rgba(111,153,194,.22);border-radius:4px;background:rgba(4,10,19,.78);color:#9bb5d0;cursor:pointer}
+.rf-network-collapse:hover{border-color:rgba(150,195,235,.55);color:#e1efff}
+#rf-memory-widget.is-collapsed{flex-basis:26px;min-height:26px;max-height:26px;padding:2px 7px;background:transparent;border:0}
+#rf-memory-widget.is-collapsed .rf-network-body{display:none}
+#rf-memory-widget.is-collapsed .rf-network-collapse{position:relative;top:auto;right:auto;margin-left:auto}
+#rf-memory-widget.is-collapsed .rf-network-collapse i{transform:rotate(180deg)}
+@media(max-height:760px){#rf-memory-widget.rf-network-graph{min-height:220px;flex-basis:43%}}
+@media(max-height:620px){#rf-memory-widget.rf-network-graph{min-height:185px;flex-basis:40%}}
