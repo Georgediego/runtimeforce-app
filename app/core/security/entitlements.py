@@ -70,9 +70,12 @@ def require_project_access(user_id: str, project_id: str, entitlements: Dict[str
     projects = container.project_repo.list_projects(user_id)
     if len(projects) <= maximum or not project_id:
         return
-    active = container.project_repo.get_active_project(user_id)
-    active_id = str((active or {}).get("id") or "")
-    if str(project_id) == active_id:
+    allowed_project_ids = {
+        str(project.get("id") or "")
+        for project in projects[:maximum]
+        if project.get("id")
+    }
+    if str(project_id) in allowed_project_ids:
         return
     raise HTTPException(status_code=403, detail={
         "code": "plan_limit_reached",
@@ -80,7 +83,7 @@ def require_project_access(user_id: str, project_id: str, entitlements: Dict[str
         "used": len(projects),
         "maximum": maximum,
         "plan": entitlements.get("plan", "unknown"),
-        "message": "This project is outside the Active Projects allowance for your current plan. The currently active project remains available.",
+        "message": "This project is outside the Active Projects allowance for your current plan. Projects within the current plan allowance remain available.",
     })
 
 
