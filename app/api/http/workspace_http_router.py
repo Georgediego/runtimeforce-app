@@ -52,6 +52,8 @@ async def _ensure_ssh_workspace_allowed(user_id: str, project_id: str, request: 
     max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
     if max_ssh_hosts <= 0:
         raise HTTPException(status_code=403, detail="SSH host access is disabled by the SSH Hosts limit for this plan")
+    if len(_count_unique_ssh_hosts(user_id)) > max_ssh_hosts:
+        raise HTTPException(status_code=403, detail="Configured SSH hosts exceed this plan's limit. Remove an SSH host before connecting.")
 
 
 def _count_unique_ssh_hosts(user_id: str):
