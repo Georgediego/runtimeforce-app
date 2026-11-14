@@ -16,7 +16,7 @@ from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
-from app.core.security.plan_access import feature_enabled, command_requires_git, plan_limit
+from app.core.security.plan_access import feature_enabled, command_requires_git, command_creates_git_repo, command_clones_git_repo, plan_limit
 
 logger = logging.getLogger("runtimeforce.service.agent.coordinator")
 
@@ -165,6 +165,7 @@ class AgentLoopCoordinator:
         existing_message_id: Optional[int] = None,
         plan_entitlements: Optional[Dict[str, Any]] = None,
         git_repo_slot_available: bool = True,
+        git_repo_creation_slot_available: bool = True,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         strategy_key = {
             "AUTO": "auto",
@@ -716,6 +717,10 @@ class AgentLoopCoordinator:
                     result = {"error": "Git Repos are not included in this plan.", "code": 403, "feature": "git_repos"}
                 elif plan_entitlements is not None and tool_name == "execute_command" and command_requires_git(command_text) and not git_repo_slot_available:
                     result = {"error": "This repository is outside the Git Repos allowance for your current plan.", "code": 403, "feature": "git_repos"}
+                elif plan_entitlements is not None and tool_name == "execute_command" and command_clones_git_repo(command_text) and not git_repo_creation_slot_available:
+                    result = {"error": "Git Repos limit reached. Upgrade your plan or remove another repository.", "code": 403, "feature": "git_repos"}
+                elif plan_entitlements is not None and tool_name == "execute_command" and command_creates_git_repo(command_text) and not git_repo_creation_slot_available and not git_repo_slot_available:
+                    result = {"error": "Git Repos limit reached. Upgrade your plan or remove another repository.", "code": 403, "feature": "git_repos"}
                 elif plan_entitlements is not None and tool_name in {"git_status", "git_diff", "git_commit", "git_log"} and not git_repo_slot_available:
                     result = {"error": "This repository is outside the Git Repos allowance for your current plan.", "code": 403, "feature": "git_repos"}
                 elif plan_entitlements is not None and tool_feature and not feature_enabled(plan_entitlements, tool_feature):
