@@ -312,3 +312,51 @@ def test_offline_grace_restores_entitlements_from_sqlite_cache_by_authenticated_
         assert result["features"]["auto"] is True
 
     asyncio.run(run())
+
+
+
+def test_online_entitlement_refresh_persists_under_verified_email(monkeypatch):
+    import asyncio
+
+    from app.services.billing import license_service as license_module
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "plan": "free",
+                "features": {"auto": True, "offline_grace": True},
+                "limits": {"max_projects": 1, "offline_grace_hours": 48},
+            }
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url, headers):
+            assert headers["Authorization"] == "Bearer test-jwt"
+            return FakeResponse()
+
+    class FakeSubscriptionRepo:
+        saved = None
+
+        def save_subscription(self, **kwargs):
+            self.saved = kwargs
+
+    async def run():
+        repo = FakeSubscriptionRepo()
+        monkeypatch.setattr(license_module.httpx, "AsyncClient", FakeClient)
+        service = license_module.LicenseService(subscription_repo=repo)
+        result = await service.get_entitlements("test-jwt", user_id="user@example.com")
+        assert result["valid"] is True
+        assert repo.saved["user_id"] == "user@example.com"
+        assert repo.saved["entitlements"]["features"]["offline_grace"] is True
+
+    asyncio.run(run())
