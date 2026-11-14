@@ -83,6 +83,7 @@ async def create_project(
     github_remote = (payload.github_remote_url or "").strip()
     if github_remote or (payload.github_pat_enc or "").strip():
         require_feature(entitlements, "git")
+        require_limit(entitlements, "git_repos", 0, "Git Repositories")
     if github_remote:
         known_repos = {
             str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
@@ -160,6 +161,7 @@ async def update_project(
     old_pat = str(current.get("github_pat_enc") or "").strip()
     if (new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower()) or (new_pat and new_pat != old_pat):
         require_feature(entitlements, "git")
+        require_limit(entitlements, "git_repos", 0, "Git Repositories")
     if new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower():
         projects = service.list_projects(user_id)
         known_repos = {
