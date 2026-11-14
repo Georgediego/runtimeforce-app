@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, allowed_ssh_hosts
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -40,19 +40,8 @@ class PushPullPayload(BaseModel):
 
 async def _count_other_git_repos(user_id: str, workspace_manager: WorkspaceManagerService, current_project_id: Optional[str], entitlements: dict) -> int:
     repo_projects = set()
-    all_hosts = set()
     projects = container.project_repo.list_projects(user_id)
-    for project in projects:
-        project_host = str(project.get("ssh_host") or "").strip().lower()
-        if project_host and project_host not in {"localhost", "127.0.0.1"}:
-            all_hosts.add(project_host)
-        project_id = str(project.get("id") or "")
-        if project_id:
-            for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
-                host = str(workspace.get("host") or "").strip().lower()
-                if host and host not in {"localhost", "127.0.0.1"}:
-                    all_hosts.add(host)
-    allowed_hosts = set(sorted(all_hosts)[:plan_limit(entitlements, "max_ssh_hosts")])
+    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
     for project in projects:
         project_id = str(project.get("id") or "")
         if not project_id or project_id == current_project_id:
