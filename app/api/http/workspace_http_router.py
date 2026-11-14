@@ -13,7 +13,7 @@ from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access
 from app.core.security.plan_access import command_requires_git, command_creates_git_repo
 from app.services.git.git_status_service import GitStatusService
 
@@ -89,10 +89,13 @@ def _get_active_project_id(user_id: str) -> str:
 @router.get("")
 async def list_workspaces(
     project_id: Optional[str] = Query(None),
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements),
 ):
     try:
         target_project_id = project_id or _get_active_project_id(user_id)
+        if target_project_id:
+            require_project_access(user_id, target_project_id, entitlements)
         if not target_project_id:
             return {"workspaces": []}
         workspaces = container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=target_project_id)
@@ -106,11 +109,13 @@ async def list_workspaces(
 @router.get("/active")
 async def get_active_workspace(
     project_id: Optional[str] = Query(None),
-    user_id: str = Depends(require_authenticated_user)
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements),
 ):
     try:
         target_project_id = project_id or _get_active_project_id(user_id)
         if target_project_id:
+            require_project_access(user_id, target_project_id, entitlements)
             ws = container.workspace_repo.get_workspace_by_project_id(target_project_id, user_id)
             return {"active": ws}
         ws = container.workspace_repo.get_active_workspace(user_id)
@@ -130,6 +135,7 @@ async def get_workspace_tree(
         require_feature(entitlements, "editor")
         require_limit(entitlements, "max_projects", 0, "Active Projects")
         target_project_id = project_id or _get_active_project_id(user_id)
+        require_project_access(user_id, target_project_id, entitlements)
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -234,6 +240,7 @@ async def save_workspace_file(
         path = payload.get("path")
         content = payload.get("content", "")
         project_id = payload.get("project_id") or _get_active_project_id(user_id)
+        require_project_access(user_id, project_id, entitlements)
         _require_project_ssh_access(user_id, project_id, entitlements)
         if not path:
             raise HTTPException(status_code=400, detail="File path is required")
@@ -258,6 +265,7 @@ async def execute_command(
         require_feature(entitlements, "terminal")
         require_limit(entitlements, "max_projects", 0, "Active Projects")
         target_project_id = payload.project_id or _get_active_project_id(user_id)
+        require_project_access(user_id, target_project_id, entitlements)
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         if command_requires_git(payload.command):
             require_feature(entitlements, "git")
@@ -287,7 +295,9 @@ async def activate_workspace_by_path_id(
         require_limit(entitlements, "max_projects", 0, "Active Projects")
         workspace = container.workspace_repo.get_workspace_by_id(workspace_id, user_id)
         if workspace:
-            _require_project_ssh_access(user_id, str(workspace.get("project_id") or ""), entitlements)
+            workspace_project_id = str(workspace.get("project_id") or "")
+            require_project_access(user_id, workspace_project_id, entitlements)
+            _require_project_ssh_access(user_id, workspace_project_id, entitlements)
         container.workspace_repo.set_active_workspace(workspace_id, user_id)
         return {"status": "activated", "workspace_id": workspace_id}
     except HTTPException:
@@ -308,7 +318,9 @@ async def activate_workspace_payload(
         if ws_id:
             workspace = container.workspace_repo.get_workspace_by_id(ws_id, user_id)
             if workspace:
-                _require_project_ssh_access(user_id, str(workspace.get("project_id") or ""), entitlements)
+                workspace_project_id = str(workspace.get("project_id") or "")
+                require_project_access(user_id, workspace_project_id, entitlements)
+                _require_project_ssh_access(user_id, workspace_project_id, entitlements)
             container.workspace_repo.set_active_workspace(ws_id, user_id)
         return {"status": "activated", "workspace_id": ws_id}
     except HTTPException:
@@ -338,6 +350,7 @@ async def create_workspace(
                 require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
         ws_id = payload.get("id") or str(uuid.uuid4())
         target_project_id = payload.get("project_id") or _get_active_project_id(user_id)
+        require_project_access(user_id, target_project_id, entitlements)
         payload["project_id"] = target_project_id
         
         success = container.workspace_repo.create_workspace(ws_id, user_id, **payload)
