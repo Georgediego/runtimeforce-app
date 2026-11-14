@@ -274,3 +274,41 @@ def test_ssh_allowance_uses_allowed_project_host_when_active_project_is_locked(m
     monkeypatch.setattr(entitlement_dependencies.container, "project_repo", ProjectRepo())
     monkeypatch.setattr(entitlement_dependencies.container, "workspace_repo", WorkspaceRepo())
     assert entitlement_dependencies.allowed_ssh_hosts("user-1", free_entitlements()) == {"older.example"}
+
+
+
+def test_offline_grace_restores_entitlements_from_sqlite_cache_by_authenticated_email():
+    import asyncio
+    import json
+    import time
+    from datetime import datetime, timezone
+
+    from app.services.billing.license_service import LicenseService
+
+    now = time.time()
+    cached = {
+        "valid": True,
+        "plan": "free",
+        "features": {"offline_grace": True, "auto": True},
+        "limits": {"offline_grace_hours": 48, "max_projects": 1},
+        "validated_at": now - 3600,
+    }
+
+    class SubscriptionRepo:
+        def get_by_id(self, tenant_id, user_id):
+            assert user_id == "user@example.com"
+            return {
+                "entitlements_json": json.dumps(cached),
+                "cached_at": datetime.fromtimestamp(now - 3600, timezone.utc).isoformat(),
+            }
+
+    async def run():
+        service = LicenseService(subscription_repo=SubscriptionRepo())
+        result = await service._offline_entitlements(
+            "token-hash", "user@example.com", now, RuntimeError("network unavailable")
+        )
+        assert result["valid"] is True
+        assert result["is_stale"] is True
+        assert result["features"]["auto"] is True
+
+    asyncio.run(run())
