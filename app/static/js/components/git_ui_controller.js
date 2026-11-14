@@ -5,10 +5,12 @@
 import { gitApi, billingApi } from "../core/api_http_client.js";
 import { showToast } from "./toast_ui_controller.js";
 import { projectsUIController } from "./projects_ui_controller.js";
+import { eventBus } from "../core/event_bus.js";
 
 export const gitUIController = {
     async init() {
         await this.applyPlanGate();
+        eventBus.on("auth:success", () => this.applyPlanGate());
         document.getElementById("git-init-btn")?.addEventListener("click", () => this.handleInitClick());
         document.getElementById("commit-btn")?.addEventListener("click", () => this.openCommitModal());
         document.getElementById("cancel-commit-btn")?.addEventListener("click", () => this.closeCommitModal());
@@ -22,6 +24,13 @@ export const gitUIController = {
     async applyPlanGate() {
         const gitTab = document.querySelector('.left-tab-btn[data-panel="git"]');
         const gitPanel = document.getElementById("left-panel-git");
+        if (gitTab) {
+            gitTab.style.pointerEvents = "";
+            gitTab.classList.remove("opacity-40", "cursor-not-allowed");
+            gitTab.removeAttribute("aria-disabled");
+            gitTab.removeAttribute("title");
+            gitTab.querySelector(".plan-lock-indicator")?.remove();
+        }
         try {
             const entitlements = await billingApi.entitlements();
             const features = entitlements?.features || {};
@@ -37,7 +46,7 @@ export const gitUIController = {
                 gitTab.setAttribute("aria-disabled", "true");
                 gitTab.title = "Git integration is not included in the current plan.";
                 const lock = document.createElement("span");
-                lock.className = "absolute right-0.5 bottom-0.5 text-amber-400";
+                lock.className = "plan-lock-indicator absolute right-0.5 bottom-0.5 text-amber-400";
                 lock.innerHTML = '<i data-lucide="lock" class="w-2.5 h-2.5"></i>';
                 gitTab.classList.add("relative");
                 gitTab.appendChild(lock);
