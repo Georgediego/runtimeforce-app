@@ -73,7 +73,8 @@ def feature_enabled(entitlements: dict, feature_key: str) -> bool:
     features = entitlements.get("features")
     if not isinstance(features, dict):
         return False
-    aliases = FEATURE_ALIASES.get(feature_key, (feature_key,))
+    canonical = next((key for key, values in FEATURE_ALIASES.items() if feature_key == key or feature_key in values), feature_key)
+    aliases = FEATURE_ALIASES.get(canonical, (feature_key,))
     # An explicitly supplied canonical key always wins, including false.
     if feature_key in features:
         return features.get(feature_key) is True
