@@ -6,36 +6,20 @@ import { providersUIController } from "./providers_ui_controller.js";
 import { showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 import { updateNotificationService } from "../services/update_notification_service.js";
-import { billingApi } from "../core/api_http_client.js";
+import { planAccessState } from "../core/plan_access_state.js";
 
 export const settingsUIController = {
     _features: {},
     _limits: {},
 
     _featureEnabled(featureKey) {
-        const aliases = {
-            git: ["git", "github_git", "github_git_integration", "git_integration", "github / git integration"],
-            software_updates: ["software_updates", "software updates"],
-        };
-        const normalizedFeatures = Object.fromEntries(
-            Object.entries(this._features).map(([key, value]) => [key.trim().toLowerCase(), value])
-        );
-        for (const key of (aliases[featureKey] || [featureKey])) {
-            const normalizedKey = key.trim().toLowerCase();
-            if (Object.prototype.hasOwnProperty.call(normalizedFeatures, normalizedKey)) return normalizedFeatures[normalizedKey] === true;
-        }
-        return false;
+        return planAccessState.featureEnabled(featureKey);
     },
 
     async loadPlanFeatures() {
-        try {
-            const data = await billingApi.entitlements();
-            this._features = data?.valid ? (data.features || {}) : {};
-            this._limits = data?.valid ? (data.limits || {}) : {};
-        } catch {
-            this._features = {};
-            this._limits = {};
-        }
+        await planAccessState.refresh();
+        this._features = planAccessState.entitlements.features || {};
+        this._limits = planAccessState.entitlements.limits || {};
         const updatesAllowed = this._featureEnabled("software_updates");
         const updatesButton = document.querySelector('.settings-nav-btn[data-tab="updates"]');
         if (updatesButton) {
