@@ -186,9 +186,10 @@ import { eventBus } from "../core/event_bus.js";
       const b = state.nodes.get(edge.target)?.cell;
       if (!a || !b) return;
       const geometry = new THREE.BufferGeometry().setFromPoints([a.position.clone(), b.position.clone()]);
+      const active = state.activeEdges.has(edge.id);
       const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
-        color: edge.kind === "memory" ? 0x4dffad : 0x238e63,
-        transparent: true, opacity: edge.kind === "memory" ? 0.68 : 0.38
+        color: active ? 0xaaffce : 0x4dffad,
+        transparent: true, opacity: active ? 0.96 : 0.30
       }));
       line.userData.edgeId = edge.id;
       state.edgeRoot.add(line);
