@@ -125,6 +125,12 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     "error": f"Feature '{required_feature}' is not enabled for plan '{plan}'.",
                 })
                 continue
+            if plan_limit(entitlements, "max_projects") <= 0:
+                await websocket.send_json({
+                    "status": "error", "code": 403, "feature": "max_projects",
+                    "error": "Project access is not enabled for this plan.",
+                })
+                continue
 
             logger.info(
                 "[WS] GENERATION REQUEST session=%s user=%s action=%s prompt_chars=%s",
