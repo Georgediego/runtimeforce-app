@@ -24,22 +24,31 @@ export const planAccessState = {
         features: {},
         limits: {},
     },
+    _refreshPromise: null,
 
     async refresh() {
+        if (this._refreshPromise) return this._refreshPromise;
+        this._refreshPromise = (async () => {
+            try {
+                const data = await billingApi.entitlements();
+                this.entitlements = data?.valid === true
+                    ? {
+                        ...data,
+                        features: data.features || {},
+                        limits: data.limits || {},
+                    }
+                    : { valid: false, plan: "unknown", features: {}, limits: {} };
+            } catch {
+                this.entitlements = { valid: false, plan: "unknown", features: {}, limits: {} };
+            }
+            this.applyUiLocks();
+            return this.entitlements;
+        })();
         try {
-            const data = await billingApi.entitlements();
-            this.entitlements = data?.valid === true
-                ? {
-                    ...data,
-                    features: data.features || {},
-                    limits: data.limits || {},
-                }
-                : { valid: false, plan: "unknown", features: {}, limits: {} };
-        } catch {
-            this.entitlements = { valid: false, plan: "unknown", features: {}, limits: {} };
+            return await this._refreshPromise;
+        } finally {
+            this._refreshPromise = null;
         }
-        this.applyUiLocks();
-        return this.entitlements;
     },
 
     applyUiLocks() {
