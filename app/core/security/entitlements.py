@@ -182,14 +182,19 @@ async def require_git_repo_access(
     if maximum <= 0:
         require_limit(entitlements, "git_repos", 0, "Git Repositories")
     state = await git_repo_quota_state(user_id, project_id, workspace_manager, entitlements)
-    if state["current_project_has_repo"] and not state["current_project_allowed"]:
+    if not state["can_use_git"]:
+        message = (
+            "This repository is outside the Git Repos allowance for your current plan."
+            if state["current_project_has_repo"]
+            else "The Git Repos allowance for your current plan is already in use."
+        )
         raise HTTPException(status_code=403, detail={
             "code": "plan_limit_reached",
             "limit": "git_repos",
             "used": state["used"],
             "maximum": maximum,
             "plan": entitlements.get("plan", "unknown"),
-            "message": "This repository is outside the Git Repos allowance for your current plan.",
+            "message": message,
         })
 
 
