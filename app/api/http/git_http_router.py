@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -95,6 +95,39 @@ async def _get_saas_github_token(request: Request) -> Optional[str]:
     except Exception as exc:
         logger.warning("SaaS GitHub credential bridge unavailable: %s", type(exc).__name__)
     return None
+
+
+@router.get("/usage")
+async def git_usage(
+    project_id: Optional[str] = None,
+    user_id: str = Depends(require_authenticated_user),
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    entitlements: dict = Depends(get_plan_entitlements),
+):
+    require_feature(entitlements, "git")
+    target_project_id = project_id
+    if not target_project_id:
+        active_project = container.project_repo.get_active_project(user_id)
+        target_project_id = str((active_project or {}).get("id") or "")
+    require_project_access(user_id, target_project_id, entitlements)
+    project = container.project_repo.get_project(target_project_id, user_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    current_driver = await workspace_manager.get_driver_for_project(user_id, target_project_id)
+    current_has_repo = bool(str(project.get("github_remote_url") or "").strip())
+    if not current_has_repo and current_driver:
+        current_has_repo = await GitStatusService.is_repo(current_driver)
+    used_elsewhere = await _count_other_git_repos(
+        user_id, workspace_manager, target_project_id, entitlements
+    )
+    used = used_elsewhere + (1 if current_has_repo else 0)
+    maximum = plan_limit(entitlements, "git_repos")
+    return {
+        "used": used,
+        "maximum": maximum,
+        "current_project_has_repo": current_has_repo,
+        "can_add": maximum > 0 and (current_has_repo or used < maximum),
+    }
 
 
 @router.get("/status")
