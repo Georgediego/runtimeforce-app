@@ -48,8 +48,10 @@ async def _ensure_ssh_workspace_allowed(user_id: str, project_id: str, request: 
         return
     entitlements = await _verified_entitlements(request)
     features = entitlements.get("features") or {}
-    if features.get("ssh") is not True:
-        raise HTTPException(status_code=403, detail="SSH workspaces are not enabled for this plan")
+    limits = entitlements.get("limits") or {}
+    max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
+    if max_ssh_hosts <= 0:
+        raise HTTPException(status_code=403, detail="SSH host access is disabled by the SSH Hosts limit for this plan")
 
 
 def _count_unique_ssh_hosts(user_id: str):
@@ -283,8 +285,8 @@ async def create_workspace(
         if str(payload.get("type") or "").lower() == "ssh":
             entitlements = await _verified_entitlements(request)
             features = entitlements.get("features") or {}
-            if features.get("ssh") is not True:
-                raise HTTPException(status_code=403, detail="SSH workspaces are not enabled for this plan")
+            if max(0, int((entitlements.get("limits") or {}).get("max_ssh_hosts", 0) or 0)) <= 0:
+                raise HTTPException(status_code=403, detail="SSH host access is disabled by the SSH Hosts limit for this plan")
             current_hosts = _count_unique_ssh_hosts(user_id)
             host_key = (str(payload.get("host") or "").strip().lower(), int(payload.get("port") or 22))
             if host_key[0] and host_key not in current_hosts:
