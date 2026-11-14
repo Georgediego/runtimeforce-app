@@ -239,12 +239,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             ]
             if denied_ids:
                 denied_model = available_by_id[denied_ids[0]]
-                denied_tier = str(getattr(denied_model, "tier", "standard")).lower()
-                denied_feature = (
-                    "local_llms" if denied_tier == "local"
-                    else "full_pro_byok" if denied_tier in {"pro", "standard", "paid"}
-                    else "free_cloud_byok"
-                )
+                denied_feature = provider_feature(str(getattr(denied_model, "provider", "") or ""))
                 await websocket.send_json({
                     "status": "error", "code": 403,
                     "feature": denied_feature,
