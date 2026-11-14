@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS subscription_cache (
     plan TEXT NOT NULL DEFAULT 'free',
     valid_until DATETIME,
     cached_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    entitlements_json TEXT NOT NULL DEFAULT '{}'
+    entitlements_json TEXT NOT NULL DEFAULT '{}',
+    token_hash TEXT
 );
 """
 
@@ -30,28 +31,39 @@ class SubscriptionDBRepository(IStorageRepository):
         columns = {row[1] for row in conn.execute("PRAGMA table_info(subscription_cache)").fetchall()}
         if "entitlements_json" not in columns:
             conn.execute("ALTER TABLE subscription_cache ADD COLUMN entitlements_json TEXT NOT NULL DEFAULT '{}'" )
+        if "token_hash" not in columns:
+            conn.execute("ALTER TABLE subscription_cache ADD COLUMN token_hash TEXT")
         conn.commit()
 
-    def save_subscription(self, user_id: str, plan: str, valid_until: Optional[str] = None, entitlements: Optional[Dict[str, Any]] = None) -> bool:
+    def save_subscription(self, user_id: str, plan: str, valid_until: Optional[str] = None, entitlements: Optional[Dict[str, Any]] = None, token_hash: Optional[str] = None) -> bool:
         try:
             conn = self.db.get_connection()
             conn.execute(
                 """
-                INSERT INTO subscription_cache (user_id, plan, valid_until, cached_at, entitlements_json)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+                INSERT INTO subscription_cache (user_id, plan, valid_until, cached_at, entitlements_json, token_hash)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     plan=excluded.plan,
                     valid_until=excluded.valid_until,
                     cached_at=CURRENT_TIMESTAMP,
-                    entitlements_json=COALESCE(excluded.entitlements_json, subscription_cache.entitlements_json)
+                    entitlements_json=COALESCE(excluded.entitlements_json, subscription_cache.entitlements_json),
+                    token_hash=COALESCE(excluded.token_hash, subscription_cache.token_hash)
                 """,
-                (user_id, plan, valid_until, json.dumps(entitlements) if entitlements is not None else None)
+                (user_id, plan, valid_until, json.dumps(entitlements) if entitlements is not None else None, token_hash)
             )
             conn.commit()
             return True
         except Exception as e:
             logger.error(f"Failed to cache subscription for {user_id}: {e}")
             return False
+
+    def get_user_id_by_token_hash(self, token_hash: str) -> Optional[str]:
+        conn = self.db.get_connection()
+        row = conn.execute(
+            "SELECT user_id FROM subscription_cache WHERE token_hash=?",
+            (token_hash,),
+        ).fetchone()
+        return str(row["user_id"]) if row and row["user_id"] else None
 
     def get_by_id(self, entity_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         conn = self.db.get_connection()
