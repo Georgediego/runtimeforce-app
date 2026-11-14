@@ -16,6 +16,21 @@ router = APIRouter()
 
 active_tasks: Dict[str, asyncio.Task] = {}
 
+
+def _user_ssh_hosts(user_id: str) -> set[str]:
+    hosts = set()
+    for project in container.project_repo.list_projects(user_id):
+        project_host = str(project.get("ssh_host") or "").strip().lower()
+        if project_host:
+            hosts.add(project_host)
+        project_id = str(project.get("id") or "")
+        if project_id:
+            for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
+                host = str(workspace.get("host") or "").strip().lower()
+                if host and (str(workspace.get("type") or "").lower() in {"ssh", "remote"} or host not in {"localhost", "127.0.0.1"}):
+                    hosts.add(host)
+    return hosts
+
 @router.websocket("/ws/chat/{session_id}")
 async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
     logger.info("[WS] CONNECT session=%s client=%s", session_id, websocket.client.host if websocket.client else "unknown")
@@ -133,6 +148,18 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 active_proj = container.project_repo.get_active_project(user_id)
                 project_id = active_proj.get("id", "default") if active_proj else "default"
 
+            project = container.project_repo.get_project(project_id, user_id)
+            workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
+            ssh_host = str((workspace or {}).get("host") or (project or {}).get("ssh_host") or "").strip().lower()
+            if ssh_host and ssh_host not in {"localhost", "127.0.0.1"}:
+                hosts = sorted(_user_ssh_hosts(user_id))
+                max_hosts = plan_limit(entitlements, "max_ssh_hosts")
+                if ssh_host not in set(hosts[:max_hosts]):
+                    await websocket.send_json({
+                        "status": "error", "code": 403, "feature": "max_ssh_hosts",
+                        "error": "This SSH host is outside the host allowance for your current plan.",
+                    })
+                    continue
             driver = await container.workspace_manager_service.get_driver_for_project(user_id, project_id)
             if not driver:
                 await websocket.send_json({
