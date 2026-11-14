@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, require_ssh_host_access, count_other_git_repos
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, require_ssh_host_access, count_other_git_repos, git_repo_quota_state
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -84,20 +84,13 @@ async def git_usage(
     workspace = container.workspace_repo.get_workspace_by_project_id(target_project_id, user_id)
     current_host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
     require_ssh_host_access(user_id, current_host, entitlements)
-    current_driver = await workspace_manager.get_driver_for_project(user_id, target_project_id)
-    current_has_repo = bool(str(project.get("github_remote_url") or "").strip())
-    if not current_has_repo and current_driver:
-        current_has_repo = await GitStatusService.is_repo(current_driver)
-    used_elsewhere = await count_other_git_repos(
-        user_id, workspace_manager, target_project_id, entitlements
-    )
-    used = used_elsewhere + (1 if current_has_repo else 0)
-    maximum = plan_limit(entitlements, "git_repos")
+    state = await git_repo_quota_state(user_id, target_project_id, workspace_manager, entitlements)
     return {
-        "used": used,
-        "maximum": maximum,
-        "current_project_has_repo": current_has_repo,
-        "can_add": maximum > 0 and (current_has_repo or used < maximum),
+        "used": state["used"],
+        "maximum": state["maximum"],
+        "current_project_has_repo": state["current_project_has_repo"],
+        "current_project_allowed": state["current_project_allowed"],
+        "can_add": state["can_use_git"],
     }
 
 
