@@ -382,7 +382,8 @@ export const providersUIController = {
         const countBadgeText = Array.isArray(savedSelections) ? `${savedSelections.length} models selected` : "";
         const locked = this._providerLocked(p.id);
         const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
-        const lockBadge = locked ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">PRO · LOCKED</span>' : "";
+        const lockLabel = PRO_PROVIDERS.some(provider => provider.id === p.id) ? "PRO · LOCKED" : "LOCKED";
+        const lockBadge = locked ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">${lockLabel}</span>` : "";
 
         return `
             <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2.5">
@@ -490,9 +491,11 @@ export const providersUIController = {
                 const toggleBtn = document.querySelector(`.provider-toggle-btn[data-provider="${p.id}"]`);
                 const deleteBtn = document.querySelector(`.provider-delete-key-btn[data-provider="${p.id}"]`);
                 if (statusEl) {
-                    statusEl.textContent = !hasKey
-                        ? "No API key"
-                        : `${enabled ? "Enabled" : "Disconnected"} • ${selectedCount}/${totalAvailable || selectedCount} models`;
+                    statusEl.textContent = locked
+                        ? "PRO · Upgrade required"
+                        : !hasKey
+                            ? "No API key"
+                            : `${enabled ? "Enabled" : "Disconnected"} • ${selectedCount}/${totalAvailable || selectedCount} models`;
                     statusEl.className = `text-[10px] key-status-${p.id} ${enabled ? "text-[var(--ide-success)]" : "text-[var(--ide-text-muted)]"} font-bold`;
                 }
                 if (toggleBtn) {
@@ -502,9 +505,9 @@ export const providersUIController = {
                     toggleBtn.classList.toggle("cursor-not-allowed", locked || !hasKey);
                 }
                 if (deleteBtn) {
-                    deleteBtn.disabled = !hasKey;
-                    deleteBtn.classList.toggle("opacity-40", !hasKey);
-                    deleteBtn.classList.toggle("cursor-not-allowed", !hasKey);
+                    deleteBtn.disabled = locked ? false : !hasKey;
+                    deleteBtn.classList.toggle("opacity-40", !locked && !hasKey);
+                    deleteBtn.classList.toggle("cursor-not-allowed", !locked && !hasKey);
                 }
                 if (configBtn) configBtn.classList.toggle("hidden", locked || (!hasKey && totalAvailable === 0));
             });
