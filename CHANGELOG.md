@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add a shared frontend plan-access state for feature flags, model eligibility, and project/SSH/Git repository limits.
+- Add regression tests for Free-plan feature gates, model provider classification, quotas, ATM coordinator denial, and admin feature-key normalization.
+
+### Changed
+- Normalize admin Plan Features labels into canonical entitlement keys before applying legacy defaults.
+- Include configured trial days in the server entitlement payload and retain the complete entitlement object in the local SQLite cache.
+- Lock Editor, Terminal, Git, Pro BYOK, Local LLM, and Software Updates controls from the same verified plan state.
+
+### Fixed
+- Block ATM at both the chat WebSocket and agent-coordinator layers when the plan excludes it.
+- Correct model entitlement classification so OpenRouter and other free-cloud providers do not inherit a Pro restriction from a generic catalog tier.
+- Enforce Git plan access before GitHub OAuth linking or integration-token storage.
+- Correct the WebSocket model-denial guard indentation and feature-specific error reporting.
+
 ## [1.1.17] - 2026-11-13
 
 ### Changed
