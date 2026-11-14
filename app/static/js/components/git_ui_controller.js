@@ -23,7 +23,6 @@ export const gitUIController = {
 
     async applyPlanGate() {
         const gitTab = document.querySelector('.left-tab-btn[data-panel="git"]');
-        const gitPanel = document.getElementById("left-panel-git");
         if (gitTab) {
             gitTab.style.pointerEvents = "";
             gitTab.classList.remove("opacity-40", "cursor-not-allowed");
@@ -52,7 +51,6 @@ export const gitUIController = {
                 gitTab.appendChild(lock);
                 if (window.lucide) window.lucide.createIcons({ root: gitTab });
             }
-            if (gitPanel) gitPanel.classList.add("hidden");
         } catch (error) {
             if (gitTab) {
                 gitTab.classList.add("opacity-40", "cursor-not-allowed");
