@@ -14,7 +14,7 @@ async def billing_status(
     license_service: LicenseService = Depends(get_license_service),
 ):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
-    entitlements = await license_service.get_entitlements(token)
+    entitlements = await license_service.get_entitlements(token, user_id=user_id)
     return {"user_id": user_id, "license": entitlements}
 
 
