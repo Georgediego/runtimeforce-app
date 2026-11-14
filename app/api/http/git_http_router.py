@@ -11,7 +11,7 @@ import shlex
 import os
 import httpx
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, allowed_ssh_hosts, require_ssh_host_access
+from app.core.security.entitlements import require_plan_feature, get_plan_entitlements, require_limit, plan_limit, require_feature, require_project_access, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos
 from app.container import get_workspace_manager, get_project_service, get_github_api, container
 from fastapi.responses import JSONResponse
 from app.services.git.github_api_service import GitHubApiService, GitHubApiError
@@ -37,27 +37,6 @@ class PushPullPayload(BaseModel):
     project_id: Optional[str] = None
     remote: Optional[str] = "origin"
     branch: Optional[str] = None
-
-async def _count_other_git_repos(user_id: str, workspace_manager: WorkspaceManagerService, current_project_id: Optional[str], entitlements: dict) -> int:
-    repo_projects = set()
-    projects = container.project_repo.list_projects(user_id)
-    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
-    for project in projects:
-        project_id = str(project.get("id") or "")
-        if not project_id or project_id == current_project_id:
-            continue
-        if str(project.get("github_remote_url") or "").strip():
-            repo_projects.add(project_id)
-            continue
-        workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
-        host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
-        if host and host not in {"localhost", "127.0.0.1"} and host not in allowed_hosts:
-            continue
-        driver = await workspace_manager.get_driver_for_project(user_id, project_id)
-        if driver and await GitStatusService.is_repo(driver):
-            repo_projects.add(project_id)
-    return len(repo_projects)
-
 
 async def _is_github_remote(driver: Any, remote: str) -> bool:
     try:
@@ -109,7 +88,7 @@ async def git_usage(
     current_has_repo = bool(str(project.get("github_remote_url") or "").strip())
     if not current_has_repo and current_driver:
         current_has_repo = await GitStatusService.is_repo(current_driver)
-    used_elsewhere = await _count_other_git_repos(
+    used_elsewhere = await count_other_git_repos(
         user_id, workspace_manager, target_project_id, entitlements
     )
     used = used_elsewhere + (1 if current_has_repo else 0)
@@ -145,7 +124,7 @@ async def git_init(
     active_project = container.project_repo.get_active_project(user_id)
     current_project_id = str(active_project.get("id") or "") if active_project else None
     if not await GitStatusService.is_repo(driver):
-        used_repos = await _count_other_git_repos(user_id, workspace_manager, current_project_id, entitlements)
+        used_repos = await count_other_git_repos(user_id, workspace_manager, current_project_id, entitlements)
         require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
     return await GitCommitService.init_repo(driver)
 
