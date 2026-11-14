@@ -28,10 +28,6 @@ class ExecuteCommandPayload(BaseModel):
     session_id: Optional[str] = None
 
 
-def _get_user_ssh_hosts(user_id: str) -> set[str]:
-    return user_ssh_hosts(user_id)
-
-
 def _require_project_ssh_access(user_id: str, project_id: str, entitlements: dict) -> None:
     workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
     project = container.project_repo.get_project(project_id, user_id)
