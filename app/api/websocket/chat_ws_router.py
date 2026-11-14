@@ -8,7 +8,8 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit
+from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
@@ -127,6 +128,21 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 })
                 continue
 
+            git_repo_slot_available = plan_limit(entitlements, "git_repos") > 0
+            if git_repo_slot_available:
+                existing_repo_projects = set()
+                for existing_project in container.project_repo.list_projects(user_id):
+                    existing_project_id = str(existing_project.get("id") or "")
+                    if not existing_project_id or existing_project_id == project_id:
+                        continue
+                    if str(existing_project.get("github_remote_url") or "").strip():
+                        existing_repo_projects.add(existing_project_id)
+                        continue
+                    other_driver = await container.workspace_manager_service.get_driver_for_project(user_id, existing_project_id)
+                    if other_driver and await GitStatusService.is_repo(other_driver):
+                        existing_repo_projects.add(existing_project_id)
+                git_repo_slot_available = len(existing_repo_projects) < plan_limit(entitlements, "git_repos")
+
             model_lock = data.get("model_lock")
             enabled_models = data.get("enabled_models")
             logger.info(
@@ -220,6 +236,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     atm_designer_model=atm_designer,
                     existing_message_id=existing_message_id,
                     plan_entitlements=entitlements,
+                    git_repo_slot_available=git_repo_slot_available,
                 )
 
                 with container.command_approval_service.context(session_id=session_id, project_id=project_id):
