@@ -8,7 +8,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts
 from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.chat_ws")
@@ -18,18 +18,8 @@ active_tasks: Dict[str, asyncio.Task] = {}
 
 
 def _user_ssh_hosts(user_id: str) -> set[str]:
-    hosts = set()
-    for project in container.project_repo.list_projects(user_id):
-        project_host = str(project.get("ssh_host") or "").strip().lower()
-        if project_host and project_host not in {"localhost", "127.0.0.1"}:
-            hosts.add(project_host)
-        project_id = str(project.get("id") or "")
-        if project_id:
-            for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
-                host = str(workspace.get("host") or "").strip().lower()
-                if host and host not in {"localhost", "127.0.0.1"}:
-                    hosts.add(host)
-    return hosts
+    return user_ssh_hosts(user_id)
+
 
 @router.websocket("/ws/chat/{session_id}")
 async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
@@ -168,9 +158,9 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
             ssh_host = str((workspace or {}).get("host") or (project or {}).get("ssh_host") or "").strip().lower()
             if ssh_host and ssh_host not in {"localhost", "127.0.0.1"}:
-                hosts = sorted(_user_ssh_hosts(user_id))
+                hosts = _user_ssh_hosts(user_id)
                 max_hosts = plan_limit(entitlements, "max_ssh_hosts")
-                if ssh_host not in set(hosts[:max_hosts]):
+                if ssh_host not in allowed_ssh_hosts(user_id, entitlements):
                     await websocket.send_json({
                         "status": "error", "code": 403, "feature": "max_ssh_hosts",
                         "error": "This SSH host is outside the host allowance for your current plan.",
@@ -187,7 +177,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
             git_repo_slot_available = plan_limit(entitlements, "git_repos") > 0
             if git_repo_slot_available:
                 existing_repo_projects = set()
-                allowed_ssh_hosts = set(sorted(_user_ssh_hosts(user_id))[:plan_limit(entitlements, "max_ssh_hosts")])
+                allowed_hosts_for_plan = allowed_ssh_hosts(user_id, entitlements)
                 for existing_project in container.project_repo.list_projects(user_id):
                     existing_project_id = str(existing_project.get("id") or "")
                     if not existing_project_id or existing_project_id == project_id:
@@ -197,7 +187,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                         continue
                     other_workspace = container.workspace_repo.get_workspace_by_project_id(existing_project_id, user_id)
                     other_host = str((other_workspace or {}).get("host") or existing_project.get("ssh_host") or "").strip().lower()
-                    if other_host and other_host not in {"localhost", "127.0.0.1"} and other_host not in allowed_ssh_hosts:
+                    if other_host and other_host not in {"localhost", "127.0.0.1"} and other_host not in allowed_hosts_for_plan:
                         continue
                     other_driver = await container.workspace_manager_service.get_driver_for_project(user_id, existing_project_id)
                     if other_driver and await GitStatusService.is_repo(other_driver):
