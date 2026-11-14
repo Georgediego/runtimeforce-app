@@ -8,6 +8,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan
 
 logger = logging.getLogger("runtimeforce.chat_ws")
 router = APIRouter()
@@ -103,7 +104,29 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 })
                 continue
 
-            strategy = data.get("strategy") or "auto"
+            strategy = str(data.get("strategy") or "auto").strip().lower()
+            strategy_features = {
+                "auto": "auto",
+                "coding": "atm",
+                "atm": "atm",
+                "local": "local_llms",
+                "manual": "manual",
+            }
+            required_feature = strategy_features.get(strategy)
+            if not required_feature:
+                await websocket.send_json({
+                    "status": "error", "code": 400,
+                    "error": f"Unknown orchestration mode: {strategy}",
+                })
+                continue
+            if not feature_enabled(entitlements, required_feature):
+                await websocket.send_json({
+                    "status": "error", "code": 403,
+                    "feature": required_feature,
+                    "error": f"Feature '{required_feature}' is not enabled for plan '{plan}'.",
+                })
+                continue
+
             model_lock = data.get("model_lock")
             enabled_models = data.get("enabled_models")
             logger.info(
@@ -112,13 +135,52 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 len(enabled_models) if isinstance(enabled_models, list) else "server-selected"
             )
 
-            # If frontend omitted enabled_models, strictly pull from SQLite
+            # Apply the same plan gates to every model, including AUTO routing and
+            # explicitly submitted model IDs. Never trust the browser's model list.
+            available_models = container.llm_registry.get_available_models()
+            available_by_id = {model.id: model for model in available_models}
             if enabled_models is None:
                 selected_map = container.provider_keys_repo.get_all_selected_models(user_id)
-                if selected_map:
-                    enabled_models = []
-                    for mlist in selected_map.values():
-                        enabled_models.extend(mlist)
+                selected_ids = []
+                for model_list in (selected_map or {}).values():
+                    selected_ids.extend(model_list)
+                enabled_models = selected_ids or None
+
+            allowed_model_ids = {
+                model_id for model_id, model in available_by_id.items()
+                if model_allowed_by_plan(entitlements, model)
+            }
+            if enabled_models is None:
+                enabled_models = sorted(allowed_model_ids)
+            else:
+                requested_ids = [str(model_id) for model_id in enabled_models]
+                denied_ids = [
+                    model_id for model_id in requested_ids
+                    if model_id in available_by_id and model_id not in allowed_model_ids
+                ]
+                if denied_ids:
+                    denied_model = available_by_id[denied_ids[0]]
+                    denied_tier = str(getattr(denied_model, "tier", "free")).lower()
+                    denied_feature = (
+                        "local_llms" if denied_tier == "local"
+                        else "full_pro_byok" if denied_tier in {"pro", "standard", "paid"}
+                        else "free_cloud_byok"
+                    )
+                    await websocket.send_json({
+                        "status": "error", "code": 403,
+                        "feature": denied_feature,
+                        "error": f"Selected model '{denied_ids[0]}' is not available on plan '{plan}'.",
+                    })
+                    continue
+                enabled_models = [model_id for model_id in requested_ids if model_id in allowed_model_ids]
+
+            if not enabled_models:
+                await websocket.send_json({
+                    "status": "error", "code": 403,
+                    "feature": "model_access",
+                    "error": "No models are enabled by the current plan and provider selection.",
+                })
+                continue
 
             atm_architect = data.get("atm_architect_model")
             atm_engineer = data.get("atm_engineer_model")
