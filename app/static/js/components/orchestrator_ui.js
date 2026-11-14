@@ -71,6 +71,12 @@ export const orchestratorUIController = {
             this.handleStrategyChange(e.target.value);
         });
         eventBus.on("auth:success", async () => { await this.loadEntitlements(); this.initModeCards(); await this.loadModels(); });
+        document.addEventListener("visibilitychange", async () => {
+            if (document.visibilityState === "visible") {
+                await this.loadEntitlements();
+                this.initModeCards();
+            }
+        });
         this.initCustomDropdowns();
         initCustomSelects();
         await this.loadEntitlements();
