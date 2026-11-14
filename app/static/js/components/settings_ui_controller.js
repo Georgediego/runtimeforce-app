@@ -51,7 +51,7 @@ export const settingsUIController = {
         const terminalInput = document.getElementById("terminal-cmd-input");
         if (terminalInput) terminalInput.disabled = !this._featureEnabled("terminal");
 
-        const gitAllowed = this._featureEnabled("git") && Number(this._limits.git_repos ?? this._limits.git_repos_limit ?? 0) > 0;
+        const gitAllowed = this._featureEnabled("git") && planAccessState.limit("git_repos") > 0;
         document.querySelectorAll('.left-tab-btn[data-panel="git"], .proj-settings-tab-btn[data-tab="git"]').forEach((element) => {
             element.classList.toggle("opacity-40", !gitAllowed);
             element.classList.toggle("cursor-not-allowed", !gitAllowed);
