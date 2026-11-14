@@ -124,6 +124,7 @@ async def get_workspace_tree(
 ):
     try:
         require_feature(entitlements, "editor")
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
@@ -154,6 +155,7 @@ async def get_workspace_tree_children(
 ):
     try:
         require_feature(entitlements, "editor")
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
@@ -198,6 +200,7 @@ async def read_workspace_file(
 ):
     try:
         require_feature(entitlements, "editor")
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
@@ -217,6 +220,7 @@ async def save_workspace_file(
 ):
     try:
         require_feature(entitlements, "editor")
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         path = payload.get("path")
         content = payload.get("content", "")
         _require_project_ssh_access(user_id, project_id, entitlements)
@@ -240,6 +244,7 @@ async def execute_command(
 ):
     try:
         require_feature(entitlements, "terminal")
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = payload.project_id or _get_active_project_id(user_id)
         if command_requires_git(payload.command):
@@ -264,6 +269,7 @@ async def activate_workspace_by_path_id(
     entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         workspace = container.workspace_repo.get_workspace_by_id(workspace_id, user_id)
         if workspace:
             _require_project_ssh_access(user_id, str(workspace.get("project_id") or ""), entitlements)
@@ -280,6 +286,7 @@ async def activate_workspace_payload(
     entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         ws_id = payload.get("workspace_id") or payload.get("id")
         if ws_id:
             workspace = container.workspace_repo.get_workspace_by_id(ws_id, user_id)
@@ -298,6 +305,7 @@ async def create_workspace(
     entitlements: dict = Depends(get_plan_entitlements)
 ):
     try:
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
         host_value = str(payload.get("host") or payload.get("ssh_host") or "").strip().lower()
         is_ssh_workspace = bool(host_value) and (
             str(payload.get("type") or "").lower() in {"ssh", "remote"}
