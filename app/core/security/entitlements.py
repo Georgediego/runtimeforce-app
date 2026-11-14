@@ -67,8 +67,16 @@ def require_project_access(user_id: str, project_id: str, entitlements: Dict[str
     maximum = plan_limit(entitlements, "max_projects")
     if maximum <= 0:
         require_limit(entitlements, "max_projects", 0, "Active Projects")
+    if not project_id:
+        raise HTTPException(status_code=403, detail={
+            "code": "project_required",
+            "limit": "max_projects",
+            "maximum": maximum,
+            "plan": entitlements.get("plan", "unknown"),
+            "message": "Select an allowed project before using workspace features.",
+        })
     projects = container.project_repo.list_projects(user_id)
-    if len(projects) <= maximum or not project_id:
+    if len(projects) <= maximum:
         return
     allowed_project_ids = {
         str(project.get("id") or "")
