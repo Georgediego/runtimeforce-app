@@ -76,6 +76,7 @@ def test_model_access_is_checked_by_model_tier():
     assert not model_allowed_by_plan(free_plan, SimpleNamespace(tier="standard", provider="openrouter"))
     assert not model_allowed_by_plan(free_plan, SimpleNamespace(tier="pro", provider="openai"))
     assert model_allowed_by_plan(free_plan, SimpleNamespace(tier="local", provider="ollama"))
+    assert not model_allowed_by_plan(free_plan, SimpleNamespace(provider="unknown_paid_provider"))
 
 
 def test_terminal_git_commands_are_classified():
