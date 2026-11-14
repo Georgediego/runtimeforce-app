@@ -1,7 +1,7 @@
 """Centralized, fail-closed plan feature and provider entitlement checks."""
 from fastapi import Depends, HTTPException, Request
 
-def _license_service_dependency() -> LicenseService:
+def _license_service_dependency() -> "LicenseService":
     # Import lazily to avoid container -> agent coordinator -> entitlements cycle.
     from app.container import get_license_service
     return get_license_service()
