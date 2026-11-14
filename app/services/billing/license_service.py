@@ -94,6 +94,15 @@ class LicenseService(ILicenseService):
                 )
             return result
         except Exception as exc:
+            # Explicit authorization/subscription denials must never fall back to stale access.
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (401, 403):
+                self._cache.pop(token_key, None)
+                if self.subscription_repo and user_id:
+                    try:
+                        self.subscription_repo.delete("", user_id)
+                    except Exception:
+                        pass
+                return self._invalid("Subscription access was denied by the billing server")
             # Prefer the most recently validated in-memory snapshot, otherwise SQLite.
             cached = self._cache.get(token_key)
             cached_at = None
