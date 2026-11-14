@@ -120,6 +120,7 @@ async def activate_project(
     service: ProjectService = Depends(get_project_service),
     entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
+    require_limit(entitlements, "max_projects", 0, "Active Projects")
     project = service.get_project_details(project_id, user_id)
     if not project:
         raise HTTPException(404, "Project not found")
