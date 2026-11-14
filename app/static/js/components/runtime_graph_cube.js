@@ -16,7 +16,16 @@ import { eventBus } from "../core/event_bus.js";
   const collapsedKey = "rf_memory_graph_collapsed";
   const token = () => (localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "").replace(/^Bearer\s+/i, "");
   const projectId = () => localStorage.getItem("rf_active_project_id") || "";
-  const palette = { memory: 0x39f5a0 };
+  const palette = {
+    memory: 0x39f5a0, project: 0x52e8b2, conversation: 0x50dca5, file: 0x5ad8b7,
+    code: 0x65e9c4, workspace: 0x43c8e8, directory: 0x40bda7, role: 0x9bff69,
+    agent: 0x9bff69, provider: 0x65e6a9, model: 0x9cff48, tool: 0x70f0c0, mode: 0xb5ff8a
+  };
+  const glyph = {
+    memory: "▤", project: "⌂", conversation: "◌", file: "▧", code: "</>",
+    workspace: "⌂", directory: "▦", role: "✦", agent: "✦",
+    provider: "◈", model: "⌘", tool: "⚙", mode: "◎"
+  };
   const state = {
     nodes: new Map(), edges: new Map(), cells: [], memory: {nodes: [], edges: []},
     registry: {roles: [], tools: []}, selected: {}, workspace: [],
@@ -90,16 +99,18 @@ import { eventBus } from "../core/event_bus.js";
     state.nodes.clear();
     state.edges.clear();
 
-    // Graph topology comes exclusively from persisted SQLite graph data.
     state.memory.nodes.forEach(node => {
       addNode("mem:" + node.id, "memory", node.label || node.id,
-        "SQLite graph node · " + node.id, "graph_nodes");
+        "Persisted memory node · " + node.id, "graph_nodes");
     });
     state.memory.edges.forEach(edge => {
       addEdge("memory:" + edge.id, "mem:" + edge.source, "mem:" + edge.target,
         "memory", edge.relation || "RELATED_TO");
     });
 
+    // Drop stale activity IDs; never infer or synthesize graph relationships.
+    state.activeNodes = new Set([...state.activeNodes].filter(id => state.nodes.has(id)));
+    state.activeEdges = new Set([...state.activeEdges].filter(id => state.edges.has(id)));
     buildCube();
     updateHud();
   }
@@ -123,19 +134,26 @@ import { eventBus } from "../core/event_bus.js";
 
   function makeCell(node, coord) {
     const group = new THREE.Group();
-    group.position.copy(coord);
-    group.userData.nodeId = node.id;
+    group.position.set(coord.x * state.spacing, coord.y * state.spacing, coord.z * state.spacing);
+    group.userData.coord = {...coord};
+    group.userData.nodeId = node ? node.id : "";
+
+    const color = node ? (palette[node.kind] || 0x39f5a0) : 0x174a35;
     const point = new THREE.Mesh(
-      new THREE.SphereGeometry(0.045, 16, 16),
-      new THREE.MeshPhongMaterial({color: 0x39f5a0, emissive: 0x0b6b3d, emissiveIntensity: 0.35, shininess: 110})
+      new THREE.SphereGeometry(0.075, 18, 18),
+      new THREE.MeshPhongMaterial({
+        color, emissive: 0x0b6b3d, emissiveIntensity: 0.32,
+        shininess: 110, specular: 0x9dffbd
+      })
     );
-    point.userData.nodeId = node.id;
+    point.userData.nodeId = node ? node.id : "";
     group.add(point);
+
     const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(0.085, 12, 12),
-      new THREE.MeshBasicMaterial({color: 0x39f5a0, transparent: true, opacity: 0.10, depthWrite: false})
+      new THREE.SphereGeometry(0.14, 14, 14),
+      new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.12, depthWrite: false})
     );
-    halo.userData.nodeId = node.id;
+    halo.userData.nodeId = node ? node.id : "";
     group.add(halo);
     group.userData.point = point;
     group.userData.halo = halo;
@@ -159,15 +177,18 @@ import { eventBus } from "../core/event_bus.js";
     });
     state.pulses.clear();
 
-    // Fibonacci sphere: every point represents one real persisted graph node.
-    const nodes = Array.from(state.nodes.values());
-    const radius = 1.55;
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    nodes.forEach((node, index) => {
-      const y = nodes.length <= 1 ? 0 : 1 - (2 * index) / (nodes.length - 1);
-      const ring = Math.sqrt(Math.max(0, 1 - y * y));
-      const theta = goldenAngle * index;
-      const coord = new THREE.Vector3(Math.cos(theta) * ring * radius, y * radius, Math.sin(theta) * ring * radius);
+    const ordered = Array.from(state.nodes.values()).sort((x, y) => x.id.localeCompare(y.id));
+    const count = ordered.length;
+    state.side = Math.max(1, Math.ceil(Math.cbrt(count || 1)));
+    state.spacing = Math.min(0.9, 2.5 / state.side);
+    state.cubeSize = state.spacing * 0.84;
+    const center = (state.side - 1) / 2;
+
+    ordered.forEach((node, index) => {
+      const x = index % state.side;
+      const y = Math.floor(index / state.side) % state.side;
+      const z = Math.floor(index / (state.side * state.side));
+      const coord = {x: x - center, y: y - center, z: z - center};
       const cell = makeCell(node, coord);
       state.nodes.get(node.id).cell = cell;
       state.cells.push(cell);
@@ -182,25 +203,24 @@ import { eventBus } from "../core/event_bus.js";
     if (!state.edgeRoot) return;
     clearGroup(state.edgeRoot);
     state.edges.forEach(edge => {
-      const a = state.nodes.get(edge.source)?.cell;
-      const b = state.nodes.get(edge.target)?.cell;
-      if (!a || !b) return;
-      const geometry = new THREE.BufferGeometry().setFromPoints([a.position.clone(), b.position.clone()]);
-      const active = state.activeEdges.has(edge.id);
+      if (!state.activeEdges.has(edge.id)) return;
+      const from = state.nodes.get(edge.source)?.cell;
+      const to = state.nodes.get(edge.target)?.cell;
+      if (!from || !to) return;
+      const geometry = new THREE.BufferGeometry().setFromPoints([from.position.clone(), to.position.clone()]);
       const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
-        color: active ? 0xaaffce : 0x4dffad,
-        transparent: true, opacity: active ? 0.96 : 0.30
+        color: 0x9dffbd, transparent: true, opacity: 0.94
       }));
       line.userData.edgeId = edge.id;
       state.edgeRoot.add(line);
     });
     state.pulses.forEach((pulse, edgeId) => {
       const edge = state.edges.get(edgeId);
-      const a = edge && state.nodes.get(edge.source)?.cell;
-      const b = edge && state.nodes.get(edge.target)?.cell;
-      if (a && b) { pulse.from.copy(a.position); pulse.to.copy(b.position); }
+      const from = edge && state.nodes.get(edge.source)?.cell;
+      const to = edge && state.nodes.get(edge.target)?.cell;
+      if (from && to) { pulse.from.copy(from.position); pulse.to.copy(to.position); }
     });
-    if (edgeCountEl) edgeCountEl.textContent = state.edges.size + " LINKS";
+    if (edgeCountEl) edgeCountEl.textContent = state.activeEdges.size + " ACTIVE LINKS";
     state.dirty = true;
   }
 
@@ -272,24 +292,31 @@ import { eventBus } from "../core/event_bus.js";
       old.mesh.geometry.dispose(); old.mesh.material.dispose();
     }
     const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.055, 12, 12),
-      new THREE.MeshBasicMaterial({color: tone === "error" ? 0xff5d52 : 0xcaffdf})
+      new THREE.SphereGeometry(0.045, 8, 8),
+      new THREE.MeshBasicMaterial({color: tone === "error" ? 0xff5d52 : 0x9dffbd})
     );
     state.scene.add(mesh);
-    state.pulses.set(edgeId, {mesh, from: source.position.clone(), to: target.position.clone(), started: performance.now(), duration: 1500});
+    state.pulses.set(edgeId, {mesh, from: source.position.clone(), to: target.position.clone(), started: performance.now(), duration: 1150});
     state.activeEdges.add(edgeId);
-    const line = state.edgeRoot.children.find(item => item.userData.edgeId === edgeId);
-    if (line) { line.material.color.setHex(tone === "error" ? 0xff6258 : 0x9dffbd); line.material.opacity = 1; }
+    let line = state.edgeRoot.children.find(item => item.userData.edgeId === edgeId);
+    if (!line) {
+      rebuildEdges();
+      line = state.edgeRoot.children.find(item => item.userData.edgeId === edgeId);
+    }
+    if (line) { line.material.color.setHex(tone === "error" ? 0xff6258 : 0x9dffbd); line.material.opacity = 0.98; }
     state.dirty = true;
   }
 
   function activateMemoryEvent(item) {
-    (item.active_node_ids || []).forEach(id => {
-      const key = "mem:" + id;
-      if (state.nodes.has(key)) state.activeNodes.add(key);
+    (Array.isArray(item.active_node_ids) ? item.active_node_ids : []).forEach(id => {
+      const key = String(id).startsWith("mem:") ? String(id) : "mem:" + id;
+      if (state.nodes.has(key)) {
+        state.activeNodes.add(key);
+        enqueueTurn(key, "memory");
+      }
     });
-    (item.active_edge_ids || []).forEach(id => {
-      const key = "memory:" + id;
+    (Array.isArray(item.active_edge_ids) ? item.active_edge_ids : []).forEach(id => {
+      const key = String(id).startsWith("memory:") ? String(id) : "memory:" + id;
       if (state.edges.has(key)) pulseEdge(key);
     });
   }
@@ -359,50 +386,26 @@ import { eventBus } from "../core/event_bus.js";
         state.failedNodes = new Set(state.activeNodes);
         setStatus("MEMORY FAILED");
         state.pulses.forEach(pulse => pulse.mesh.material.color.setHex(0xff6258));
-        state.edgeRoot.children.forEach(line => {
-          if (state.activeEdges.has(line.userData.edgeId)) {
-            line.material.color.setHex(0xff6258);
-            line.material.opacity = 1;
-          }
-        });
-        addLog("Memory access failed", event.error || "", "error");
-        window.setTimeout(() => {
-          state.failed = false; state.failedNodes.clear();
-          setStatus(state.running ? "PROCESSING" : "IDLE"); state.dirty = true;
-        }, 1800);
         return;
       }
       if (event.phase === "activity" || event.phase === "completed") {
-        setStatus("MEMORY ACCESS");
         activateMemoryEvent(item);
-        if (event.phase === "activity") addLog(item.label || item.operation || "Memory activity", item.detail || item.phase || "");
         if (event.phase === "completed") {
-          const completedIds = (item.active_node_ids || []).map(id => "mem:" + id);
-          addLog("Memory context ready", completedIds.length + " nodes selected");
-          // Keep activated nodes and edges visible until the next run.
-          window.setTimeout(async () => {
-            await loadMemory();
-            (item.active_edge_ids || []).forEach(id => pulseEdge("memory:" + id));
-          }, 900);
+          // Refresh persisted graph data after the real operation has finished.
+          window.setTimeout(loadMemory, 250);
         }
       }
-    } else if (status === "phase" || status === "model_try" || status === "tool_start" || status === "tool_end") {
-      // Runtime telemetry updates the HUD only. It must never invent graph nodes or edges.
-      if (status === "phase") state.current.agent = String(event.role || state.current.agent || "");
-      if (status === "model_try") {
-        state.current.model = String(event.model || "");
-        state.current.provider = String(event.provider || state.current.model.split("/")[0] || "");
-      }
-      if (status === "tool_start") state.current.tool = String(event.tool_name || "");
-      if (status === "tool_end") state.current.tool = "";
-      setStatus(status === "phase" ? (event.label || "PROCESSING") :
-        status === "model_try" ? "INFERENCE" :
-        status === "tool_start" ? "TOOL EXECUTION" : "TOOL COMPLETED");
-      addLog(status === "phase" ? "Agent phase" : status === "model_try" ? "Model selected" :
-        status === "tool_start" ? "Tool invoked" : "Tool completed",
-        event.label || event.model || event.tool_name || event.role || "");
+    } else if (status === "phase" || status === "model_try" || status === "tool_start" ||
+               status === "tool_end" || status === "reasoning" || status === "streaming") {
+      activateMemoryEvent(event);
+      if (status === "phase") setStatus(event.label || "PROCESSING");
+      else if (status === "model_try") setStatus("INFERENCE");
+      else if (status === "tool_start") setStatus("TOOL EXECUTION");
+      else if (status === "tool_end") setStatus("TOOL COMPLETED");
+      else if (status === "streaming") setStatus("GENERATING");
+      else setStatus("REASONING");
     } else if (status === "warning") {
-      addLog("Orchestrator warning", event.warning || "", "warn");
+      // Warnings do not alter graph topology.
     } else if (status === "error" || status === "failed") {
       failRun(event.error || "Execution failed");
     } else if (status === "done" || status === "aborted") {
@@ -419,11 +422,8 @@ import { eventBus } from "../core/event_bus.js";
     addLog("Execution failed", message, "error");
     state.activeNodes.forEach(id => {
       const node = state.nodes.get(id);
-      if (node?.cell?.userData.point) {
-        node.cell.userData.point.material.color.setHex(0xff6258);
-        node.cell.userData.point.material.emissive.setHex(0x8a1717);
-      }
-      if (node?.cell?.userData.halo) node.cell.userData.halo.material.color.setHex(0xff6258);
+      if (node?.cell?.userData.outline) node.cell.userData.outline.material.color.setHex(0xff6258);
+      if (node?.cell?.userData.body) node.cell.userData.body.material.color.setHex(0xff6258);
     });
     state.pulses.forEach(pulse => pulse.mesh.material.color.setHex(0xff6258));
     state.edgeRoot.children.forEach(line => {
@@ -433,8 +433,11 @@ import { eventBus } from "../core/event_bus.js";
       }
     });
     state.dirty = true;
-    // Keep the failed process highlighted until the next explicit run.
-    state.dirty = true;
+    window.setTimeout(() => {
+      state.failed = false; state.failedNodes.clear();
+      state.dirty = true;
+      setStatus("IDLE"); updateHud();
+    }, 1800);
   }
 
   function startRun() {
@@ -452,7 +455,6 @@ import { eventBus } from "../core/event_bus.js";
 
   function finishRun(result) {
     state.running = false;
-    // Preserve activity highlights after completion; startRun clears them for the next iteration.
     state.failedNodes.clear();
     state.rotationQueue.length = 0;
     state.current.tool = ""; state.current.model = ""; state.current.provider = ""; state.current.agent = "";
@@ -609,10 +611,10 @@ import { eventBus } from "../core/event_bus.js";
         const activeNode = state.activeNodes.has(node.id);
         const failedNode = state.failedNodes.has(node.id);
         const pulse = activeNode ? (0.72 + Math.sin(now * 0.006) * 0.28) : 1;
-        cell.userData.point.material.color.setHex(failedNode ? 0xff6258 : (activeNode ? 0xd9ffe8 : 0x39f5a0));
+        cell.userData.point.material.color.setHex(failedNode ? 0xff6258 : (activeNode ? 0xd9ffe8 : (palette[node.kind] || 0x39f5a0)));
         cell.userData.point.material.emissive.setHex(failedNode ? 0x8a1717 : (activeNode ? 0x31ff9a : 0x0b6b3d));
-        cell.userData.point.material.emissiveIntensity = activeNode ? 1.8 * pulse : 0.35;
-        cell.userData.halo.material.opacity = activeNode ? 0.38 * pulse : 0.10;
+        cell.userData.point.material.emissiveIntensity = activeNode ? 1.8 * pulse : 0.32;
+        cell.userData.halo.material.opacity = activeNode ? 0.40 * pulse : 0.12;
       });
       if (state.rotation) {
         const turn = state.rotation;
@@ -621,11 +623,9 @@ import { eventBus } from "../core/event_bus.js";
         turn.pivot.rotation[turn.axis] = eased * Math.PI / 2;
         if (t >= 1) finishTurn(turn);
       } else beginTurn();
-      if (state.cubeRoot) {
-        state.cubeRoot.rotation.y += 0.0014;
-        state.cubeRoot.rotation.x = Math.sin(now * 0.00018) * 0.08;
-      }
-      updateLiveEdges();
+      if (state.rotation) updateLiveEdges();
+      const edgeGlow = 0.78 + Math.sin(now * 0.004) * 0.16;
+      state.edgeRoot.children.forEach(line => { line.material.opacity = edgeGlow; });
 
       state.pulses.forEach((pulse, id) => {
         const t = Math.min(1, (now - pulse.started) / pulse.duration);
@@ -634,14 +634,10 @@ import { eventBus } from "../core/event_bus.js";
           state.scene.remove(pulse.mesh);
           pulse.mesh.geometry.dispose(); pulse.mesh.material.dispose();
           state.pulses.delete(id);
-          // Keep the activated relationship highlighted.
+          // The real relationship remains visible and illuminated until the next run.
+          const line = state.edgeRoot.children.find(item => item.userData.edgeId === id);
+          if (line) line.material.opacity = 0.92;
         }
-      });
-      const glow = 0.78 + Math.sin(now * 0.004) * 0.18;
-      state.edgeRoot.children.forEach(line => {
-        const activeEdge = state.activeEdges.has(line.userData.edgeId);
-        line.material.color.setHex(activeEdge ? 0xaaffce : 0x4dffad);
-        line.material.opacity = activeEdge ? glow : 0.30;
       });
       state.renderer.render(state.scene, state.camera);
       state.dirty = false;
@@ -682,8 +678,7 @@ import { eventBus } from "../core/event_bus.js";
     if (id) localStorage.setItem("rf_active_project_id", id);
     else localStorage.removeItem("rf_active_project_id");
     state.project = id;
-    state.memory = {nodes: [], edges: []}; state.registry = {roles: [], tools: []};
-    state.selected = {}; state.workspace = [];
+    state.memory = {nodes: [], edges: []};
     state.activeNodes.clear(); state.activeEdges.clear(); state.events = [];
     if (feedEl) feedEl.replaceChildren();
     refreshAll();
