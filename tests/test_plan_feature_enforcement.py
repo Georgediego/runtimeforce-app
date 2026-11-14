@@ -32,3 +32,22 @@ def test_provider_access_uses_separate_local_and_byok_flags():
     assert provider_feature_key("lm_studio") == "local_models"
     assert provider_feature_key("openai") == "local_byok"
     assert provider_feature_key("gemini") == "local_byok"
+
+
+def test_custom_admin_defined_features_are_enforced_without_a_static_allowlist():
+    assert feature_enabled(
+        {"valid": True, "features": {"custom_export": True}},
+        "custom_export",
+    )
+    assert not feature_enabled(
+        {"valid": True, "features": {"custom_export": False}},
+        "custom_export",
+    )
+
+
+def test_every_agent_tool_has_a_plan_feature_mapping():
+    from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
+
+    for entry in AGENT_TOOLS_MANIFEST:
+        tool_name = entry["function"]["name"]
+        assert tool_feature_key(tool_name), f"Missing plan feature mapping for {tool_name}"
