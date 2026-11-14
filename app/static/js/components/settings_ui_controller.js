@@ -85,6 +85,7 @@ export const settingsUIController = {
     },
 
     open(tab = "general") {
+        this.loadPlanFeatures();
         const modal = document.getElementById("settings-modal");
         if (modal) {
             modal.classList.remove("hidden");
