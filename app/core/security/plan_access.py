@@ -72,7 +72,7 @@ def require_limit(entitlements: Dict[str, Any], limit_key: str, used: int, label
 
 def provider_feature(provider_id: str) -> str:
     provider = (provider_id or "").strip().lower().replace("-", "_")
-    if provider in LOCAL_PROVIDERS:
+    if provider in LOCAL_PROVIDERS or provider.startswith("local_") or provider.endswith("_local"):
         return "local_llms"
     if provider in FREE_CLOUD_PROVIDERS:
         return "free_cloud_byok"
