@@ -63,6 +63,27 @@ def _require_active_ssh_host_allowed(user_id: str, entitlements: Dict[str, Any])
         })
 
 
+def require_project_access(user_id: str, project_id: str, entitlements: Dict[str, Any]) -> None:
+    maximum = plan_limit(entitlements, "max_projects")
+    if maximum <= 0:
+        require_limit(entitlements, "max_projects", 0, "Active Projects")
+    projects = container.project_repo.list_projects(user_id)
+    if len(projects) <= maximum or not project_id:
+        return
+    active = container.project_repo.get_active_project(user_id)
+    active_id = str((active or {}).get("id") or "")
+    if str(project_id) == active_id:
+        return
+    raise HTTPException(status_code=403, detail={
+        "code": "plan_limit_reached",
+        "limit": "max_projects",
+        "used": len(projects),
+        "maximum": maximum,
+        "plan": entitlements.get("plan", "unknown"),
+        "message": "This project is outside the Active Projects allowance for your current plan. The currently active project remains available.",
+    })
+
+
 def require_plan_feature(feature_key: str):
     async def dependency(
         user_id: str = Depends(require_authenticated_user),
