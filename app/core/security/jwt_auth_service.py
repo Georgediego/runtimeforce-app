@@ -48,7 +48,7 @@ class JWTAuthService:
             if response.status_code in {401, 403}:
                 _AUTH_CACHE.pop(cache_key, None)
                 return None
-            if response.status_code >= 500:
+            if response.status_code >= 500 or response.status_code in {408, 429}:
                 raise httpx.HTTPStatusError(
                     f"RuntimeForce auth verification failed with HTTP {response.status_code}",
                     request=response.request,
