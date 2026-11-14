@@ -107,6 +107,21 @@ async def get_active_workspace(
         logger.error(f"Error getting active workspace: {e}")
         return {"active": None}
 
+@router.get("/ssh-usage")
+async def get_ssh_usage(
+    user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements),
+):
+    known_hosts = user_ssh_hosts(user_id)
+    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
+    return {
+        "used": len(known_hosts),
+        "maximum": plan_limit(entitlements, "max_ssh_hosts"),
+        "known_hosts": sorted(known_hosts),
+        "allowed_hosts": sorted(allowed_hosts),
+    }
+
+
 @router.get("/tree")
 async def get_workspace_tree(
     project_id: Optional[str] = Query(None),
