@@ -84,6 +84,26 @@ def _require_active_ssh_host_allowed(user_id: str, entitlements: Dict[str, Any])
         })
 
 
+def require_ssh_host_access(user_id: str, host: str, entitlements: Dict[str, Any]) -> None:
+    normalized_host = str(host or "").strip().lower()
+    if not normalized_host or normalized_host in {"localhost", "127.0.0.1"}:
+        return
+    known_hosts = user_ssh_hosts(user_id)
+    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
+    if normalized_host in known_hosts:
+        if normalized_host in allowed_hosts:
+            return
+        raise HTTPException(status_code=403, detail={
+            "code": "plan_limit_reached",
+            "limit": "max_ssh_hosts",
+            "used": len(known_hosts),
+            "maximum": plan_limit(entitlements, "max_ssh_hosts"),
+            "plan": entitlements.get("plan", "unknown"),
+            "message": "This SSH host is outside the host allowance for your current plan.",
+        })
+    require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
+
+
 def require_project_access(user_id: str, project_id: str, entitlements: Dict[str, Any]) -> None:
     maximum = plan_limit(entitlements, "max_projects")
     if maximum <= 0:
