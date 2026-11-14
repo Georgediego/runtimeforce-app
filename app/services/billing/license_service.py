@@ -7,7 +7,6 @@ import time
 from typing import Any, Dict, Optional
 
 import httpx
-from app.core.security.jwt_auth_service import JWTAuthService
 from app.core.interfaces.license_service_interface import ILicenseService
 from app.core.security.plan_access import feature_enabled
 
@@ -22,13 +21,12 @@ class LicenseService(ILicenseService):
         self._cache: Dict[str, Dict[str, Any]] = {}
         self.subscription_repo = subscription_repo
 
-    async def get_entitlements(self, jwt_token: Optional[str]) -> Dict[str, Any]:
+    async def get_entitlements(self, jwt_token: Optional[str], user_id: Optional[str] = None) -> Dict[str, Any]:
         if not jwt_token:
             return {"valid": False, "plan": "free", "features": {}, "limits": {}, "reason": "No token provided"}
 
         token = jwt_token.removeprefix("Bearer ").strip()
         token_key = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        user_id = JWTAuthService.extract_user_from_jwt(token)
         now = time.time()
         fresh = self._cache.get(token_key)
         if fresh and now - float(fresh.get("validated_at", 0)) < ENTITLEMENT_REFRESH_SECONDS:
