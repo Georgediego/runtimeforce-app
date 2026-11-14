@@ -7,9 +7,11 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.container import get_project_service, get_license_service
+from app.container import get_project_service, get_license_service, get_workspace_manager
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
+from app.services.workspace.workspace_manager_service import WorkspaceManagerService
+from app.services.git.git_status_service import GitStatusService
 from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access
 
 logger = logging.getLogger("runtimeforce.api.http.project")
@@ -55,6 +57,33 @@ def _known_ssh_hosts(service: ProjectService, user_id: str, projects: list) -> s
     return hosts
 
 
+async def _count_other_git_repos(
+    user_id: str,
+    service: ProjectService,
+    workspace_manager: WorkspaceManagerService,
+    entitlements: Dict[str, Any],
+    exclude_project_id: Optional[str] = None,
+) -> int:
+    projects = service.list_projects(user_id)
+    allowed_hosts = set(sorted(_known_ssh_hosts(service, user_id, projects))[:plan_limit(entitlements, "max_ssh_hosts")])
+    repo_projects = set()
+    for project in projects:
+        project_id = str(project.get("id") or "")
+        if not project_id or project_id == exclude_project_id:
+            continue
+        if str(project.get("github_remote_url") or "").strip():
+            repo_projects.add(project_id)
+            continue
+        workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
+        host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
+        if host and host not in {"localhost", "127.0.0.1"} and host not in allowed_hosts:
+            continue
+        driver = await workspace_manager.get_driver_for_project(user_id, project_id)
+        if driver and await GitStatusService.is_repo(driver):
+            repo_projects.add(project_id)
+    return len(repo_projects)
+
+
 class BumpVersionPayload(BaseModel):
     changelog: str
     bump_type: Optional[str] = "patch"
@@ -74,6 +103,7 @@ async def create_project(
     user_id: str = Depends(require_authenticated_user),
     service: ProjectService = Depends(get_project_service),
     license_service: LicenseService = Depends(get_license_service),
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
     max_projects = plan_limit(entitlements, "max_projects")
@@ -84,15 +114,11 @@ async def create_project(
     github_remote = (payload.github_remote_url or "").strip()
     if github_remote or (payload.github_pat_enc or "").strip():
         require_feature(entitlements, "git")
-        require_limit(entitlements, "git_repos", 0, "Git Repositories")
     if github_remote:
-        known_repos = {
-            str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
-            for project in existing_projects
-            if str(project.get("github_remote_url") or "").strip()
-        }
-        if github_remote.rstrip("/").lower() not in known_repos:
-            require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
+        used_repos = await _count_other_git_repos(
+            user_id, service, workspace_manager, entitlements
+        )
+        require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
 
     ssh_host = (payload.ssh_host or "").strip().lower()
     if ssh_host:
@@ -154,6 +180,7 @@ async def update_project(
     payload: ProjectPayload,
     user_id: str = Depends(require_authenticated_user),
     service: ProjectService = Depends(get_project_service),
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     entitlements: Dict[str, Any] = Depends(get_plan_entitlements),
 ):
     require_project_access(user_id, project_id, entitlements)
@@ -166,17 +193,11 @@ async def update_project(
     old_pat = str(current.get("github_pat_enc") or "").strip()
     if (new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower()) or (new_pat and new_pat != old_pat):
         require_feature(entitlements, "git")
-        require_limit(entitlements, "git_repos", 0, "Git Repositories")
     if new_remote and new_remote.rstrip("/").lower() != old_remote.rstrip("/").lower():
-        projects = service.list_projects(user_id)
-        known_repos = {
-            str(project.get("github_remote_url") or "").strip().rstrip("/").lower()
-            for project in projects
-            if str(project.get("github_remote_url") or "").strip()
-            and str(project.get("id") or "") != project_id
-        }
-        if new_remote.rstrip("/").lower() not in known_repos:
-            require_limit(entitlements, "git_repos", len(known_repos), "Git Repositories")
+        used_repos = await _count_other_git_repos(
+            user_id, service, workspace_manager, entitlements, exclude_project_id=project_id
+        )
+        require_limit(entitlements, "git_repos", used_repos, "Git Repositories")
     new_ssh_host = (payload.ssh_host or "").strip().lower()
     old_ssh_host = str(current.get("ssh_host") or "").strip().lower()
     if new_ssh_host:
