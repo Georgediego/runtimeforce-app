@@ -12,7 +12,7 @@ from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
 from app.services.git.git_status_service import GitStatusService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts
 
 logger = logging.getLogger("runtimeforce.api.http.project")
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -38,23 +38,7 @@ class ProjectPayload(BaseModel):
     current_version: Optional[str] = "v1.0.0"
 
 def _known_ssh_hosts(service: ProjectService, user_id: str, projects: list) -> set[str]:
-    hosts = {
-        str(project.get("ssh_host") or "").strip().lower()
-        for project in projects
-        if str(project.get("ssh_host") or "").strip()
-        and str(project.get("ssh_host") or "").strip().lower() not in {"localhost", "127.0.0.1"}
-    }
-    workspace_repo = getattr(service, "workspace_repo", None)
-    if workspace_repo:
-        for project in projects:
-            project_id = str(project.get("id") or "")
-            if not project_id:
-                continue
-            for workspace in workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
-                host = str(workspace.get("host") or "").strip().lower()
-                if host and host not in {"localhost", "127.0.0.1"}:
-                    hosts.add(host)
-    return hosts
+    return user_ssh_hosts(user_id)
 
 
 async def _count_other_git_repos(
@@ -65,7 +49,7 @@ async def _count_other_git_repos(
     exclude_project_id: Optional[str] = None,
 ) -> int:
     projects = service.list_projects(user_id)
-    allowed_hosts = set(sorted(_known_ssh_hosts(service, user_id, projects))[:plan_limit(entitlements, "max_ssh_hosts")])
+    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
     repo_projects = set()
     for project in projects:
         project_id = str(project.get("id") or "")
@@ -161,7 +145,7 @@ async def activate_project(
     workspace = project.get("workspace") or {}
     host = str(workspace.get("host") or project.get("ssh_host") or "").strip().lower()
     if host and host not in {"localhost", "127.0.0.1"}:
-        allowed_hosts = set(sorted(_known_ssh_hosts(service, user_id, service.list_projects(user_id)))[:plan_limit(entitlements, "max_ssh_hosts")])
+        allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
         if host not in allowed_hosts:
             used_hosts = len(_known_ssh_hosts(service, user_id, service.list_projects(user_id)))
             maximum = plan_limit(entitlements, "max_ssh_hosts")
