@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit
+from app.core.security.plan_access import command_requires_git, command_creates_git_repo
 
 router = APIRouter(prefix="/api/v1/approvals", tags=["command approvals"])
 
@@ -18,7 +20,22 @@ async def decide_command_approval(
     pending_id: str,
     payload: ApprovalDecisionPayload,
     user_id: str = Depends(require_authenticated_user),
+    entitlements: dict = Depends(get_plan_entitlements),
 ):
+    require_feature(entitlements, "terminal")
+    pending_items = await container.command_approval_service.list_pending(user_id)
+    pending = next((item for item in pending_items if item.get("pending_id") == pending_id), None)
+    if pending and command_requires_git(pending.get("command", "")):
+        require_feature(entitlements, "git")
+        if command_creates_git_repo(pending.get("command", "")):
+            current_project_id = str(pending.get("project_id") or "")
+            used_repos = {
+                str(project.get("id") or "")
+                for project in container.project_repo.list_projects(user_id)
+                if str(project.get("id") or "") != current_project_id
+                and str(project.get("github_remote_url") or "").strip()
+            }
+            require_limit(entitlements, "git_repos", len(used_repos), "Git Repositories")
     try:
         return await container.command_approval_service.decide(pending_id, user_id, payload.choice)
     except KeyError as exc:
