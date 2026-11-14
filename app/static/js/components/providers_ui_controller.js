@@ -1,7 +1,7 @@
 /**
  * Providers UI Controller with English-only UI, Hardware Diagnostics & Seamless Local Models.
  */
-import { keysApi, modelsApi } from "../core/api_http_client.js";
+import { keysApi, modelsApi, billingApi } from "../core/api_http_client.js";
 import { showToast, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -26,12 +26,67 @@ let activeFilterTag = "all";
 let cachedHardwareInfo = null;
 
 export const providersUIController = {
+    _features: {},
+
+    _featureEnabled(featureKey) {
+        const aliases = {
+            local_llms: ["local_llms", "local_models", "local llms"],
+            free_cloud_byok: ["free_cloud_byok", "free cloud byok"],
+            full_pro_byok: ["full_pro_byok", "full pro byok"],
+        };
+        for (const key of (aliases[featureKey] || [featureKey])) {
+            if (Object.prototype.hasOwnProperty.call(this._features, key)) return this._features[key] === true;
+        }
+        return false;
+    },
+
+    applyPlanLocks() {
+        const groups = [
+            [FREE_PROVIDERS, "free_cloud_byok"],
+            [PRO_PROVIDERS, "full_pro_byok"],
+        ];
+        for (const [providers, feature] of groups) {
+            const allowed = this._featureEnabled(feature);
+            for (const provider of providers) {
+                const input = document.getElementById("key-input-" + provider.id);
+                const card = input?.closest(".p-3");
+                if (input) input.disabled = !allowed;
+                card?.querySelectorAll(".provider-toggle-btn, .configure-models-btn").forEach((button) => {
+                    button.disabled = !allowed;
+                });
+                if (card && !allowed) {
+                    card.classList.add("opacity-50");
+                    const heading = card.querySelector(".key-status-" + provider.id);
+                    if (heading) {
+                        heading.textContent = "Locked by plan";
+                        heading.title = feature + " is not enabled for this plan";
+                    }
+                }
+            }
+        }
+        const localButton = document.getElementById("add-local-provider-btn");
+        if (localButton) {
+            localButton.disabled = !this._featureEnabled("local_llms");
+            if (localButton.disabled) {
+                localButton.title = "Local LLMs are not included in this plan";
+                localButton.classList.add("opacity-50", "cursor-not-allowed");
+            }
+        }
+    },
+
     async loadProvidersList() {
+        try {
+            const entitlements = await billingApi.entitlements();
+            this._features = entitlements?.valid ? (entitlements.features || {}) : {};
+        } catch {
+            this._features = {};
+        }
         const freeContainer = document.getElementById("providers-list-free");
         const proContainer = document.getElementById("providers-list-pro");
 
         if (freeContainer) freeContainer.innerHTML = FREE_PROVIDERS.map(p => this.providerCardHTML(p)).join("");
         if (proContainer) proContainer.innerHTML = PRO_PROVIDERS.map(p => this.providerCardHTML(p)).join("");
+        this.applyPlanLocks();
 
         await this.fetchHardwareDiagnostics();
         this.renderLocalModelsSection();
