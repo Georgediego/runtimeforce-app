@@ -6,7 +6,7 @@ def test_chat_strategy_maps_to_admin_feature_keys():
     assert chat_strategy_feature("manual") == "manual"
     assert chat_strategy_feature("coding") == "atm"
     assert chat_strategy_feature("atm") == "atm"
-    assert chat_strategy_feature("local") == "local_models"
+    assert chat_strategy_feature("local") == "local_llms"
 
 
 def test_unknown_chat_strategy_is_not_granted():
@@ -28,7 +28,7 @@ def test_agent_tools_map_to_plan_features():
     assert tool_feature_key("unknown_tool") is None
 
 def test_provider_access_uses_separate_local_and_byok_flags():
-    assert provider_feature_key("ollama") == "local_models"
-    assert provider_feature_key("lm_studio") == "local_models"
-    assert provider_feature_key("openai") == "local_byok"
-    assert provider_feature_key("gemini") == "local_byok"
+    assert provider_feature_key("ollama") == "local_llms"
+    assert provider_feature_key("lm_studio") == "local_llms"
+    assert provider_feature_key("openai") == "full_pro_byok"
+    assert provider_feature_key("gemini") == "free_cloud_byok"
