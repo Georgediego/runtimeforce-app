@@ -33,6 +33,7 @@ def _unique_ssh_hosts(user_id: str, projects, exclude_project_id: Optional[str] 
                 workspace_host = str(workspace.get("host") or "").strip().lower()
                 if workspace_host:
                     hosts.add((workspace_host, int(workspace.get("port") or 22)))
+    return hosts
 
 
 class ProjectPayload(BaseModel):
@@ -84,8 +85,6 @@ async def create_project(
     existing_projects = service.list_projects(user_id)
 
     if payload.ssh_host and payload.ssh_host.strip():
-        if "ssh" in features and features.get("ssh") is not True:
-            raise HTTPException(403, detail="SSH workspaces are not enabled for this plan")
         max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
         current_ssh_hosts = _unique_ssh_hosts(user_id, existing_projects)
         ssh_key = (payload.ssh_host.strip().lower(), int(payload.ssh_port or 22))
