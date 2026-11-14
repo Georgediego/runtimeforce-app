@@ -13,7 +13,7 @@ from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
-from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts
+from app.core.security.entitlements import get_plan_entitlements, require_feature, require_limit, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access
 from app.core.security.plan_access import command_requires_git, command_creates_git_repo
 from app.services.git.git_status_service import GitStatusService
 
@@ -38,17 +38,7 @@ def _require_project_ssh_access(user_id: str, project_id: str, entitlements: dic
     host = str((workspace or {}).get("host") or (project or {}).get("ssh_host") or "").strip().lower()
     if not host or host in {"localhost", "127.0.0.1"}:
         return
-    all_hosts = user_ssh_hosts(user_id)
-    limit = plan_limit(entitlements, "max_ssh_hosts")
-    if host not in allowed_ssh_hosts(user_id, entitlements):
-        raise HTTPException(status_code=403, detail={
-            "code": "plan_limit_reached",
-            "limit": "max_ssh_hosts",
-            "used": len(all_hosts),
-            "maximum": limit,
-            "plan": entitlements.get("plan", "unknown"),
-            "message": "This SSH host is outside the host allowance for your current plan.",
-        })
+    require_ssh_host_access(user_id, host, entitlements)
 
 
 async def _count_other_git_repos(user_id: str, current_project_id: str, entitlements: dict) -> int:
@@ -343,11 +333,7 @@ async def create_workspace(
             or host_value not in {"localhost", "127.0.0.1"}
         )
         if is_ssh_workspace:
-            known_hosts = _get_user_ssh_hosts(user_id)
-            if plan_limit(entitlements, "max_ssh_hosts") <= 0:
-                require_limit(entitlements, "max_ssh_hosts", 0, "SSH Hosts")
-            elif host_value not in known_hosts:
-                require_limit(entitlements, "max_ssh_hosts", len(known_hosts), "SSH Hosts")
+            require_ssh_host_access(user_id, host_value, entitlements)
         ws_id = payload.get("id") or str(uuid.uuid4())
         target_project_id = payload.get("project_id") or _get_active_project_id(user_id)
         require_project_access(user_id, target_project_id, entitlements)
