@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.container import get_project_service, get_license_service, get_workspace_manager
+from app.container import container, get_project_service, get_license_service, get_workspace_manager
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
 from app.services.workspace.workspace_manager_service import WorkspaceManagerService
