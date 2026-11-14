@@ -11,7 +11,7 @@ from typing import Optional
 from pydantic import BaseModel
 from app.container import container
 from app.core.security.jwt_auth_service import require_authenticated_user
-from app.core.security.entitlements import require_plan_feature
+from app.core.security.entitlements import require_plan_feature, plan_limit, enforce_plan_limit
 from app.services.workspace.workspace_tree_service import WorkspaceTreeService
 from app.services.workspace.workspace_file_service import WorkspaceFileService
 
@@ -49,7 +49,7 @@ async def _ensure_ssh_workspace_allowed(user_id: str, project_id: str, request: 
     entitlements = await _verified_entitlements(request)
     features = entitlements.get("features") or {}
     limits = entitlements.get("limits") or {}
-    max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
+    max_ssh_hosts = plan_limit(entitlements, "max_ssh_hosts")
     if max_ssh_hosts <= 0:
         raise HTTPException(status_code=403, detail="SSH host access is disabled by the SSH Hosts limit for this plan")
     if len(_count_unique_ssh_hosts(user_id)) > max_ssh_hosts:
@@ -287,14 +287,12 @@ async def create_workspace(
         if str(payload.get("type") or "").lower() == "ssh":
             entitlements = await _verified_entitlements(request)
             features = entitlements.get("features") or {}
-            if max(0, int((entitlements.get("limits") or {}).get("max_ssh_hosts", 0) or 0)) <= 0:
+            if plan_limit(entitlements, "max_ssh_hosts") <= 0:
                 raise HTTPException(status_code=403, detail="SSH host access is disabled by the SSH Hosts limit for this plan")
             current_hosts = _count_unique_ssh_hosts(user_id)
             host_key = (str(payload.get("host") or "").strip().lower(), int(payload.get("port") or 22))
             if host_key[0] and host_key not in current_hosts:
-                max_ssh_hosts = max(0, int((entitlements.get("limits") or {}).get("max_ssh_hosts", 0) or 0))
-                if len(current_hosts) >= max_ssh_hosts:
-                    raise HTTPException(status_code=403, detail="SSH host limit reached for this plan")
+                enforce_plan_limit(entitlements, "max_ssh_hosts", len(current_hosts), adding=1)
 
         success = container.workspace_repo.create_workspace(ws_id, user_id, **payload)
         return {"status": "created" if success else "failed", "workspace_id": ws_id}
