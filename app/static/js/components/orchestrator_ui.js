@@ -269,7 +269,7 @@ export const orchestratorUIController = {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
         const enabledSet = await this.getEnabledModelsSet();
-        const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
+        const FREE_PROVIDERS_SET = new Set(["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
 
         return models.filter((m) => {
             if (!planAccessState.modelAllowed(m)) return false;
