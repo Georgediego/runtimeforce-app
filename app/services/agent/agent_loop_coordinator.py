@@ -516,10 +516,10 @@ class AgentLoopCoordinator:
         final_text = ""
         active_specialist_index = 0
         force_no_tools = False
-        allowed_tools = [
-            entry for entry in AGENT_TOOLS_MANIFEST
-            if plan_features.get(tool_feature_key(entry.get("function", {}).get("name", ""))) is True
-        ]
+        # Advertise the complete tool catalogue so the model can identify the
+        # requested capability. Every invocation is still checked against the
+        # server-verified plan feature immediately before dispatch below.
+        allowed_tools = list(AGENT_TOOLS_MANIFEST)
 
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             iter_limit_err = loop_detector.check_max_iterations(iteration)
