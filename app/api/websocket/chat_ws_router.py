@@ -71,10 +71,46 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 await websocket.send_json({"status": "aborted", "session_id": session_id})
                 continue
 
+            # Refresh verified entitlements on every new request. Long-lived WebSockets
+            # must not retain privileges after an admin plan change.
+            entitlements = await container.license_service.get_entitlements(token)
+            if not entitlements.get("valid"):
+                await websocket.send_json({
+                    "status": "error", "code": 403,
+                    "error": "Account entitlements could not be verified.",
+                })
+                await websocket.close(code=1008, reason="Subscription status could not be verified")
+                return
+            plan = str(entitlements.get("plan") or "free")
+
             prompt = data.get("prompt") or data.get("text") or ""
             if not prompt and not data.get("messages"):
                 logger.debug("[WS] IGNORE empty send session=%s", session_id)
                 continue
+
+            strategy = str(data.get("strategy") or "auto").strip().lower()
+            strategy_features = {
+                "auto": "auto",
+                "coding": "atm",
+                "atm": "atm",
+                "local": "local_llms",
+                "manual": "manual",
+            }
+            required_feature = strategy_features.get(strategy)
+            if not required_feature:
+                await websocket.send_json({
+                    "status": "error", "code": 400,
+                    "error": f"Unknown orchestration mode: {strategy}",
+                })
+                continue
+            if not feature_enabled(entitlements, required_feature):
+                await websocket.send_json({
+                    "status": "error", "code": 403,
+                    "feature": required_feature,
+                    "error": f"Feature '{required_feature}' is not enabled for plan '{plan}'.",
+                })
+                continue
+
             logger.info(
                 "[WS] GENERATION REQUEST session=%s user=%s action=%s prompt_chars=%s",
                 session_id, user_id, action, len(str(prompt))
@@ -102,29 +138,6 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 await websocket.send_json({
                     "status": "error",
                     "error": "No Workspace is connected to this project. Connect a local folder or SSH Workspace in Project Settings before running AI tasks."
-                })
-                continue
-
-            strategy = str(data.get("strategy") or "auto").strip().lower()
-            strategy_features = {
-                "auto": "auto",
-                "coding": "atm",
-                "atm": "atm",
-                "local": "local_llms",
-                "manual": "manual",
-            }
-            required_feature = strategy_features.get(strategy)
-            if not required_feature:
-                await websocket.send_json({
-                    "status": "error", "code": 400,
-                    "error": f"Unknown orchestration mode: {strategy}",
-                })
-                continue
-            if not feature_enabled(entitlements, required_feature):
-                await websocket.send_json({
-                    "status": "error", "code": 403,
-                    "feature": required_feature,
-                    "error": f"Feature '{required_feature}' is not enabled for plan '{plan}'.",
                 })
                 continue
 
