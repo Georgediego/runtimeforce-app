@@ -147,13 +147,14 @@ export const planAccessState = {
         return this.limit("max_projects") > 0 && Number(currentCount) < this.limit("max_projects");
     },
 
-    canAddSSHHost(host, knownHosts) {
+    canAddSSHHost(host, knownHosts, allowedHosts) {
         const maximum = this.limit("max_ssh_hosts");
         const normalizedHost = String(host || "").trim().toLowerCase();
-        return maximum > 0 && (
-            (normalizedHost && knownHosts?.has(normalizedHost)) ||
-            (knownHosts?.size || 0) < maximum
-        );
+        if (maximum <= 0) return false;
+        if (!normalizedHost) return (knownHosts?.size || 0) < maximum;
+        if (allowedHosts?.has(normalizedHost)) return true;
+        if (knownHosts?.has(normalizedHost)) return false;
+        return (knownHosts?.size || 0) < maximum;
     },
 
     canAddGitRepo(existingCount, currentProjectHasRepo = false) {
