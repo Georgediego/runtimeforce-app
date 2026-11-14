@@ -1,7 +1,8 @@
 /**
  * Providers UI Controller with English-only UI, Hardware Diagnostics & Seamless Local Models.
  */
-import { keysApi, modelsApi, billingApi } from "../core/api_http_client.js";
+import { keysApi, modelsApi } from "../core/api_http_client.js";
+import { planAccessState } from "../core/plan_access_state.js";
 import { showToast, showConfirm } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
@@ -29,19 +30,7 @@ export const providersUIController = {
     _features: {},
 
     _featureEnabled(featureKey) {
-        const aliases = {
-            local_llms: ["local_llms", "local_models", "local llms"],
-            free_cloud_byok: ["free_cloud_byok", "free cloud byok"],
-            full_pro_byok: ["full_pro_byok", "full pro byok"],
-        };
-        const normalizedFeatures = Object.fromEntries(
-            Object.entries(this._features).map(([key, value]) => [key.trim().toLowerCase(), value])
-        );
-        for (const key of (aliases[featureKey] || [featureKey])) {
-            const normalizedKey = key.trim().toLowerCase();
-            if (Object.prototype.hasOwnProperty.call(normalizedFeatures, normalizedKey)) return normalizedFeatures[normalizedKey] === true;
-        }
-        return false;
+        return planAccessState.featureEnabled(featureKey);
     },
 
     applyPlanLocks() {
@@ -79,12 +68,8 @@ export const providersUIController = {
     },
 
     async loadProvidersList() {
-        try {
-            const entitlements = await billingApi.entitlements();
-            this._features = entitlements?.valid ? (entitlements.features || {}) : {};
-        } catch {
-            this._features = {};
-        }
+        await planAccessState.refresh();
+        this._features = planAccessState.entitlements.features || {};
         const freeContainer = document.getElementById("providers-list-free");
         const proContainer = document.getElementById("providers-list-pro");
 
