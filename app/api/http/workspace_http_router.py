@@ -44,6 +44,25 @@ def _get_user_ssh_hosts(user_id: str) -> set[str]:
     return hosts
 
 
+def _require_project_ssh_access(user_id: str, project_id: str, entitlements: dict) -> None:
+    workspace = container.workspace_repo.get_workspace_by_project_id(project_id, user_id)
+    project = container.project_repo.get_project(project_id, user_id)
+    host = str((workspace or {}).get("host") or (project or {}).get("ssh_host") or "").strip().lower()
+    if not host or host in {"localhost", "127.0.0.1"}:
+        return
+    all_hosts = sorted(_get_user_ssh_hosts(user_id))
+    limit = plan_limit(entitlements, "max_ssh_hosts")
+    if host not in set(all_hosts[:limit]):
+        raise HTTPException(status_code=403, detail={
+            "code": "plan_limit_reached",
+            "limit": "max_ssh_hosts",
+            "used": len(all_hosts),
+            "maximum": limit,
+            "plan": entitlements.get("plan", "unknown"),
+            "message": "This SSH host is outside the host allowance for your current plan.",
+        })
+
+
 async def _count_other_git_repos(user_id: str, current_project_id: str) -> int:
     repo_projects = set()
     for project in container.project_repo.list_projects(user_id):
@@ -105,6 +124,7 @@ async def get_workspace_tree(
 ):
     try:
         require_feature(entitlements, "editor")
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -134,6 +154,7 @@ async def get_workspace_tree_children(
 ):
     try:
         require_feature(entitlements, "editor")
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -177,6 +198,7 @@ async def read_workspace_file(
 ):
     try:
         require_feature(entitlements, "editor")
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = project_id or _get_active_project_id(user_id)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
@@ -197,6 +219,7 @@ async def save_workspace_file(
         require_feature(entitlements, "editor")
         path = payload.get("path")
         content = payload.get("content", "")
+        _require_project_ssh_access(user_id, project_id, entitlements)
         project_id = payload.get("project_id") or _get_active_project_id(user_id)
         if not path:
             raise HTTPException(status_code=400, detail="File path is required")
@@ -217,6 +240,7 @@ async def execute_command(
 ):
     try:
         require_feature(entitlements, "terminal")
+        _require_project_ssh_access(user_id, target_project_id, entitlements)
         target_project_id = payload.project_id or _get_active_project_id(user_id)
         if command_requires_git(payload.command):
             require_feature(entitlements, "git")
