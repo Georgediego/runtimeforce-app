@@ -341,7 +341,7 @@ export const projectsUIController = {
             const usedElsewhere = gitUsage
                 ? Math.max(0, Number(gitUsage.used || 0) - (currentHasRepo ? 1 : 0))
                 : knownGitRepos.size;
-            const canAddGitRepo = planAccessState.canAddGitRepo(usedElsewhere, currentHasRepo);
+            const canAddGitRepo = gitUsage ? gitUsage.can_add === true : planAccessState.canAddGitRepo(usedElsewhere, currentHasRepo, gitUsage?.current_project_allowed !== false);
             const gitTabButton = document.querySelector('.proj-settings-tab-btn[data-tab="git"]');
             if (gitTabButton) {
                 gitTabButton.disabled = !canAddGitRepo;
