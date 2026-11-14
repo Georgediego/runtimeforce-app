@@ -213,3 +213,34 @@ def test_ssh_host_allowance_prioritizes_active_host_after_downgrade(monkeypatch)
     with pytest.raises(HTTPException) as error:
         entitlement_dependencies.require_ssh_host_access("user-1", "a-older.example", entitlements)
     assert error.value.status_code == 403
+
+
+
+def test_git_repo_quota_blocks_existing_repository_outside_allowance(monkeypatch):
+    import asyncio
+
+    from app.core.security import entitlements as entitlement_dependencies
+
+    async def fake_repo_ids(user_id, workspace_manager, entitlements):
+        return ["oldest-repo", "over-limit-repo"]
+
+    monkeypatch.setattr(entitlement_dependencies, "user_git_repo_ids", fake_repo_ids)
+    entitlements = free_entitlements()
+    entitlements["features"]["git"] = True
+
+    async def run():
+        state = await entitlement_dependencies.git_repo_quota_state(
+            "user-1", "over-limit-repo", object(), entitlements
+        )
+        assert state["used"] == 2
+        assert state["current_project_has_repo"] is True
+        assert state["current_project_allowed"] is False
+        assert state["can_use_git"] is False
+        with pytest.raises(HTTPException) as error:
+            await entitlement_dependencies.require_git_repo_access(
+                "user-1", "over-limit-repo", object(), entitlements
+            )
+        assert error.value.status_code == 403
+        assert error.value.detail["limit"] == "git_repos"
+
+    asyncio.run(run())
