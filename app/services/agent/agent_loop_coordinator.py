@@ -472,7 +472,7 @@ class AgentLoopCoordinator:
         force_no_tools = False
         allowed_tools = [
             entry for entry in AGENT_TOOLS_MANIFEST
-            if (not tool_feature_key(entry.get("function", {}).get("name", "")) or feature_enabled({"valid": True, "features": plan_features}, tool_feature_key(entry.get("function", {}).get("name", "")))
+            if (not tool_feature_key(entry.get("function", {}).get("name", "")) or feature_enabled({"valid": True, "features": plan_features}, tool_feature_key(entry.get("function", {}).get("name", ""))))
         ]
 
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
