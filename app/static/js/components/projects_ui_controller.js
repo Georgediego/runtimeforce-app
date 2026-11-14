@@ -553,11 +553,17 @@ export const projectsUIController = {
     },
 
     switchProjectSettingsTab(targetTab) {
+        const requestedTabButton = document.querySelector('.proj-settings-tab-btn[data-tab="' + targetTab + '"]');
+        if (targetTab === "git" && requestedTabButton?.disabled) {
+            showToast(requestedTabButton.title || "Git integration is not available on this plan.", "warning");
+            return;
+        }
         document.querySelectorAll(".proj-settings-content-tab").forEach((t) => t.classList.add("hidden"));
         document.getElementById(`pst-tab-${targetTab}`)?.classList.remove("hidden");
         document.querySelectorAll(".proj-settings-tab-btn").forEach((b) => {
             const isActive = b.dataset.tab === targetTab;
             b.className = `proj-settings-tab-btn px-3 py-1.5 text-xs rounded-lg cursor-pointer ${isActive ? "bg-[var(--ide-accent)] text-black font-bold" : "bg-[var(--ide-elevated)] text-[var(--ide-text-secondary)] hover:text-white"}`;
+            if (b.disabled) b.classList.add("opacity-40", "cursor-not-allowed");
         });
         if (targetTab === "workspace" && activeSettingsProjectId) {
             workspaceUIController.loadWorkspacesList(activeSettingsProjectId);
