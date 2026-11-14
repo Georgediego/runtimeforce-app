@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from app.core.security.plan_access import (
     command_creates_git_repo,
+    command_clones_git_repo,
     command_requires_git,
     feature_enabled,
     model_allowed_by_plan,
@@ -85,6 +86,8 @@ def test_git_command_detection():
     assert command_requires_git("gh repo clone owner/repo")
     assert command_requires_git('bash -c "git push origin main"')
     assert command_requires_git('python -c "subprocess.run([\'git\', \'push\'])"')
+    assert command_clones_git_repo('bash -c "git clone https://example.com/repo.git"')
+    assert not command_clones_git_repo("git init")
     assert command_creates_git_repo("git clone https://github.com/a/b.git")
     assert not command_creates_git_repo("git status")
 
