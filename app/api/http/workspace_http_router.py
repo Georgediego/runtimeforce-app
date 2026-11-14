@@ -169,6 +169,7 @@ async def get_workspace_tree_children(
         require_feature(entitlements, "editor")
         require_limit(entitlements, "max_projects", 0, "Active Projects")
         target_project_id = project_id or _get_active_project_id(user_id)
+        require_project_access(user_id, target_project_id, entitlements)
         _require_project_ssh_access(user_id, target_project_id, entitlements)
         driver = await container.workspace_manager_service.get_driver_for_project(user_id, target_project_id)
         if not driver:
