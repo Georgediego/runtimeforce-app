@@ -83,6 +83,8 @@ def test_git_command_detection():
     assert command_requires_git("git status")
     assert command_requires_git("git push origin main")
     assert command_requires_git("gh repo clone owner/repo")
+    assert command_requires_git('bash -c "git push origin main"')
+    assert command_requires_git('python -c "subprocess.run([\'git\', \'push\'])"')
     assert command_creates_git_repo("git clone https://github.com/a/b.git")
     assert not command_creates_git_repo("git status")
 
