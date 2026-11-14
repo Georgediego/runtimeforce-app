@@ -31,6 +31,37 @@ async def get_plan_entitlements(
     return entitlements
 
 
+def user_ssh_hosts(user_id: str) -> set[str]:
+    hosts: set[str] = set()
+    for project in container.project_repo.list_projects(user_id):
+        project_host = str(project.get("ssh_host") or "").strip().lower()
+        if project_host and project_host not in {"localhost", "127.0.0.1"}:
+            hosts.add(project_host)
+        project_id = str(project.get("id") or "")
+        if project_id:
+            for workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=project_id):
+                host = str(workspace.get("host") or "").strip().lower()
+                if host and host not in {"localhost", "127.0.0.1"}:
+                    hosts.add(host)
+    return hosts
+
+
+def allowed_ssh_hosts(user_id: str, entitlements: Dict[str, Any]) -> set[str]:
+    hosts = user_ssh_hosts(user_id)
+    maximum = plan_limit(entitlements, "max_ssh_hosts")
+    active = container.project_repo.get_active_project(user_id)
+    active_id = str((active or {}).get("id") or "")
+    active_workspace = (
+        container.workspace_repo.get_workspace_by_project_id(active_id, user_id)
+        if active_id else None
+    )
+    preferred_host = str(
+        (active_workspace or {}).get("host") or (active or {}).get("ssh_host") or ""
+    ).strip().lower()
+    ordered = ([preferred_host] if preferred_host in hosts else []) + sorted(hosts - {preferred_host})
+    return set(ordered[:maximum])
+
+
 def _require_active_ssh_host_allowed(user_id: str, entitlements: Dict[str, Any]) -> None:
     project = container.project_repo.get_active_project(user_id)
     if not project:
@@ -40,18 +71,8 @@ def _require_active_ssh_host_allowed(user_id: str, entitlements: Dict[str, Any])
     host = str((workspace or {}).get("host") or project.get("ssh_host") or "").strip().lower()
     if not host or host in {"localhost", "127.0.0.1"}:
         return
-    hosts = set()
-    for item in container.project_repo.list_projects(user_id):
-        project_host = str(item.get("ssh_host") or "").strip().lower()
-        if project_host and project_host not in {"localhost", "127.0.0.1"}:
-            hosts.add(project_host)
-        item_id = str(item.get("id") or "")
-        if item_id:
-            for item_workspace in container.workspace_repo.get_all_workspaces(user_id=user_id, project_id=item_id):
-                item_host = str(item_workspace.get("host") or "").strip().lower()
-                if item_host and item_host not in {"localhost", "127.0.0.1"}:
-                    hosts.add(item_host)
-    allowed_hosts = set(sorted(hosts)[:plan_limit(entitlements, "max_ssh_hosts")])
+    hosts = user_ssh_hosts(user_id)
+    allowed_hosts = allowed_ssh_hosts(user_id, entitlements)
     if host not in allowed_hosts:
         raise HTTPException(status_code=403, detail={
             "code": "plan_limit_reached",
