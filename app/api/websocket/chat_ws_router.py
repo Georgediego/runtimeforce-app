@@ -8,7 +8,7 @@ from typing import Dict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from app.container import container
 from app.core.security.jwt_auth_service import JWTAuthService
-from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access
+from app.core.security.entitlements import feature_enabled, model_allowed_by_plan, provider_feature, plan_limit, require_project_access, user_ssh_hosts, allowed_ssh_hosts, require_ssh_host_access, count_other_git_repos
 from app.services.git.git_status_service import GitStatusService
 
 logger = logging.getLogger("runtimeforce.chat_ws")
@@ -175,25 +175,12 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                 })
                 continue
 
-            git_repo_slot_available = plan_limit(entitlements, "git_repos") > 0
-            if git_repo_slot_available:
-                existing_repo_projects = set()
-                allowed_hosts_for_plan = allowed_ssh_hosts(user_id, entitlements)
-                for existing_project in container.project_repo.list_projects(user_id):
-                    existing_project_id = str(existing_project.get("id") or "")
-                    if not existing_project_id or existing_project_id == project_id:
-                        continue
-                    if str(existing_project.get("github_remote_url") or "").strip():
-                        existing_repo_projects.add(existing_project_id)
-                        continue
-                    other_workspace = container.workspace_repo.get_workspace_by_project_id(existing_project_id, user_id)
-                    other_host = str((other_workspace or {}).get("host") or existing_project.get("ssh_host") or "").strip().lower()
-                    if other_host and other_host not in {"localhost", "127.0.0.1"} and other_host not in allowed_hosts_for_plan:
-                        continue
-                    other_driver = await container.workspace_manager_service.get_driver_for_project(user_id, existing_project_id)
-                    if other_driver and await GitStatusService.is_repo(other_driver):
-                        existing_repo_projects.add(existing_project_id)
-                git_repo_slot_available = len(existing_repo_projects) < plan_limit(entitlements, "git_repos")
+            git_repo_slot_available = (
+                plan_limit(entitlements, "git_repos") > 0
+                and await count_other_git_repos(
+                    user_id, container.workspace_manager_service, project_id, entitlements
+                ) < plan_limit(entitlements, "git_repos")
+            )
 
             model_lock = data.get("model_lock")
             enabled_models = data.get("enabled_models")
