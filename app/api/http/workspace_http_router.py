@@ -47,8 +47,6 @@ async def _ensure_ssh_workspace_allowed(user_id: str, project_id: str, request: 
     if not is_ssh:
         return
     entitlements = await _verified_entitlements(request)
-    features = entitlements.get("features") or {}
-    limits = entitlements.get("limits") or {}
     max_ssh_hosts = plan_limit(entitlements, "max_ssh_hosts")
     if max_ssh_hosts <= 0:
         raise HTTPException(status_code=403, detail="SSH host access is disabled by the SSH Hosts limit for this plan")
@@ -286,7 +284,6 @@ async def create_workspace(
 
         if str(payload.get("type") or "").lower() == "ssh":
             entitlements = await _verified_entitlements(request)
-            features = entitlements.get("features") or {}
             if plan_limit(entitlements, "max_ssh_hosts") <= 0:
                 raise HTTPException(status_code=403, detail="SSH host access is disabled by the SSH Hosts limit for this plan")
             current_hosts = _count_unique_ssh_hosts(user_id)
