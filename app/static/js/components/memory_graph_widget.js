@@ -349,15 +349,12 @@ import { eventBus } from "../core/event_bus.js";
                     gl_Position = projectionMatrix * mv;
                 }`,
             fragmentShader: `
-                uniform float uTime, uIdle;
                 uniform vec3 uHot;
                 varying vec3 vColor;
                 varying float vAlong, vAct, vDepth;
                 void main() {
-                    float flow = fract(vAlong * 1.5 - uTime * 0.0011);
-                    float spark = smoothstep(0.0, 0.15, flow) * (1.0 - smoothstep(0.15, 0.45, flow));
-                    float a = mix(uIdle, 0.45 + 0.55 * spark, vAct) * mix(1.0, 0.4, vDepth);
-                    vec3 col = mix(vColor * 1.1 + 0.15, uHot, vAct);
+                    float a = vAct * mix(1.0, 0.4, vDepth);
+                    vec3 col = mix(vColor, uHot, vAct);
                     gl_FragColor = vec4(col, a);
                 }`
         });
@@ -678,6 +675,31 @@ import { eventBus } from "../core/event_bus.js";
         activeEdgeIds.clear();
         applyActive();     // targets fall to 0 -> smooth fade; every node and edge stays on screen
         if (nodes.length) setStatus("RUNTIME GRAPH · " + nodes.length + " OBJECTS · " + edges.length + " LINKS");
+    }
+
+    function rememberActiveNodes() {
+        activeIds.forEach(id => {
+            if (!indexById.has(id)) return;
+            everActiveIds.add(id);
+            const attribute = nodePoints?.geometry.attributes.aMarked;
+            const index = indexById.get(id);
+            if (attribute && attribute.array[index] !== 1) {
+                attribute.array[index] = 1;
+                attribute.needsUpdate = true;
+            }
+        });
+    }
+
+    // Activity is accepted only from explicit backend graph IDs.
+    function addActive(item) {
+        if (!item || typeof item !== "object") return;
+        if (Array.isArray(item.active_node_ids)) {
+            item.active_node_ids.forEach(id => activeIds.add(String(id)));
+        }
+        if (Array.isArray(item.active_edge_ids)) {
+            item.active_edge_ids.forEach(id => activeEdgeIds.add(String(id)));
+        }
+        rememberActiveNodes();
     }
 
     const hasUnknown = () => [...activeIds].some(id => !indexById.has(id));
