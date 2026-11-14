@@ -45,6 +45,37 @@ LOCAL_PROVIDERS = {"ollama", "lm_studio", "lm-studio", "local"}
 FREE_CLOUD_PROVIDERS = {"gemini", "openrouter", "groq", "sambanova", "cerebras"}
 PRO_CLOUD_PROVIDERS = {"openai", "anthropic", "deepseek", "xai"}
 
+LIMIT_ALIASES = {
+    "max_projects": ("max_projects", "active_projects"),
+    "max_ssh_hosts": ("max_ssh_hosts", "ssh_hosts"),
+    "git_repos": ("git_repos", "max_git_repos"),
+    "offline_grace_hours": ("offline_grace_hours",),
+}
+
+
+def plan_limit(entitlements: dict, limit_key: str, default: int = 0) -> int:
+    limits = entitlements.get("limits") if isinstance(entitlements, dict) else {}
+    limits = limits if isinstance(limits, dict) else {}
+    aliases = LIMIT_ALIASES.get(limit_key, (limit_key,))
+    value = next((limits[key] for key in aliases if key in limits), default)
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return max(0, int(default))
+
+
+def enforce_plan_limit(entitlements: dict, limit_key: str, current_count: int, adding: int = 1) -> int:
+    limit = plan_limit(entitlements, limit_key)
+    if max(0, int(current_count)) + max(0, int(adding)) > limit:
+        raise HTTPException(status_code=403, detail={
+            "code": "limit_reached",
+            "limit": limit_key,
+            "allowed": limit,
+            "current": max(0, int(current_count)),
+            "message": f"Plan limit '{limit_key}' reached ({limit}).",
+        })
+    return limit
+
 
 def tool_feature_key(tool_name: str):
     return TOOL_FEATURES.get(str(tool_name or "").strip().lower())
