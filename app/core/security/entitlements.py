@@ -23,7 +23,7 @@ async def get_plan_entitlements(
     user_id: str = Depends(require_authenticated_user),
     license_service: LicenseService = Depends(get_license_service),
 ) -> Dict[str, Any]:
-    entitlements = await license_service.get_entitlements(request_token(request))
+    entitlements = await license_service.get_entitlements(request_token(request), user_id=user_id)
     if not entitlements.get("valid"):
         raise HTTPException(status_code=403, detail={
             "code": "entitlements_unverified",
