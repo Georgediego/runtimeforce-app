@@ -36,8 +36,7 @@ export const workspaceUIController = {
                 const workspaces = Array.isArray(workspaceData) ? workspaceData : (workspaceData.workspaces || []);
                 for (const workspace of workspaces) {
                     const host = String(workspace.host || "").trim().toLowerCase();
-                    const isSSH = ["ssh", "remote"].includes(String(workspace.type || "").toLowerCase());
-                    if (host && !["localhost", "127.0.0.1"].includes(host) && isSSH) hosts.add(host);
+                    if (host && !["localhost", "127.0.0.1"].includes(host)) hosts.add(host);
                 }
             }
             this._knownSSHHosts = hosts;
