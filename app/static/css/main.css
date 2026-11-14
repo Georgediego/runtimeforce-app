@@ -1898,20 +1898,11 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 .tree-node-name::selection{background:rgba(7,247,122,.28);color:var(--ide-text-primary)}
 
 
-/* Runtime Graph — live spherical network */
+/* Runtime Graph — spherical memory topology, no decorative overlays */
 #file-explorer-col{min-height:0}
 #rf-memory-widget.rf-network-graph{position:relative;z-index:2;flex:0 0 46%;min-height:270px;max-height:54%;width:100%;margin-top:auto;padding:0;display:flex;overflow:hidden;border-top:1px solid rgba(90,140,190,.16);background:#050912}
-#rf-memory-widget .rf-network-body{position:relative;flex:1;min-height:0;width:100%;overflow:hidden;background:radial-gradient(ellipse at 52% 48%,rgba(23,39,61,.24),rgba(4,8,15,.98) 75%)}
-#rf-network-canvas{display:block;width:100%;height:100%;outline:0;cursor:crosshair}
-.rf-network-status{position:absolute;left:9px;top:8px;display:flex;align-items:center;gap:7px;pointer-events:none;color:#93a8c1;font:700 7px 'JetBrains Mono',monospace;letter-spacing:.08em}
-.rf-network-status i{width:5px;height:5px;border-radius:50%;background:#80d9ff;box-shadow:0 0 8px #80d9ff}
-#rf-memory-widget[data-state="active"] .rf-network-status i{background:#ffd36b;box-shadow:0 0 10px #ffd36b}
-#rf-memory-widget[data-state="failed"] .rf-network-status i{background:#ff665f;box-shadow:0 0 10px #ff665f}
-.rf-network-status span{margin-left:4px;color:#5f748d;font-weight:500}
-.rf-network-inspector{position:absolute;left:8px;bottom:8px;max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 6px;background:rgba(4,10,19,.72);border:1px solid rgba(111,153,194,.16);border-radius:4px;color:#b7c9dc;font:7px 'JetBrains Mono',monospace;pointer-events:none}
-.rf-network-events{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:3px;max-width:38%;pointer-events:none}
-.rf-network-event{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(153,180,207,.7);font:6px 'JetBrains Mono',monospace;text-align:right}
-.rf-network-event.is-active{color:#f3d48a}.rf-network-event.is-error{color:#ff8178}
+#rf-memory-widget .rf-network-body{position:relative;flex:1;min-height:0;width:100%;overflow:hidden;background:radial-gradient(ellipse at 50% 50%,rgba(23,39,61,.28),rgba(4,8,15,.98) 76%)}
+#rf-network-canvas{display:block;width:100%;height:100%;outline:0}
 .rf-network-collapse{position:absolute;right:7px;top:7px;z-index:5;width:22px;height:21px;display:grid;place-items:center;border:1px solid rgba(111,153,194,.22);border-radius:4px;background:rgba(4,10,19,.78);color:#9bb5d0;cursor:pointer}
 .rf-network-collapse:hover{border-color:rgba(150,195,235,.55);color:#e1efff}
 #rf-memory-widget.is-collapsed{flex-basis:26px;min-height:26px;max-height:26px;padding:2px 7px;background:transparent;border:0}
