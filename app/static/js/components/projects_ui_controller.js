@@ -26,6 +26,17 @@ export const projectsUIController = {
     _limits: {},
     _features: {},
 
+    _featureEnabled(featureKey) {
+        const aliases = {
+            git: ["git", "github_git", "github_git_integration", "git_integration", "github / git integration"],
+        };
+        const normalized = Object.fromEntries(Object.entries(this._features).map(([key, value]) => [key.trim().toLowerCase(), value]));
+        for (const key of (aliases[featureKey] || [featureKey])) {
+            if (Object.prototype.hasOwnProperty.call(normalized, key.toLowerCase())) return normalized[key.toLowerCase()] === true;
+        }
+        return false;
+    },
+
     async refreshPlanState() {
         try {
             const data = await billingApi.entitlements();
@@ -304,7 +315,7 @@ export const projectsUIController = {
             const maxGitRepos = Number(this._limits.git_repos ?? this._limits.git_repos_limit ?? 0);
             const knownGitRepos = new Set(projectList.map((item) => String(item.github_remote_url || "").trim().replace(/\/$/, "").toLowerCase()).filter(Boolean));
             const currentHasRepo = Boolean(String(proj.github_remote_url || "").trim());
-            const canAddGitRepo = currentHasRepo || knownGitRepos.size < maxGitRepos;
+            const canAddGitRepo = this._featureEnabled("git") && maxGitRepos > 0 && (currentHasRepo || knownGitRepos.size < maxGitRepos);
             const gitTabButton = document.querySelector('.proj-settings-tab-btn[data-tab="git"]');
             if (gitTabButton) {
                 gitTabButton.disabled = !canAddGitRepo;
