@@ -109,7 +109,12 @@ class LicenseService(ILicenseService):
                     validated_at = float(validated_at) if validated_at is not None else cached_at
                 except (TypeError, ValueError):
                     validated_at = cached_at
-                grace_hours = max(0, int((cached.get("limits") or {}).get("offline_grace_hours", 0) or 0))
+                grace_value = (cached.get("limits") or {}).get("offline_grace_hours")
+                if grace_value is None:
+                    grace_value = cached.get("offline_grace_hours")
+                if grace_value is None and isinstance(cached.get("offline_grace"), dict):
+                    grace_value = cached["offline_grace"].get("hours")
+                grace_hours = max(0, int(grace_value or 0))
                 if validated_at is not None and grace_hours > 0:
                     age = max(0, now - validated_at)
                     if age <= grace_hours * 3600 and self._not_expired(cached, now):
