@@ -10,6 +10,7 @@ import { billingApi } from "../core/api_http_client.js";
 
 export const settingsUIController = {
     _features: {},
+    _limits: {},
 
     _featureEnabled(featureKey) {
         const aliases = {
@@ -30,8 +31,10 @@ export const settingsUIController = {
         try {
             const data = await billingApi.entitlements();
             this._features = data?.valid ? (data.features || {}) : {};
+            this._limits = data?.valid ? (data.limits || {}) : {};
         } catch {
             this._features = {};
+            this._limits = {};
         }
         const updatesAllowed = this._featureEnabled("software_updates");
         const updatesButton = document.querySelector('.settings-nav-btn[data-tab="updates"]');
@@ -64,7 +67,7 @@ export const settingsUIController = {
         const terminalInput = document.getElementById("terminal-cmd-input");
         if (terminalInput) terminalInput.disabled = !this._featureEnabled("terminal");
 
-        const gitAllowed = this._featureEnabled("git");
+        const gitAllowed = this._featureEnabled("git") && Number(this._limits.git_repos ?? this._limits.git_repos_limit ?? 0) > 0;
         document.querySelectorAll('.left-tab-btn[data-panel="git"], .proj-settings-tab-btn[data-tab="git"]').forEach((element) => {
             element.classList.toggle("opacity-40", !gitAllowed);
             element.classList.toggle("cursor-not-allowed", !gitAllowed);
