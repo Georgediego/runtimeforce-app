@@ -4,6 +4,7 @@
 import { workspacesApi, sessionsApi, approvalsApi, projectsApi } from "../core/api_http_client.js";
 import { showCommandApprovalModal, showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
+import { planAccessState } from "../core/plan_access_state.js";
 
 let currentSessionId = null;
 let saveQueue = [];
@@ -48,6 +49,14 @@ export const terminalUIController = {
             };
         }).catch((error) => console.warn("Could not detect terminal identity:", error));
         const cmdInput = document.getElementById("terminal-cmd-input");
+        planAccessState.refresh().then(() => {
+            const allowed = planAccessState.featureEnabled("terminal");
+            if (cmdInput) {
+                cmdInput.disabled = !allowed;
+                cmdInput.placeholder = allowed ? "Type command..." : "Terminal is not included in your current plan";
+                cmdInput.title = allowed ? "" : "Terminal is not included in your current plan";
+            }
+        });
         cmdInput?.addEventListener("keydown", async (e) => {
             if (e.key === "Enter") {
                 const cmd = cmdInput.value.trim();
