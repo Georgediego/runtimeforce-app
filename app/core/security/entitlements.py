@@ -40,7 +40,11 @@ def tool_feature_key(tool_name: str) -> str | None:
 
 def provider_feature_key(provider: str) -> str:
     normalized = str(provider or "").strip().lower()
-    return "local_models" if normalized in {"ollama", "lm_studio"} else "local_byok"
+    if normalized in {"ollama", "lm_studio"}:
+        return "local_models"
+    if normalized in {"openai", "anthropic", "deepseek", "xai"}:
+        return "full_pro_byok"
+    return "local_byok"
 
 
 def chat_strategy_feature(strategy: str) -> str | None:
@@ -68,7 +72,15 @@ def require_plan_feature(feature_key: str):
         if not entitlements.get("valid"):
             raise HTTPException(status_code=403, detail="Account entitlements could not be verified")
         if not feature_enabled(entitlements, feature_key):
-            raise HTTPException(status_code=403, detail=f"Feature '{feature_key}' is not enabled for this plan")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "feature_not_enabled",
+                    "feature": feature_key,
+                    "upgrade": (entitlements.get("feature_upgrades") or {}).get(feature_key),
+                    "message": f"Feature '{feature_key}' is not enabled for this plan",
+                },
+            )
         return user_id
 
     return dependency

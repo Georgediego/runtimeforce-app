@@ -42,7 +42,12 @@ async def _verified_entitlements(
         if not feature_enabled(entitlements, feature_key):
             raise HTTPException(
                 status_code=403,
-                detail=f"Provider access requires the '{feature_key}' plan feature",
+                detail={
+                    "code": "feature_not_enabled",
+                    "feature": feature_key,
+                    "upgrade": (entitlements.get("feature_upgrades") or {}).get(feature_key),
+                    "message": f"Provider access requires the '{feature_key}' plan feature",
+                },
             )
     return entitlements
 
@@ -76,14 +81,17 @@ async def get_keys_status(
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
     license_service: LicenseService = Depends(get_license_service),
 ):
-    entitlements = await _verified_entitlements(request, license_service)
+    # Status is a local-configuration view, not a permission check.
+    # Always report keys already stored for this authenticated local user.
+    # Provider usage remains protected by entitlement checks in execution routes.
     keys = repo.get_all_provider_keys(user_id)
-    filtered = {
-        p: True for p in keys.keys()
-        if p.lower() != "perplexity"
-        and feature_enabled(entitlements, provider_feature_key(p))
+    return {
+        "providers": {
+            provider: True
+            for provider in keys
+            if provider.lower() != "perplexity"
+        }
     }
-    return {"providers": filtered}
 
 @router.get("/selected-models")
 async def get_selected_models(
@@ -92,12 +100,10 @@ async def get_selected_models(
     repo: ProviderKeysDBRepository = Depends(get_provider_keys_repo),
     license_service: LicenseService = Depends(get_license_service),
 ):
-    entitlements = await _verified_entitlements(request, license_service)
+    # Saved model selections must remain visible even when entitlement
+    # verification is temporarily unavailable or a plan feature is disabled.
+    # Selection visibility does not grant permission to execute a provider.
     selected = repo.get_all_selected_models(user_id)
-    selected = {
-        provider: models for provider, models in selected.items()
-        if feature_enabled(entitlements, provider_feature_key(provider))
-    }
     return {"selected_models": selected}
 
 @router.post("/selected-models")
