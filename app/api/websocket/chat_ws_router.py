@@ -105,7 +105,7 @@ async def ws_chat_endpoint(websocket: WebSocket, session_id: str):
                     "code": "feature_not_enabled",
                     "feature": feature_key,
                     "upgrade": (entitlements.get("feature_upgrades") or {}).get(feature_key),
-                    "error": f"The {strategy.upper()} mode is not included in your current plan.",
+                    "error": f"The {'ATM' if strategy in {'atm', 'coding'} else strategy.upper()} mode is not included in your current plan.",
                 })
                 await websocket.send_json({"status": "done"})
                 continue
