@@ -375,7 +375,7 @@ export const providersUIController = {
         const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
         const requiresFullByok = PRO_PROVIDERS.some(provider => provider.id === p.id);
         const locked = requiresFullByok && this._entitlements?.features?.full_pro_byok !== true;
-        const lockNote = locked ? '<div class="text-[10px] text-amber-400">Requires Full Pro BYOK — upgrade your plan to connect this provider.</div>' : "";
+        const lockNote = locked ? `<button type="button" class="provider-upgrade-btn text-[10px] text-amber-400 hover:underline" data-provider="${p.id}">Requires Full Pro BYOK — view upgrade options</button>` : "";
 
         return `
             <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2.5">
@@ -401,6 +401,9 @@ export const providersUIController = {
     },
 
     bindCardEvents() {
+        document.querySelectorAll(".provider-upgrade-btn").forEach(btn => {
+            btn.addEventListener("click", e => this.showProviderUpgrade(e.currentTarget.dataset.provider));
+        });
         document.querySelectorAll(".provider-toggle-btn").forEach(btn => {
             btn.addEventListener("click", e => this.toggleProviderConnection(e.currentTarget.dataset.provider));
         });
@@ -715,10 +718,7 @@ export const providersUIController = {
                     this.openModelPicker(firstSaved);
                 }
             } catch (e) {
-                if (/full_pro_byok|local_byok|feature_not_enabled/i.test(e.message || "")) {
-                    this.showProviderUpgrade(Object.keys(keys)[0]);
-                    return;
-                }
+                if (/full_pro_byok|local_byok|feature_not_enabled/i.test(e.message || "")) return;
                 showToast(`Failed to save keys: ${e.message}`, "error");
             }
         });
