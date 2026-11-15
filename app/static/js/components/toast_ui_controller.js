@@ -94,6 +94,49 @@ export function showToast(message, type = "info", duration = 3000) {
     }
 }
 
+export function showFeatureUpgrade(message, upgrade = null) {
+    const overlay = document.createElement("div");
+    overlay.className = "fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md rf-modal-backdrop animate-fadeIn";
+    const panel = document.createElement("div");
+    panel.className = "rf-glass-surface border border-[var(--ide-border-subtle)] rounded-xl shadow-2xl p-5 max-w-md w-full mx-4 flex flex-col gap-3";
+    const title = document.createElement("div");
+    title.className = "text-base font-bold text-[var(--ide-text-primary)]";
+    title.textContent = "Upgrade required";
+    const description = document.createElement("div");
+    description.className = "text-xs text-[var(--ide-text-secondary)] leading-relaxed";
+    description.textContent = message || "This feature is not enabled for your current plan.";
+    panel.append(title, description);
+    if (upgrade?.plan_name) {
+        const target = document.createElement("div");
+        target.className = "text-xs text-[var(--ide-text-primary)]";
+        target.textContent = "Available with: " + upgrade.plan_name;
+        panel.append(target);
+    } else {
+        const unavailable = document.createElement("div");
+        unavailable.className = "text-xs text-[var(--ide-text-muted)]";
+        unavailable.textContent = "No active plan currently provides this feature. Contact the administrator.";
+        panel.append(unavailable);
+    }
+    const actions = document.createElement("div");
+    actions.className = "flex items-center justify-end gap-2 pt-2";
+    const close = document.createElement("button");
+    close.className = "px-3.5 py-1.5 rounded-lg text-xs font-medium text-[var(--ide-text-secondary)] hover:bg-[var(--ide-elevated)] cursor-pointer";
+    close.textContent = "Close";
+    close.addEventListener("click", () => overlay.remove());
+    actions.append(close);
+    if (upgrade) {
+        const view = document.createElement("button");
+        view.className = "px-4 py-1.5 rounded-lg text-xs font-bold bg-[var(--ide-accent)] text-black cursor-pointer hover:brightness-110";
+        view.textContent = "View upgrade options";
+        view.addEventListener("click", () => window.open("https://runtimeforce.dev/pricing", "_blank", "noopener,noreferrer"));
+        actions.append(view);
+    }
+    panel.append(actions);
+    overlay.append(panel);
+    overlay.addEventListener("click", event => { if (event.target === overlay) overlay.remove(); });
+    document.body.append(overlay);
+}
+
 export function showConfirm(title, message, confirmText = "Confirm", cancelText = "Cancel") {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");

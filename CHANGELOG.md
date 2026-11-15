@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.18] - 2026-11-15
+
+### Added
+- Show dynamic plan upgrade guidance for unavailable chat modes, agent tools, BYOK providers and Git settings.
+
+### Changed
+- Rename the user-facing Automated Team Mode label to ATM.
+- Remove the deprecated Runtime Graph widget and its assets.
+- Refresh the public-facing product feature descriptions.
+
+### Fixed
+- Enforce the separate Full Pro BYOK entitlement for additional cloud providers.
+- Keep plan-denied Git & GitHub settings consistent with the shared upgrade dialog.
+
+
 ## [1.1.17] - 2026-11-13
 
 ### Changed

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 
 from app.core.security.jwt_auth_service import require_authenticated_user
+from app.core.security.entitlements import require_plan_feature
 from app.container import get_project_service, get_license_service
 from app.services.project.project_service import ProjectService
 from app.services.billing.license_service import LicenseService
@@ -59,6 +60,25 @@ async def create_project(
     if not entitlements.get("valid"):
         raise HTTPException(403, detail="Account entitlements could not be verified")
     limits = entitlements.get("limits") or {}
+    features = entitlements.get("features") or {}
+    existing_projects = service.list_projects(user_id)
+
+    if payload.ssh_host and payload.ssh_host.strip():
+        if "ssh" in features and features.get("ssh") is not True:
+            raise HTTPException(403, detail="SSH workspaces are not enabled for this plan")
+        max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
+        current_ssh_hosts = sum(1 for project in existing_projects if (project.get("ssh_host") or "").strip())
+        if current_ssh_hosts >= max_ssh_hosts:
+            raise HTTPException(403, detail="SSH host limit reached for this plan")
+
+    if payload.github_remote_url and payload.github_remote_url.strip():
+        if features.get("git") is not True:
+            raise HTTPException(403, detail="Git integration is not enabled for this plan")
+        max_git_repos = max(0, int(limits.get("git_repos", 0) or 0))
+        current_git_repos = sum(1 for project in existing_projects if (project.get("github_remote_url") or "").strip())
+        if current_git_repos >= max_git_repos:
+            raise HTTPException(403, detail="Git repository limit reached for this plan")
+
     # Project access is derived from the authoritative project limit.
     # Do not require a duplicate features.projects flag: cached entitlements
     # may omit it while a dynamic plan still grants project slots.
@@ -99,9 +119,48 @@ async def activate_project(
 async def update_project(
     project_id: str,
     payload: ProjectPayload,
+    request: Request,
     user_id: str = Depends(require_authenticated_user),
-    service: ProjectService = Depends(get_project_service)
+    service: ProjectService = Depends(get_project_service),
+    license_service: LicenseService = Depends(get_license_service),
 ):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip() or request.cookies.get("access_token", "").strip() or request.cookies.get("jwt_token", "").strip()
+    entitlements = await license_service.get_entitlements(token)
+    if not entitlements.get("valid"):
+        raise HTTPException(403, detail="Account entitlements could not be verified")
+
+    current = service.get_project_details(project_id, user_id)
+    if not current:
+        raise HTTPException(404, "Project not found")
+    features = entitlements.get("features") or {}
+    limits = entitlements.get("limits") or {}
+    projects = service.list_projects(user_id)
+    new_ssh_host = (payload.ssh_host or "").strip()
+    old_ssh_host = (current.get("ssh_host") or "").strip()
+    if new_ssh_host and new_ssh_host != old_ssh_host:
+        if "ssh" in features and features.get("ssh") is not True:
+            raise HTTPException(403, detail="SSH workspaces are not enabled for this plan")
+        max_ssh_hosts = max(0, int(limits.get("max_ssh_hosts", 0) or 0))
+        other_ssh_hosts = sum(
+            1 for project in projects
+            if project.get("id") != project_id and (project.get("ssh_host") or "").strip()
+        )
+        if other_ssh_hosts >= max_ssh_hosts:
+            raise HTTPException(403, detail="SSH host limit reached for this plan")
+
+    new_remote = (payload.github_remote_url or "").strip()
+    old_remote = (current.get("github_remote_url") or "").strip()
+    if new_remote and new_remote != old_remote:
+        if features.get("git") is not True:
+            raise HTTPException(403, detail="Git integration is not enabled for this plan")
+        max_git_repos = max(0, int(limits.get("git_repos", 0) or 0))
+        other_git_repos = sum(
+            1 for project in projects
+            if project.get("id") != project_id and (project.get("github_remote_url") or "").strip()
+        )
+        if other_git_repos >= max_git_repos:
+            raise HTTPException(403, detail="Git repository limit reached for this plan")
+
     updated = service.update_project(project_id, user_id, payload.dict())
     if not updated:
         raise HTTPException(404, "Project not found or no changes made")
@@ -122,7 +181,7 @@ async def delete_project(
 async def bump_version(
     project_id: str,
     payload: BumpVersionPayload,
-    user_id: str = Depends(require_authenticated_user),
+    user_id: str = Depends(require_plan_feature("git")),
     service: ProjectService = Depends(get_project_service)
 ):
     res = service.bump_version(project_id, user_id, payload.changelog, payload.bump_type, payload.commit_hash)

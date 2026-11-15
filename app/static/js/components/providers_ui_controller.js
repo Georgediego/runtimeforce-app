@@ -1,8 +1,8 @@
 /**
  * Providers UI Controller with English-only UI, Hardware Diagnostics & Seamless Local Models.
  */
-import { keysApi, modelsApi } from "../core/api_http_client.js";
-import { showToast, showConfirm } from "./toast_ui_controller.js";
+import { keysApi, modelsApi, billingApi } from "../core/api_http_client.js";
+import { showToast, showConfirm, showFeatureUpgrade } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 
 const FREE_PROVIDERS = [
@@ -30,6 +30,14 @@ export const providersUIController = {
         const freeContainer = document.getElementById("providers-list-free");
         const proContainer = document.getElementById("providers-list-pro");
 
+        try {
+            this._entitlements = await billingApi.entitlements();
+        } catch (error) {
+            // Fail closed: do not expose paid-provider key entry when plan access
+            // cannot be verified. The API enforces the same rule independently.
+            this._entitlements = null;
+        }
+
         if (freeContainer) freeContainer.innerHTML = FREE_PROVIDERS.map(p => this.providerCardHTML(p)).join("");
         if (proContainer) proContainer.innerHTML = PRO_PROVIDERS.map(p => this.providerCardHTML(p)).join("");
 
@@ -55,6 +63,15 @@ export const providersUIController = {
     },
 
     _selectedModelsMap: {},
+    _entitlements: null,
+
+    showProviderUpgrade(providerId) {
+        const feature = PRO_PROVIDERS.some(provider => provider.id === String(providerId || "").toLowerCase())
+            ? "full_pro_byok"
+            : "local_byok";
+        const upgrade = this._entitlements?.feature_upgrades?.[feature] || null;
+        showFeatureUpgrade("Additional BYOK providers are not included in your current plan.", upgrade);
+    },
 
     async syncSelectedModelsFromSQLite() {
         try {
@@ -356,6 +373,9 @@ export const providersUIController = {
         const savedSelections = this._selectedModelsMap[(p.id || "").toLowerCase()] || null;
         const countBadgeText = Array.isArray(savedSelections) ? `${savedSelections.length} models selected` : "";
         const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
+        const requiresFullByok = PRO_PROVIDERS.some(provider => provider.id === p.id);
+        const locked = requiresFullByok && this._entitlements?.features?.full_pro_byok !== true;
+        const lockNote = locked ? `<button type="button" class="provider-upgrade-btn text-[10px] text-amber-400 hover:underline" data-provider="${p.id}">Requires Full Pro BYOK — view upgrade options</button>` : "";
 
         return `
             <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2.5">
@@ -366,13 +386,14 @@ export const providersUIController = {
                     </div>
                     <span class="text-[10px] key-status-${p.id} text-[var(--ide-text-muted)] shrink-0">No API key</span>
                 </div>
-                <input type="password" id="key-input-${p.id}" placeholder="${p.placeholder}" class="w-full p-2 text-xs bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
+                <input type="password" id="key-input-${p.id}" placeholder="${p.placeholder}" ${locked ? "disabled" : ""} class="w-full p-2 text-xs bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)] ${locked ? "opacity-50 cursor-not-allowed" : ""}">
+                ${lockNote}
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-[10px] text-[var(--ide-accent)] font-mono selected-count-${p.id}">${countBadgeText}</span>
                     <div class="flex items-center gap-1.5 shrink-0">
-                        <button type="button" class="provider-toggle-btn text-[10px] px-3 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] border border-[var(--ide-accent)]/30 hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Connect</button>
+                        <button type="button" class="provider-toggle-btn text-[10px] px-3 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] border border-[var(--ide-accent)]/30 hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}" ${locked ? "disabled" : ""}>Connect</button>
                         <button type="button" class="provider-delete-key-btn text-[10px] px-3 py-1 rounded text-red-400 border border-red-500/30 hover:bg-red-500/10 cursor-pointer" data-provider="${p.id}" disabled>Delete key</button>
-                        <button type="button" class="configure-models-btn hidden text-[10px] px-2 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}">Select Models</button>
+                        <button type="button" class="configure-models-btn hidden text-[10px] px-2 py-1 rounded bg-[var(--ide-accent)]/10 text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20 cursor-pointer" data-provider="${p.id}" ${locked ? "disabled" : ""}>Select Models</button>
                     </div>
                 </div>
             </div>
@@ -380,6 +401,9 @@ export const providersUIController = {
     },
 
     bindCardEvents() {
+        document.querySelectorAll(".provider-upgrade-btn").forEach(btn => {
+            btn.addEventListener("click", e => this.showProviderUpgrade(e.currentTarget.dataset.provider));
+        });
         document.querySelectorAll(".provider-toggle-btn").forEach(btn => {
             btn.addEventListener("click", e => this.toggleProviderConnection(e.currentTarget.dataset.provider));
         });
@@ -670,6 +694,8 @@ export const providersUIController = {
         document.getElementById("save-keys-btn")?.addEventListener("click", async () => {
             const keys = {};
             [...FREE_PROVIDERS, ...PRO_PROVIDERS].forEach(p => {
+                const requiresFullByok = PRO_PROVIDERS.some(provider => provider.id === p.id);
+                if (requiresFullByok && this._entitlements?.features?.full_pro_byok !== true) return;
                 const val = document.getElementById(`key-input-${p.id}`)?.value.trim();
                 if (val) keys[p.id] = val;
             });
@@ -692,6 +718,7 @@ export const providersUIController = {
                     this.openModelPicker(firstSaved);
                 }
             } catch (e) {
+                if (/full_pro_byok|local_byok|feature_not_enabled/i.test(e.message || "")) return;
                 showToast(`Failed to save keys: ${e.message}`, "error");
             }
         });

@@ -1,8 +1,8 @@
 /**
  * Projects UI Controller with Central GitHub OAuth Bridge.
  */
-import { projectsApi } from "../core/api_http_client.js";
-import { showToast, showPrompt, showConfirm } from "./toast_ui_controller.js";
+import { projectsApi, billingApi } from "../core/api_http_client.js";
+import { showToast, showPrompt, showConfirm, showFeatureUpgrade } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
 import { workspaceUIController } from "./workspace_ui_controller.js";
 import { fileTreeUIController } from "./file_tree_ui_controller.js";
@@ -499,7 +499,22 @@ export const projectsUIController = {
         }
     },
 
-    switchProjectSettingsTab(targetTab) {
+    async switchProjectSettingsTab(targetTab) {
+        if (targetTab === "git") {
+            try {
+                const entitlements = await billingApi.entitlements();
+                if (entitlements?.valid !== true || entitlements?.features?.git !== true) {
+                    showFeatureUpgrade(
+                        "Git & GitHub project tools are not included in your current plan.",
+                        entitlements?.feature_upgrades?.git || null
+                    );
+                    return;
+                }
+            } catch (error) {
+                showToast("Could not verify Git access. Reconnect your RuntimeForce account and try again.", "error");
+                return;
+            }
+        }
         document.querySelectorAll(".proj-settings-content-tab").forEach((t) => t.classList.add("hidden"));
         document.getElementById(`pst-tab-${targetTab}`)?.classList.remove("hidden");
         document.querySelectorAll(".proj-settings-tab-btn").forEach((b) => {

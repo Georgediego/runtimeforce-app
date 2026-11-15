@@ -16,6 +16,7 @@ from app.services.agent.agent_regex_fallback import AgentRegexFallbackParser
 from app.services.llm.llm_router_service import LLMRouterService
 from app.tools.tool_registry_manifest import AGENT_TOOLS_MANIFEST
 from app.tools.tool_dispatcher_service import ToolDispatcherService
+from app.core.security.entitlements import tool_feature_key
 
 logger = logging.getLogger("runtimeforce.service.agent.coordinator")
 
@@ -153,6 +154,8 @@ class AgentLoopCoordinator:
         model_lock: Optional[str] = None,
         temperature: float = 0.2,
         plan: str = "free",
+        features: Optional[Dict[str, Any]] = None,
+        feature_upgrades: Optional[Dict[str, Any]] = None,
         user_id: str = "default_user",
         enabled_models: Optional[List[str]] = None,
         project_id: str = "default_project",
@@ -165,6 +168,8 @@ class AgentLoopCoordinator:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         user_prompt = messages[-1].get("content", "") if messages else ""
         strategy_upper = (strategy or "AUTO").upper()
+        plan_features = features if isinstance(features, dict) else {}
+        plan_feature_upgrades = feature_upgrades if isinstance(feature_upgrades, dict) else {}
         workspace_task_requested = bool(re.search(
             r"\b(scan|inspect|read|open|search|find|edit|modify|write|run|execute|test|check|debug|build|deploy)\b|"
             r"(проскан|проверь|провер|прочитай|открой|найди|ищи|измени|исправ|создай|запусти|выполни|команд(у|ы|ой|ами)?|собери|протестир|отлад|рабоч(ем|ее) пространств|workspace)",
@@ -175,6 +180,27 @@ class AgentLoopCoordinator:
         loop_detector = AgentLoopDetector(max_empty_responses=2, max_repeated_tools=3, max_iterations=25)
 
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
+        if strict_enabled is not None:
+            # Enforce entitlements using the registry metadata for the exact model.
+            # A provider-wide "local_byok" check incorrectly blocks Free-tier cloud
+            # models (Gemini/Groq/Cerebras/SambaNova and free OpenRouter models).
+            # Local runtimes still require local_models; paid cloud models require
+            # local_byok. Unknown models fail closed and require local_byok.
+            allowed_models = []
+            for model_id in strict_enabled:
+                metadata = self._llm_router.registry.get_model(model_id) if self._llm_router else None
+                provider = str(getattr(metadata, "provider", "") or model_id.split("/", 1)[0]).strip().lower()
+                tier = str(getattr(metadata, "tier", "") or "").strip().lower()
+                if provider in {"ollama", "lm_studio", "local"} or tier == "local":
+                    required_feature = "local_models"
+                elif tier == "free" or model_id.lower().endswith(":free"):
+                    required_feature = None
+                else:
+                    required_feature = "local_byok"
+
+                if required_feature is None or plan_features.get(required_feature) is True:
+                    allowed_models.append(model_id)
+            strict_enabled = allowed_models
         db_allowed_all = []
         if self._provider_keys_repo:
             selected_map = self._provider_keys_repo.get_all_selected_models(user_id)
@@ -345,7 +371,11 @@ class AgentLoopCoordinator:
         )
 
         architect_guidance = ""
-        if strategy_upper in ("CODING", "ATM") and self._architect_agent:
+        architect_has_entitled_models = (
+            bool(strict_enabled) if strict_enabled is not None
+            else plan_features.get("local_byok") is True and plan_features.get("local_models") is True
+        )
+        if strategy_upper in ("CODING", "ATM") and self._architect_agent and architect_has_entitled_models:
             yield {
                 "status": "phase",
                 "label": "ATM Planning: Architect analyzing...",
@@ -389,8 +419,47 @@ class AgentLoopCoordinator:
                 route_error = str(e)
                 logger.warning(f"[AgentCoordinator] LLM route failed: {e}")
 
+        # Enforce execution entitlements using the exact registry metadata.
+        # Provider-level flags incorrectly classify Free models from mixed-tier
+        # providers (especially OpenRouter) as paid BYOK models.
+        eligible_models = []
+        blocked_feature_key = None
+        for model in candidate_models:
+            model_id = model.get("model_id", "")
+            metadata = (
+                self._llm_router.registry.get_model(model_id)
+                if self._llm_router and getattr(self._llm_router, "registry", None)
+                else None
+            )
+            if metadata is None:
+                logger.warning("[AgentCoordinator] Rejecting unregistered model: %s", model_id)
+                continue
+
+            provider_id = (metadata.provider or "").lower()
+            tier = (metadata.tier or "").lower()
+            if provider_id in ("ollama", "lm_studio", "local") or tier == "local":
+                required_feature = "local_models"
+            elif tier == "free" or model_id.lower().endswith(":free"):
+                required_feature = None
+            else:
+                required_feature = "local_byok"
+
+            if required_feature and plan_features.get(required_feature) is not True:
+                logger.info(
+                    "[AgentCoordinator] Model excluded by entitlement: model=%s feature=%s",
+                    model_id, required_feature
+                )
+                blocked_feature_key = blocked_feature_key or required_feature
+                continue
+            eligible_models.append(model)
+
+        candidate_models = eligible_models
+        local_providers = ("ollama", "lm_studio")
         if strategy_upper == "LOCAL":
-            candidate_models = [m for m in candidate_models if m.get("provider", "").lower() in ("ollama", "lm_studio")]
+            candidate_models = [
+                model for model in candidate_models
+                if model.get("provider", "").lower() in local_providers
+            ]
 
         now = time.time()
         active_candidates = []
@@ -411,6 +480,19 @@ class AgentLoopCoordinator:
             active_candidates = candidate_models
 
         if not active_candidates:
+            if blocked_feature_key:
+                upgrade = plan_feature_upgrades.get(blocked_feature_key)
+                err_msg = "The selected model requires a feature that is not included in your current plan."
+                yield {
+                    "status": "error",
+                    "code": "feature_not_enabled",
+                    "error_code": "FEATURE_NOT_ENABLED",
+                    "feature": blocked_feature_key,
+                    "upgrade": upgrade,
+                    "error": err_msg,
+                }
+                yield {"status": "done"}
+                return
             if route_error and strategy_upper != "LOCAL":
                 err_msg = route_error
             elif strategy_upper == "LOCAL":
@@ -449,6 +531,10 @@ class AgentLoopCoordinator:
         final_text = ""
         active_specialist_index = 0
         force_no_tools = False
+        # Advertise the complete tool catalogue so the model can identify the
+        # requested capability. Every invocation is still checked against the
+        # server-verified plan feature immediately before dispatch below.
+        allowed_tools = list(AGENT_TOOLS_MANIFEST)
 
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             iter_limit_err = loop_detector.check_max_iterations(iteration)
@@ -459,7 +545,7 @@ class AgentLoopCoordinator:
 
             iteration_text, tool_calls = "", []
             iteration_success = False
-            effective_tools = None if force_no_tools else AGENT_TOOLS_MANIFEST
+            effective_tools = None if force_no_tools else allowed_tools
 
             while active_specialist_index < len(active_candidates):
                 specialist_model = active_candidates[active_specialist_index]
@@ -671,7 +757,26 @@ class AgentLoopCoordinator:
                     "label": f"Running tool {tool_name}..."
                 }
                 
-                result = await ToolDispatcherService.dispatch(tool_name, arguments_json, driver)
+                required_feature = tool_feature_key(tool_name)
+                if required_feature and plan_features.get(required_feature) is not True:
+                    error_message = f"Tool '{tool_name}' is not enabled for the current plan."
+                    upgrade = plan_feature_upgrades.get(required_feature)
+                    logger.info(
+                        "[AgentCoordinator] Feature denied: tool=%s feature=%s upgrade_plan=%s",
+                        tool_name, required_feature, (upgrade or {}).get("plan_code", "unavailable")
+                    )
+                    yield {
+                        "status": "error",
+                        "code": "feature_not_enabled",
+                        "error_code": "FEATURE_NOT_ENABLED",
+                        "feature": required_feature,
+                        "upgrade": upgrade,
+                        "error": error_message,
+                    }
+                    yield {"status": "done"}
+                    return
+                else:
+                    result = await ToolDispatcherService.dispatch(tool_name, arguments_json, driver)
 
                 cmd_str = args_raw.get("command", "") if isinstance(args_raw, dict) else ""
                 out_text = result.get("stdout") or result.get("stderr") or result.get("message") or ""

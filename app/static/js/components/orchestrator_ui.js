@@ -239,6 +239,9 @@ export const orchestratorUIController = {
         const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
 
         return models.filter((m) => {
+            const provider = String(m.provider || "").toLowerCase();
+            const providerFeature = ["ollama", "lm_studio"].includes(provider) ? "local_models" : "local_byok";
+            if (this._features[providerFeature] !== true) return false;
             if (enabledSet.size > 0 && !enabledSet.has(m.id)) return false;
             const isFree = m.tier === "free" || FREE_PROVIDERS_SET.has(m.provider);
             if (isFree && !allowFree) return false;
