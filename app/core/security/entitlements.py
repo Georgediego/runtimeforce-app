@@ -40,7 +40,11 @@ def tool_feature_key(tool_name: str) -> str | None:
 
 def provider_feature_key(provider: str) -> str:
     normalized = str(provider or "").strip().lower()
-    return "local_models" if normalized in {"ollama", "lm_studio"} else "local_byok"
+    if normalized in {"ollama", "lm_studio"}:
+        return "local_models"
+    if normalized in {"openai", "anthropic", "deepseek", "xai"}:
+        return "full_pro_byok"
+    return "local_byok"
 
 
 def chat_strategy_feature(strategy: str) -> str | None:
