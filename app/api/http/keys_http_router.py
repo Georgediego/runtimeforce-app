@@ -42,7 +42,12 @@ async def _verified_entitlements(
         if not feature_enabled(entitlements, feature_key):
             raise HTTPException(
                 status_code=403,
-                detail=f"Provider access requires the '{feature_key}' plan feature",
+                detail={
+                    "code": "feature_not_enabled",
+                    "feature": feature_key,
+                    "upgrade": (entitlements.get("feature_upgrades") or {}).get(feature_key),
+                    "message": f"Provider access requires the '{feature_key}' plan feature",
+                },
             )
     return entitlements
 
