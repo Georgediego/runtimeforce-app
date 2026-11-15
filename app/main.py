@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.1.17",
+    version="1.1.18",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
