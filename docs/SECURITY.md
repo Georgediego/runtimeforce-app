@@ -30,7 +30,7 @@ The local app uses two encryption layers:
 - A dedicated database key is derived from the local 256-bit `MASTER_KEY` using HKDF-SHA256 with a database-specific context. The database key is not the SaaS JWT signing key and is not stored in plaintext.
 - SQLCipher is mandatory. The app fails closed rather than silently opening or creating a plaintext database if the SQLCipher driver is unavailable.
 
-On first startup after this upgrade, an existing plaintext SQLite database is integrity-checked, exported to SQLCipher, and verified before atomic replacement. A separately encrypted pre-migration backup is retained beside the database. If migration fails, the original database is left in place and the app does not start with plaintext storage.
+On first startup after this upgrade, an existing plaintext SQLite database is integrity-checked, exported to SQLCipher, and verified before atomic replacement. A cross-process file lock serializes migration so two RuntimeForce instances cannot export or replace the same database concurrently. A separately encrypted pre-migration backup is retained beside the database. If migration fails, the original database is left in place and the app does not start with plaintext storage.
 
 The `MASTER_KEY` in the local environment file is required to open the database. Keep a secure offline backup of that key: losing it makes the encrypted database unrecoverable. Protect the local app directory and environment file with operating-system permissions, and use full-disk encryption on machines containing sensitive projects.
 
