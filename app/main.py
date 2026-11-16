@@ -193,10 +193,7 @@ async def get_version_api():
 
 
 @app.get("/api/v1/updates/check")
-async def check_ide_updates(
-    response: Response,
-    user_id: str = Depends(require_plan_feature("software_updates")),
-):
+async def check_ide_updates(response: Response):
     """Compare the installed CHANGELOG version with the public GitHub main CHANGELOG."""
     response.headers["Cache-Control"] = "no-store, max-age=0"
     current_version = get_app_version()
