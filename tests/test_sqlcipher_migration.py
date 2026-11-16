@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import sqlcipher3
 
-from app.repository.db_connection import DatabaseConnectionManager
+from app.repository.db_connection import DatabaseConnectionManager, _derive_database_key
 
 
 TEST_MASTER_KEY = b"runtimeforce-test-master-key-32!"
@@ -22,7 +22,8 @@ def _assert_not_readable_as_plain_sqlite(path: Path) -> None:
 def _read_encrypted_value(path: Path, key: bytes, table: str, column: str):
     conn = sqlcipher3.connect(str(path))
     try:
-        conn.execute(f"PRAGMA key = \"x'{key.hex()}'\"")
+        database_key = _derive_database_key(key)
+        conn.execute(f"PRAGMA key = \"x'{database_key.hex()}'\"")
         return conn.execute(f"SELECT {column} FROM {table}").fetchone()[0]
     finally:
         conn.close()
