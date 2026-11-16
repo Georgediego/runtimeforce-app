@@ -4,13 +4,13 @@ RuntimeForce is a local-first AI development environment for software engineerin
 
 ## Privacy and architecture
 
-RuntimeForce IDE runs on the user's computer. The RuntimeForce SaaS at [runtimeforce.dev](https://runtimeforce.dev) is the official control plane for account authentication, subscriptions, billing, and dynamic feature entitlements.
+RuntimeForce IDE runs on the user's computer. The RuntimeForce SaaS at [https://runtimeforce.dev/](https://runtimeforce.dev/) is the official control plane for account authentication, subscriptions, billing, and dynamic feature entitlements.
 
 **Data that stays on the user's computer**
 - Source code, project files, workspace contents, prompts, chat history, and project memory.
 - SSH credentials and local workspace configuration.
 - BYOK provider API keys and local-model configuration.
-- Local SQLite database and encryption master key.
+- The complete local SQLite database, encrypted at rest with SQLCipher, and its encryption master key.
 
 **Network boundaries**
 - Authentication and subscription/entitlement checks are sent to the official `https://runtimeforce.dev` service over HTTPS.
