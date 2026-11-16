@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Encrypt the complete local SQLite database with SQLCipher and automatically migrate existing databases with integrity verification and an encrypted backup.
 - Migrate legacy workspace references into independent project-owned workspace records while preserving existing paths and SSH settings.
 
 ### Changed
