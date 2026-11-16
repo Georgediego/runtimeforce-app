@@ -1,4 +1,4 @@
-import sqlite3
+import sqlcipher3 as sqlite3
 import logging
 import uuid
 from typing import List, Dict, Any, Optional
