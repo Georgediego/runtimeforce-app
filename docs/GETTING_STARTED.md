@@ -7,7 +7,7 @@ RuntimeForce IDE is a local-first AI development environment for Linux, macOS an
 - Python 3.11 or newer
 - Git
 - A supported desktop operating system
-- An internet connection for account sign-in and online plan verification
+- An internet connection for account sign-in, entitlement refresh and cloud AI providers
 - Optional: Ollama or LM Studio for local inference
 - Optional: API credentials for supported cloud providers
 
