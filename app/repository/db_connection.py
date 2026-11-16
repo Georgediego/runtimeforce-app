@@ -325,3 +325,13 @@ class DatabaseConnectionManager:
             os.chmod(self.db_path, stat.S_IRUSR | stat.S_IWUSR)
         except OSError:
             pass
+
+
+
+def get_db_connection(db_path: Optional[str] = None):
+    """Compatibility factory for read-only services; always returns SQLCipher."""
+    manager = DatabaseConnectionManager(db_path)
+    connection = manager.get_connection()
+    # The caller owns this standalone connection and closes it when finished.
+    manager._local.conn = None
+    return connection
