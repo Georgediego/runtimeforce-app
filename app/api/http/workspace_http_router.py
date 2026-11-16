@@ -277,6 +277,8 @@ async def create_workspace(
     try:
         ws_id = payload.get("id") or str(uuid.uuid4())
         target_project_id = payload.get("project_id") or _get_active_project_id(user_id)
+        if not target_project_id or not container.project_repo.get_project(target_project_id, user_id):
+            raise HTTPException(status_code=404, detail="Project not found")
         payload["project_id"] = target_project_id
 
         if str(payload.get("type") or "").lower() == "ssh":
