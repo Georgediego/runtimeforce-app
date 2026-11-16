@@ -2096,3 +2096,15 @@ body, body * {
     -webkit-user-select: text !important;
     user-select: text !important;
 }
+
+/* Visible selection highlight across every IDE panel and tab label. */
+::selection {
+    background: rgba(7, 247, 122, .38) !important;
+    color: var(--ide-text-primary) !important;
+    text-shadow: none !important;
+}
+::-moz-selection {
+    background: rgba(7, 247, 122, .38) !important;
+    color: var(--ide-text-primary) !important;
+    text-shadow: none !important;
+}
