@@ -1,9 +1,29 @@
+import os
+import tempfile
+from pathlib import Path
+
+# Importing app.main bootstraps the application container and opens its
+# database. Keep this module's import-time bootstrap completely isolated from
+# the developer's real RuntimeForce keys, database, and home directory.
+_TEST_HOME = Path(tempfile.mkdtemp(prefix="runtimeforce-update-tests-"))
+_OLD_ENV = {key: os.environ.get(key) for key in ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME")}
+os.environ["HOME"] = str(_TEST_HOME)
+os.environ["XDG_CONFIG_HOME"] = str(_TEST_HOME / ".config")
+os.environ["XDG_DATA_HOME"] = str(_TEST_HOME / ".local" / "share")
+
 import pytest
 import app.main as main_mod
 from fastapi.testclient import TestClient
 
 
 client = TestClient(main_mod.app)
+
+for _key, _value in _OLD_ENV.items():
+    if _value is None:
+        os.environ.pop(_key, None)
+    else:
+        os.environ[_key] = _value
+del _OLD_ENV, _key, _value
 
 
 @pytest.fixture(autouse=True)
