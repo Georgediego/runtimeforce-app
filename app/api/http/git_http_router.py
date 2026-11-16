@@ -207,6 +207,8 @@ async def git_push(
     await _ensure_project_remote(driver, active_proj, remote)
     branch_fallback = active_proj.get("git_branch_main") or "main"
     branch = payload.branch or await _current_branch(driver, branch_fallback)
+    if not re.match(r"^[A-Za-z0-9._/-]{1,200}$", remote) or not re.match(r"^[A-Za-z0-9._/-]{1,200}$", branch):
+        raise HTTPException(status_code=400, detail="Invalid remote or branch name")
 
     token = None
     pat_enc = active_proj.get("github_pat_enc")
