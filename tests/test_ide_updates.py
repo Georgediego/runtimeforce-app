@@ -54,3 +54,40 @@ def test_update_apply_queues_local_update(monkeypatch):
     assert response.status_code == 200
     assert response.json()["accepted"] is True
     assert calls == [True]
+
+
+
+def test_update_apply_accepts_matching_local_origin_on_dynamic_port(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main_mod, "APT_MANAGED_MARKER", main_mod.Path("/nonexistent/runtimeforce-apt-marker"))
+    monkeypatch.setattr(main_mod, "_update_state", {"status": "idle", "message": ""})
+    monkeypatch.setattr(main_mod, "_apply_ide_update", lambda: calls.append(True))
+
+    response = client.post(
+        "/api/v1/updates/apply",
+        headers={
+            "Host": "127.0.0.1:23841",
+            "Origin": "http://127.0.0.1:23841",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["accepted"] is True
+    assert calls == [True]
+
+
+def test_update_apply_rejects_apt_managed_install(monkeypatch, tmp_path):
+    marker = tmp_path / "apt-managed"
+    marker.write_text("APT\n", encoding="utf-8")
+    monkeypatch.setattr(main_mod, "APT_MANAGED_MARKER", marker)
+
+    response = client.post(
+        "/api/v1/updates/apply",
+        headers={
+            "Host": "127.0.0.1:23841",
+            "Origin": "http://127.0.0.1:23841",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "APT" in response.json()["detail"]
