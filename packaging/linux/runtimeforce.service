@@ -9,7 +9,7 @@ WorkingDirectory=/usr/lib/runtimeforce
 Environment=PYTHONPATH=/usr/lib/runtimeforce
 Environment=PYTHONUNBUFFERED=1
 Environment=HOST=127.0.0.1
-ExecStart=/usr/bin/python3 /usr/lib/runtimeforce/service_runner.py
+ExecStart=/usr/bin/python3.14 /usr/lib/runtimeforce/service_runner.py
 Restart=on-failure
 RestartSec=5
 UMask=0077
