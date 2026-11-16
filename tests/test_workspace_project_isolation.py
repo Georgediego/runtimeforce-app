@@ -89,3 +89,30 @@ def test_user_global_workspace_is_not_used_when_no_project_is_active():
 
     assert driver is None
     assert workspace_repo.global_lookup_called is False
+
+
+def test_legacy_workspace_id_owned_by_another_project_is_rejected():
+    class ForeignWorkspaceRepository(FakeWorkspaceRepository):
+        def get_workspace_by_project_id(self, project_id, user_id):
+            return None
+
+    foreign_workspace = {
+        "id": "workspace-project-b",
+        "project_id": "project-b",
+        "type": "local",
+        "path": "/tmp/project-b",
+    }
+    workspace_repo = ForeignWorkspaceRepository(foreign_workspace)
+    factory = FakeDriverFactory()
+    project_repo = FakeProjectRepository({
+        "id": "project-a",
+        "workspace_id": "workspace-project-b",
+        "workspace_path": "",
+        "ssh_host": "",
+    })
+    manager = WorkspaceManagerService(workspace_repo, factory, project_repo=project_repo)
+
+    driver = asyncio.run(manager.get_driver_for_project("user-a", "project-a"))
+
+    assert driver is None
+    assert factory.created_for == []
