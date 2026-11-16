@@ -5,6 +5,9 @@
 import { gitApi } from "../core/api_http_client.js";
 import { showToast } from "./toast_ui_controller.js";
 import { projectsUIController } from "./projects_ui_controller.js";
+import { eventBus } from "../core/event_bus.js";
+
+let gitStatusGeneration = 0;
 
 export const gitUIController = {
     getProjectId() {
@@ -20,6 +23,9 @@ export const gitUIController = {
         document.getElementById("close-diff-viewer-btn")?.addEventListener("click", () => this.closeDiffModal());
         document.getElementById("git-push-btn")?.addEventListener("click", () => this.executePush());
         document.getElementById("git-pull-btn")?.addEventListener("click", () => this.executePull());
+
+        // Git status is project-scoped; refresh it whenever the active project changes.
+        eventBus.on("project.activated", () => this.loadGitStatus());
     },
 
     async handleInitClick() {
@@ -33,22 +39,44 @@ export const gitUIController = {
     },
 
     async loadGitStatus() {
+        const generation = ++gitStatusGeneration;
+        const projectId = this.getProjectId();
         const emptyState = document.getElementById("git-empty-state");
         const gitContent = document.getElementById("git-content");
         const filesList = document.getElementById("git-files-list");
         const badge = document.getElementById("git-badge");
         const branchName = document.getElementById("git-branch-name");
         const commitBtn = document.getElementById("commit-btn");
+
+        const showEmptyState = () => {
+            if (emptyState) emptyState.classList.remove("hidden");
+            if (gitContent) gitContent.classList.add("hidden");
+            if (filesList) filesList.replaceChildren();
+            if (badge) badge.classList.add("hidden");
+            if (commitBtn) {
+                commitBtn.classList.add("hidden");
+                commitBtn.style.display = "none";
+            }
+            if (branchName) branchName.textContent = "main";
+        };
+
+        if (!projectId) {
+            showEmptyState();
+            return;
+        }
+
+        // Clear the previous project's state while the new project is loading.
+        showEmptyState();
         try {
-            const data = await gitApi.status(this.getProjectId());
+            const data = await gitApi.status(projectId);
+            if (generation !== gitStatusGeneration || projectId !== this.getProjectId()) return;
             if (!data.is_repo) {
-                if (emptyState) emptyState.classList.remove("hidden");
-                if (gitContent) gitContent.classList.add("hidden");
+                showEmptyState();
                 return;
             }
             if (emptyState) emptyState.classList.add("hidden");
             if (gitContent) gitContent.classList.remove("hidden");
-            this.loadBranchName(branchName);
+            this.loadBranchName(branchName, projectId, generation);
             const entries = data.entries || [];
             if (badge) {
                 if (entries.length > 0) {
@@ -85,15 +113,17 @@ export const gitUIController = {
                 });
             }
         } catch (e) {
-            if (emptyState) emptyState.classList.remove("hidden");
-            if (gitContent) gitContent.classList.add("hidden");
+            if (generation === gitStatusGeneration && projectId === this.getProjectId()) {
+                showEmptyState();
+            }
         }
     },
 
-    async loadBranchName(el) {
-        if (!el) return;
+    async loadBranchName(el, projectId = this.getProjectId(), generation = gitStatusGeneration) {
+        if (!el || !projectId) return;
         try {
-            const res = await gitApi.branches(this.getProjectId());
+            const res = await gitApi.branches(projectId);
+            if (generation !== gitStatusGeneration || projectId !== this.getProjectId()) return;
             if (res.is_repo && res.branches && res.branches.length) {
                 const current = res.branches.find((b) => b.current);
                 el.textContent = current ? current.name : res.branches[0].name;
@@ -101,7 +131,9 @@ export const gitUIController = {
                 el.textContent = "main";
             }
         } catch (e) {
-            el.textContent = "main";
+            if (generation === gitStatusGeneration && projectId === this.getProjectId()) {
+                el.textContent = "main";
+            }
         }
     },
 
