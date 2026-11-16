@@ -1,0 +1,26 @@
+[Unit]
+Description=RuntimeForce IDE (per-user)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/lib/runtimeforce
+Environment=PYTHONPATH=/usr/lib/runtimeforce
+Environment=PYTHONUNBUFFERED=1
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/python3 /usr/lib/runtimeforce/service_runner.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,7 @@
+runtimeforce (1.1.20) unstable; urgency=medium
+
+  * Initial Ubuntu amd64 package with a shared private Python environment.
+  * Run the IDE as a per-user systemd service, never as root by default.
+  * Keep configuration, encryption keys, databases, and caches per user.
+
+ -- RuntimeForce Maintainers <maintainers@runtimeforce.dev>  Mon, 16 Nov 2026 15:30:00 +0000

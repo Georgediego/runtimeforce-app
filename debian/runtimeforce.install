@@ -1,0 +1,7 @@
+app usr/lib/runtimeforce/
+CHANGELOG.md usr/lib/runtimeforce/
+packaging/linux/launcher.py usr/lib/runtimeforce/
+packaging/linux/service_runner.py usr/lib/runtimeforce/
+packaging/linux/runtimeforce.service usr/lib/systemd/user/
+packaging/linux/runtimeforce.desktop usr/share/applications/
+packaging/linux/apt-managed usr/share/runtimeforce/
