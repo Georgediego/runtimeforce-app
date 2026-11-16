@@ -8,7 +8,7 @@ import { fileTreeUIController } from "./components/file_tree_ui_controller.js";
 import { editorUIController } from "./components/editor_ui_controller.js";
 import { workspaceUIController } from "./components/workspace_ui_controller.js";
 import { providersUIController } from "./components/providers_ui_controller.js";
-import { settingsUIController } from "./components/settings_ui_controller.js";
+import { settingsUIController } from "./components/settings_ui_controller.js?v=updates-check-diagnostics-2";
 import { chatUIController } from "./components/chat_ui_controller.js";
 import { gitUIController } from "./components/git_ui_controller.js";
 import { orchestratorUIController } from "./components/orchestrator_ui.js";
@@ -16,7 +16,7 @@ import { terminalUIController } from "./components/terminal.js";
 import { projectsUIController } from "./components/projects_ui_controller.js";
 import { traceUIController } from "./components/trace_ui_controller.js";
 import { setupWizardUIController } from "./components/setup_wizard_ui_controller.js";
-import { updateNotificationService } from "./services/update_notification_service.js";
+import { updateNotificationService } from "./services/update_notification_service.js?v=updates-check-diagnostics-2";
 
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("🚀 Initializing RuntimeForce IDE...");

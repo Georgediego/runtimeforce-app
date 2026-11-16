@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.1.18",
+    version="1.1.19",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -145,8 +145,11 @@ def get_app_version() -> str:
 templates.env.globals["app_version"] = get_app_version()
 
 # Read the stable IDE version from the public GitHub main changelog.
-IDE_CHANGELOG_URL = "https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/CHANGELOG.md"
-IDE_CHANGELOG_API_URL = "https://api.github.com/repos/Georgediego/runtimeforce-app/contents/CHANGELOG.md?ref=main"
+IDE_CHANGELOG_URLS = (
+    ("https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/CHANGELOG.md", "github-raw"),
+    ("https://github.com/Georgediego/runtimeforce-app/raw/refs/heads/main/CHANGELOG.md", "github-web-raw"),
+    ("https://api.github.com/repos/Georgediego/runtimeforce-app/contents/CHANGELOG.md?ref=main", "github-api"),
+)
 
 def parse_stable_ide_version(changelog: str) -> str:
     match = re.search(
@@ -159,20 +162,24 @@ def parse_stable_ide_version(changelog: str) -> str:
     return f"v{match.group(1)}"
 
 async def fetch_latest_ide_version():
-    """Read GitHub main, trying raw content first and the GitHub API as fallback."""
-    headers = {"Cache-Control": "no-cache", "Accept": "application/vnd.github+json"}
+    """Read the stable changelog from GitHub using independent public endpoints."""
+    headers = {
+        "Cache-Control": "no-cache",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "RuntimeForce-IDE-Update-Checker",
+    }
     errors = []
-    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
-        for url, source in (
-            (IDE_CHANGELOG_URL, "github-main-changelog"),
-            (IDE_CHANGELOG_API_URL, "github-api"),
-        ):
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for url, source in IDE_CHANGELOG_URLS:
             try:
                 remote = await client.get(url, headers=headers)
                 remote.raise_for_status()
                 if source == "github-api":
                     payload = remote.json()
-                    content = base64.b64decode(payload["content"]).decode("utf-8")
+                    encoded = payload.get("content")
+                    if not encoded:
+                        raise RuntimeError("GitHub API response has no file content")
+                    content = base64.b64decode(encoded).decode("utf-8")
                 else:
                     content = remote.text
                 return parse_stable_ide_version(content), source
@@ -186,10 +193,7 @@ async def get_version_api():
 
 
 @app.get("/api/v1/updates/check")
-async def check_ide_updates(
-    response: Response,
-    user_id: str = Depends(require_plan_feature("software_updates")),
-):
+async def check_ide_updates(response: Response):
     """Compare the installed CHANGELOG version with the public GitHub main CHANGELOG."""
     response.headers["Cache-Control"] = "no-store, max-age=0"
     current_version = get_app_version()
@@ -210,6 +214,7 @@ async def check_ide_updates(
             "latest_version": None,
             "update_available": False,
             "checked": False,
+            "check_error": str(exc)[:500],
         }
 
 

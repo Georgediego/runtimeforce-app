@@ -223,17 +223,26 @@ async function checkForUpdates({ force = false } = {}) {
         const current = document.getElementById("rf-update-settings-current");
         const latest = document.getElementById("rf-update-settings-latest");
 
+        const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-            if (status) status.textContent = "Unable to check for updates. Please try again.";
+            if (current) current.textContent = result.current_version || current.textContent || "—";
+            if (latest) latest.textContent = "Unavailable";
+            const detail = result.detail || result.check_error || response.statusText || "Request failed";
+            if (status) status.textContent = `Update check failed (HTTP ${response.status}): ${String(detail).slice(0, 180)}`;
+            console.warn("[Updates] Update check rejected:", response.status, detail);
+            pendingUpdate = null;
             return;
         }
-        const result = await response.json();
 
         // Always show the locally installed version, even if all remote sources fail.
         if (current) current.textContent = result.current_version || "—";
         if (!result.checked) {
-            if (latest) latest.textContent = "—";
-            if (status) status.textContent = "GitHub is temporarily unavailable";
+            if (latest) latest.textContent = "Unavailable";
+            if (status) {
+                const reason = result.check_error ? String(result.check_error).slice(0, 180) : "GitHub is temporarily unavailable";
+                status.textContent = `Unable to read GitHub main: ${reason}`;
+                status.title = result.check_error || "";
+            }
             pendingUpdate = null;
             return;
         }
@@ -260,7 +269,9 @@ async function checkForUpdates({ force = false } = {}) {
         presentPendingUpdate();
     } catch (error) {
         const status = document.getElementById("rf-update-settings-status");
-        if (status) status.textContent = "Unable to check for updates. Please try again.";
+        const latest = document.getElementById("rf-update-settings-latest");
+        if (status) status.textContent = `Unable to check updates: ${String(error?.message || error).slice(0, 180)}`;
+        if (latest) latest.textContent = "Unavailable";
         console.debug("[Updates] Version check unavailable:", error);
     } finally {
         checking = false;

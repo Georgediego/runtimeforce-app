@@ -2,7 +2,6 @@
  * HTTP API Client with Strict project_id Isolation & AUTOSELECT ALL Endpoints.
  */
 import { authFrontendService } from "../services/auth_frontend_service.js";
-import { showFeatureUpgrade } from "../components/toast_ui_controller.js";
 
 let authRecoveryPromise = null;
 
@@ -34,8 +33,10 @@ async function request(path, options = {}, allowAuthRetry = true) {
         const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
         const detail = err.detail;
         if (detail && typeof detail === "object" && detail.code === "feature_not_enabled") {
-            showFeatureUpgrade(detail.message || "This feature is not enabled for your current plan.", detail.upgrade || null);
-            throw new Error(detail.message || "Feature not enabled for this plan.");
+            const error = new Error(detail.message || "Feature not enabled for this plan.");
+            error.code = detail.code;
+            error.upgrade = detail.upgrade || null;
+            throw error;
         }
         throw new Error(typeof detail === "string" ? detail : `HTTP ${res.status}`);
     }
@@ -118,17 +119,33 @@ export const workspacesApi = {
 };
 
 export const gitApi = {
-    status: () => request("/api/v1/git/status"),
-    init: () => request("/api/v1/git/init", { method: "POST" }),
-    diff: (path, staged = false) =>
-        request(`/api/v1/git/diff?path=${encodeURIComponent(path || "")}&staged=${staged}`),
-    log: (n = 10) => request(`/api/v1/git/log?n=${n}`),
-    branches: () => request("/api/v1/git/branches"),
-    commit: (message, paths = null) =>
-        request("/api/v1/git/commit", {
+    status: (projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request(`/api/v1/git/status?project_id=${encodeURIComponent(pid)}`);
+    },
+    init: (projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request(`/api/v1/git/init?project_id=${encodeURIComponent(pid)}`, { method: "POST" });
+    },
+    diff: (path, staged = false, projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request(`/api/v1/git/diff?path=${encodeURIComponent(path || "")}&staged=${staged}&project_id=${encodeURIComponent(pid)}`);
+    },
+    log: (n = 10, projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request(`/api/v1/git/log?n=${n}&project_id=${encodeURIComponent(pid)}`);
+    },
+    branches: (projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request(`/api/v1/git/branches?project_id=${encodeURIComponent(pid)}`);
+    },
+    commit: (message, paths = null, projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request("/api/v1/git/commit", {
             method: "POST",
-            body: JSON.stringify({ message, paths }),
-        }),
+            body: JSON.stringify({ message, paths, project_id: pid }),
+        });
+    },
     push: (projectId = null) => {
         const pid = resolveProjectId(projectId);
         return request("/api/v1/git/push", {
@@ -142,6 +159,10 @@ export const gitApi = {
             method: "POST",
             body: JSON.stringify({ project_id: pid }),
         });
+    },
+    githubRepos: (projectId = null) => {
+        const pid = resolveProjectId(projectId);
+        return request(`/api/v1/git/github/repos?project_id=${encodeURIComponent(pid)}`);
     },
 };
 

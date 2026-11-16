@@ -1,8 +1,29 @@
+import pytest
 import app.main as main_mod
 from fastapi.testclient import TestClient
 
 
 client = TestClient(main_mod.app)
+
+
+@pytest.fixture(autouse=True)
+def allow_software_updates_feature():
+    """Keep these tests focused on local-origin validation and update queuing."""
+    route = next(
+        route
+        for route in main_mod.app.routes
+        if getattr(route, "path", None) == "/api/v1/updates/apply"
+    )
+    feature_dependency = route.dependant.dependencies[0].call
+    previous = main_mod.app.dependency_overrides.get(feature_dependency)
+    main_mod.app.dependency_overrides[feature_dependency] = lambda: "test-user"
+    try:
+        yield
+    finally:
+        if previous is None:
+            main_mod.app.dependency_overrides.pop(feature_dependency, None)
+        else:
+            main_mod.app.dependency_overrides[feature_dependency] = previous
 
 
 def test_update_apply_rejects_non_local_origin():

@@ -32,15 +32,19 @@ class WorkspaceManagerService:
     ) -> Optional[IWorkspaceDriver]:
         """Resolve driver strictly bound to given project_id."""
         if not project_id:
-            return await self.get_driver(user_id)
+            return None
 
         ws = self.workspace_repo.get_workspace_by_project_id(project_id, user_id)
         if not ws and self.project_repo:
             proj = self.project_repo.get_project(project_id, user_id)
             if proj:
                 if proj.get("workspace_id"):
-                    ws = self.workspace_repo.get_workspace_by_id(proj["workspace_id"], user_id)
-                elif proj.get("workspace_path") or proj.get("ssh_host"):
+                    candidate = self.workspace_repo.get_workspace_by_id(proj["workspace_id"], user_id)
+                    # A legacy project.workspace_id reference is valid only
+                    # when the workspace row is explicitly owned by this project.
+                    if candidate and candidate.get("project_id") == project_id:
+                        ws = candidate
+                if not ws and (proj.get("workspace_path") or proj.get("ssh_host")):
                     ws = {
                         "id": f"ws-{project_id[-8:]}",
                         "name": f"{proj.get('name', 'Project')} Workspace",
@@ -59,7 +63,7 @@ class WorkspaceManagerService:
         return await self.get_driver_by_workspace_id(ws["id"], user_id, override_ws=ws)
 
     async def get_driver(self, user_id: str) -> Optional[IWorkspaceDriver]:
-        """Resolve driver via active project first, fallback to active workspace."""
+        """Resolve a driver only from the user's active project workspace."""
         active_project = None
         if self.project_repo:
             active_project = self.project_repo.get_active_project(user_id)
@@ -76,10 +80,9 @@ class WorkspaceManagerService:
             # Never fall through to a different project's globally active SSH/local workspace.
             return None
 
-        active_ws = self.workspace_repo.get_active_workspace(user_id)
-        if not active_ws:
-            return None
-        return await self.get_driver_by_workspace_id(active_ws["id"], user_id)
+        # Project workspaces are isolated by design. Never fall back to a
+        # user-global workspace when no project is active.
+        return None
 
     async def get_driver_by_workspace_id(
         self, wid: str, user_id: str, override_ws: Optional[Dict[str, Any]] = None

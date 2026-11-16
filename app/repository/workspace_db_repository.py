@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import uuid
 from typing import List, Dict, Any, Optional
 from app.repository.db_connection import DatabaseConnectionManager
 
@@ -29,6 +30,146 @@ class WorkspaceDBRepository:
             conn.commit()
         except Exception as e:
             logger.debug(f"Workspace deduplication migration skipped: {e}")
+
+        self._migrate_project_bindings(conn)
+
+    def _migrate_project_bindings(self, conn):
+        """Give every legacy project its own workspace database binding.
+
+        Existing physical paths and SSH hosts are preserved; the migration
+        duplicates only the per-project workspace record. New projects remain
+        disconnected until the user configures them explicitly.
+        """
+        try:
+            projects = conn.execute(
+                "SELECT * FROM projects ORDER BY is_active DESC, updated_at DESC, created_at DESC"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return
+
+        project_counts = {}
+        for row in projects:
+            project_counts[row["user_id"]] = project_counts.get(row["user_id"], 0) + 1
+
+        for row in projects:
+            project = dict(row)
+            project_id = str(project.get("id") or "")
+            user_id = str(project.get("user_id") or "")
+            if not project_id or not user_id:
+                continue
+
+            own_workspace = conn.execute(
+                """
+                SELECT * FROM workspaces
+                WHERE user_id=? AND project_id=?
+                ORDER BY is_active DESC, created_at DESC
+                LIMIT 1
+                """,
+                (user_id, project_id),
+            ).fetchone()
+            if own_workspace:
+                if project.get("workspace_id") != own_workspace["id"]:
+                    conn.execute(
+                        "UPDATE projects SET workspace_id=? WHERE id=? AND user_id=?",
+                        (own_workspace["id"], project_id, user_id),
+                    )
+                continue
+
+            legacy_workspace = None
+            legacy_workspace_id = str(project.get("workspace_id") or "").strip()
+            if legacy_workspace_id:
+                legacy_workspace = conn.execute(
+                    "SELECT * FROM workspaces WHERE id=? AND user_id=?",
+                    (legacy_workspace_id, user_id),
+                ).fetchone()
+
+            if not legacy_workspace and project_counts.get(user_id) == 1:
+                unbound = conn.execute(
+                    """
+                    SELECT * FROM workspaces
+                    WHERE user_id=? AND (project_id IS NULL OR project_id='')
+                    ORDER BY is_active DESC, created_at DESC
+                    """,
+                    (user_id,),
+                ).fetchall()
+                if len(unbound) == 1:
+                    legacy_workspace = unbound[0]
+
+            new_workspace_id = ""
+            if legacy_workspace:
+                source = dict(legacy_workspace)
+                source_project_id = str(source.get("project_id") or "").strip()
+                if not source_project_id:
+                    new_workspace_id = source["id"]
+                    conn.execute(
+                        "UPDATE workspaces SET project_id=? WHERE id=? AND user_id=?",
+                        (project_id, new_workspace_id, user_id),
+                    )
+                elif source_project_id == project_id:
+                    new_workspace_id = source["id"]
+                else:
+                    new_workspace_id = str(uuid.uuid4())
+                    conn.execute(
+                        """
+                        INSERT INTO workspaces
+                            (id, name, type, host, port, username, path, auth_type,
+                             password_enc, key_id, is_active, user_id, project_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_workspace_id,
+                            source.get("name"),
+                            source.get("type"),
+                            source.get("host"),
+                            source.get("port", 22),
+                            source.get("username"),
+                            source.get("path"),
+                            source.get("auth_type"),
+                            source.get("password_enc"),
+                            source.get("key_id"),
+                            source.get("is_active", 0),
+                            user_id,
+                            project_id,
+                        ),
+                    )
+            else:
+                legacy_path = str(project.get("workspace_path") or "").strip()
+                legacy_host = str(project.get("ssh_host") or "").strip()
+                if legacy_path or legacy_host:
+                    new_workspace_id = str(uuid.uuid4())
+                    workspace_type = "ssh" if legacy_host else "local"
+                    key_id = project.get("ssh_key_id") or None
+                    conn.execute(
+                        """
+                        INSERT INTO workspaces
+                            (id, name, type, host, port, username, path, auth_type,
+                             password_enc, key_id, is_active, user_id, project_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_workspace_id,
+                            "SSH Workspace" if legacy_host else "Local Workspace",
+                            workspace_type,
+                            legacy_host or None,
+                            project.get("ssh_port") or 22,
+                            project.get("ssh_username") or None,
+                            legacy_path or None,
+                            "key" if key_id else None,
+                            None,
+                            key_id,
+                            1 if project.get("is_active") else 0,
+                            user_id,
+                            project_id,
+                        ),
+                    )
+
+            if new_workspace_id:
+                conn.execute(
+                    "UPDATE projects SET workspace_id=? WHERE id=? AND user_id=?",
+                    (new_workspace_id, project_id, user_id),
+                )
+
+        conn.commit()
 
     def claim_legacy_anonymous(self, user_id: str):
         if not user_id or user_id == "anonymous":

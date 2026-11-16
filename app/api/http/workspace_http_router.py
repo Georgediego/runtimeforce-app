@@ -92,10 +92,9 @@ async def get_active_workspace(
 ):
     try:
         target_project_id = project_id or _get_active_project_id(user_id)
-        if target_project_id:
-            ws = container.workspace_repo.get_workspace_by_project_id(target_project_id, user_id)
-            return {"active": ws}
-        ws = container.workspace_repo.get_active_workspace(user_id)
+        if not target_project_id:
+            return {"active": None}
+        ws = container.workspace_repo.get_workspace_by_project_id(target_project_id, user_id)
         return {"active": ws}
     except Exception as e:
         logger.error(f"Error getting active workspace: {e}")
@@ -278,6 +277,8 @@ async def create_workspace(
     try:
         ws_id = payload.get("id") or str(uuid.uuid4())
         target_project_id = payload.get("project_id") or _get_active_project_id(user_id)
+        if not target_project_id or not container.project_repo.get_project(target_project_id, user_id):
+            raise HTTPException(status_code=404, detail="Project not found")
         payload["project_id"] = target_project_id
 
         if str(payload.get("type") or "").lower() == "ssh":

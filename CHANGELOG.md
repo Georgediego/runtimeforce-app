@@ -1,12 +1,25 @@
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
 
+## [1.1.19] - 2026-11-16
+
+### Added
+- Encrypt the complete local SQLite database with SQLCipher, serialize first-run migrations across processes, verify encrypted backups, and preserve the source database on failure.
+- Migrate legacy workspace references into independent project-owned workspace records while preserving existing paths and SSH settings.
+- Add public documentation and automated tests for project workspace isolation and disconnected project creation.
+
+### Changed
+- Scope Git status, initialization, diff, commit, log, branches, push and pull to the selected project workspace.
+- Keep new projects disconnected from existing workspaces, SSH hosts, GitHub remotes and inherited local context.
+- Apply each project's configured GitHub repository to its own workspace origin and use the project's current branch for push and pull.
+- Refresh project-scoped Git status on project switches and open Providers & BYOK from the generation error action.
+
+### Fixed
+- Reject legacy workspace references owned by another project and remove the global workspace fallback.
+- Validate project ownership when creating workspace bindings.
+- Convert configured GitHub HTTPS remotes to SSH for SSH workspaces.
+- Use the RuntimeForce SaaS GitHub token bridge for repository operations.
+- Refresh project workspace and Git panels after project creation.
+- Prevent stale Git status from a previous project from appearing in the newly selected project.
 ## [1.1.18] - 2026-11-15
 
 ### Added
