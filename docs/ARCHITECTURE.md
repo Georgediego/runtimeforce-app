@@ -16,7 +16,7 @@ The local IDE is a FastAPI application with a browser-based interface. It owns l
 - Local model runtimes and direct BYOK provider requests
 - Agent workflows, including Auto, Manual, Local and ATM
 
-The local IDE stores its application data in a local SQLite database. The database file is not encrypted as a whole; supported credential fields are encrypted separately.
+The local IDE stores application state in a local SQLCipher-encrypted SQLite database. The database key is derived from the local MASTER_KEY; supported credential fields retain additional AES-256-GCM encryption. Existing plaintext databases are integrity-checked, exported, verified, and atomically replaced on first startup after the SQLCipher upgrade. An encrypted pre-migration backup is retained.
 
 ### Hosted control plane — runtimeforce-server
 
