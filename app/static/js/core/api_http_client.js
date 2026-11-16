@@ -2,7 +2,6 @@
  * HTTP API Client with Strict project_id Isolation & AUTOSELECT ALL Endpoints.
  */
 import { authFrontendService } from "../services/auth_frontend_service.js";
-import { showFeatureUpgrade } from "../components/toast_ui_controller.js";
 
 let authRecoveryPromise = null;
 
@@ -34,8 +33,10 @@ async function request(path, options = {}, allowAuthRetry = true) {
         const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
         const detail = err.detail;
         if (detail && typeof detail === "object" && detail.code === "feature_not_enabled") {
-            showFeatureUpgrade(detail.message || "This feature is not enabled for your current plan.", detail.upgrade || null);
-            throw new Error(detail.message || "Feature not enabled for this plan.");
+            const error = new Error(detail.message || "Feature not enabled for this plan.");
+            error.code = detail.code;
+            error.upgrade = detail.upgrade || null;
+            throw error;
         }
         throw new Error(typeof detail === "string" ? detail : `HTTP ${res.status}`);
     }
