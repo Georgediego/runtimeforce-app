@@ -42,8 +42,10 @@ def test_update_apply_rejects_non_local_origin():
     assert response.status_code == 403
 
 
-def test_update_apply_queues_local_update(monkeypatch):
+def test_update_apply_queues_local_update(monkeypatch, tmp_path):
     calls = []
+    marker = tmp_path / "apt-managed"
+    monkeypatch.setattr(main_mod, "APT_MANAGED_MARKER", marker)
     monkeypatch.setattr(main_mod, "_update_state", {"status": "idle", "message": ""})
     monkeypatch.setattr(main_mod, "_apply_ide_update", lambda: calls.append(True))
 
