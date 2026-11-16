@@ -1,13 +1,35 @@
 #!/usr/bin/python3
 """Start the per-user RuntimeForce service and open its local web interface."""
 
+import json
 import os
+import re
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+
+def installed_version() -> str | None:
+    changelog = Path("/usr/lib/runtimeforce/CHANGELOG.md")
+    try:
+        content = changelog.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r"^##\\s+\\[?v?(\\d+\\.\\d+\\.\\d+)\\]?", content, re.MULTILINE)
+    return f"v{match.group(1)}" if match else None
+
+
+def running_version(port_file: Path) -> str | None:
+    try:
+        port = int(port_file.read_text(encoding="ascii").strip())
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/v1/version", timeout=1) as response:
+            payload = json.load(response)
+        return payload.get("version")
+    except (OSError, ValueError, urllib.error.URLError, json.JSONDecodeError):
+        return None
 
 
 def main() -> int:
@@ -25,15 +47,22 @@ def main() -> int:
         print(f"Cannot access XDG_RUNTIME_DIR: {exc}", file=sys.stderr)
         return 1
 
+    port_file = runtime_root / "runtimeforce" / "port"
     try:
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-        subprocess.run(["systemctl", "--user", "start", "runtimeforce.service"], check=True)
+        active = subprocess.run(
+            ["systemctl", "--user", "is-active", "--quiet", "runtimeforce.service"],
+            check=False,
+        ).returncode == 0
+        if active and installed_version() and running_version(port_file) != installed_version():
+            subprocess.run(["systemctl", "--user", "restart", "runtimeforce.service"], check=True)
+        elif not active:
+            subprocess.run(["systemctl", "--user", "start", "runtimeforce.service"], check=True)
     except (OSError, subprocess.CalledProcessError) as exc:
         print(f"Unable to start the RuntimeForce user service: {exc}", file=sys.stderr)
         print("Check it with: journalctl --user -u runtimeforce.service -n 80", file=sys.stderr)
         return 1
 
-    port_file = runtime_root / "runtimeforce" / "port"
     deadline = time.monotonic() + 30
     url = None
     while time.monotonic() < deadline:
