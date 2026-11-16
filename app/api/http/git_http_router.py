@@ -89,6 +89,10 @@ async def _ensure_project_remote(driver: Any, project: dict, remote: str) -> Non
     configured_url = _validate_project_remote_url(project.get("github_remote_url") or "")
     if not configured_url:
         return
+    if isinstance(driver, WorkspaceSSHDriver) and configured_url.startswith("https://github.com/"):
+        # Git runs on the remote host, so use its SSH key rather than a local
+        # HTTPS credential that cannot be forwarded into the remote shell.
+        configured_url = "git@github.com:" + configured_url.removeprefix("https://github.com/")
     current = await driver.execute_command("git remote get-url origin")
     current_url = (current.get("stdout") or "").strip()
     if current.get("exit_code") == 0:
