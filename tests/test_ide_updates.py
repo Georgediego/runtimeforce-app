@@ -91,3 +91,27 @@ def test_update_apply_rejects_apt_managed_install(monkeypatch, tmp_path):
 
     assert response.status_code == 409
     assert "APT" in response.json()["detail"]
+
+
+def test_update_check_reports_apt_install_method(monkeypatch, tmp_path):
+    marker = tmp_path / "apt-managed"
+    marker.write_text("APT\n", encoding="utf-8")
+    monkeypatch.setattr(main_mod, "APT_MANAGED_MARKER", marker)
+
+    async def latest_version():
+        return "v1.1.21", "test"
+
+    monkeypatch.setattr(main_mod, "fetch_latest_ide_version", latest_version)
+    response = client.get("/api/v1/updates/check")
+
+    assert response.status_code == 200
+    assert response.json()["install_method"] == "apt"
+
+
+def test_self_updater_refuses_apt_managed_install(monkeypatch, tmp_path):
+    marker = tmp_path / "apt-managed"
+    marker.write_text("APT\n", encoding="utf-8")
+    monkeypatch.setattr(main_mod, "APT_MANAGED_MARKER", marker)
+
+    with pytest.raises(RuntimeError, match="managed by APT"):
+        main_mod._apply_ide_update()
