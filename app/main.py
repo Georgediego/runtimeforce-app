@@ -121,10 +121,12 @@ APT_MANAGED_MARKER = Path("/usr/share/runtimeforce/apt-managed")
 
 
 def get_install_method() -> str:
-    if APT_MANAGED_MARKER.is_file():
-        return "apt"
+    # Snap's transient per-user service may run on a machine that also has the
+    # APT package installed; the process environment is the authoritative hint.
     if os.environ.get("SNAP_NAME") == "runtimeforce" or os.environ.get("SNAP"):
         return "snap"
+    if APT_MANAGED_MARKER.is_file():
+        return "apt"
     return "self-managed"
 
 
