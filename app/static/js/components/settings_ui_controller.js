@@ -5,7 +5,7 @@ import { authFrontendService } from "../services/auth_frontend_service.js";
 import { providersUIController } from "./providers_ui_controller.js";
 import { showToast } from "./toast_ui_controller.js";
 import { eventBus } from "../core/event_bus.js";
-import { updateNotificationService } from "../services/update_notification_service.js";
+import { updateNotificationService } from "../services/update_notification_service.js?v=updates-check-diagnostics-2";
 
 export const settingsUIController = {
     init() {
