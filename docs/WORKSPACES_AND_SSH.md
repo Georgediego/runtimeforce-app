@@ -28,6 +28,10 @@ New projects are created without an attached workspace, SSH host, inherited loca
 
 Do not assume that an SSH connection configured for one project is available to another project.
 
+## Existing projects after upgrade
+
+The migration creates an independent database workspace record for each legacy project binding. It preserves the existing path, SSH host and key reference so an upgrade does not move or delete project data. It does not copy local directories or remote server folders. If two older projects previously pointed to the same physical path, they will still point to that path until you choose a separate directory or checkout for one of them.
+
 ## Switching projects
 
 Switching the active project changes the project context used by the editor, file tree, terminal, agent tools and Git operations. A project without a workspace remains disconnected. It must not fall back to a different project's local folder or SSH host.
