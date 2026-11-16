@@ -54,6 +54,9 @@ A project is the boundary for its workspace and Git configuration.
 - Repository remotes, branch preferences and versioning settings are stored on the project record.
 - A new project is created disconnected. Workspace, SSH and GitHub configuration is added afterward.
 
+### Existing project migration
+
+Legacy shared workspace references are migrated into separate project-owned database records while preserving their configured path and SSH target. The migration does not copy files or remote directories. Projects that previously referenced the same physical path continue to share that path until the owner changes one project's workspace location.
 ## Authentication and entitlements
 
 The hosted service is authoritative for account identity, plan status, feature flags and limits. Protected operations verify the account and entitlements against the hosted service. Locally decoded token claims are not an independent source of subscription authority.
