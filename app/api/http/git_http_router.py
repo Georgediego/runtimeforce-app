@@ -3,7 +3,7 @@ HTTP API Router for Git status, diff, commit, branch, log, push, pull, and remot
 """
 import logging
 from typing import Optional, List, Any
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from pydantic import BaseModel
 
 import re
@@ -32,6 +32,7 @@ router = APIRouter(prefix="/api/v1/git", tags=["git"])
 class CommitPayload(BaseModel):
     message: str
     paths: Optional[List[str]] = None
+    project_id: Optional[str] = None
 
 class PushPullPayload(BaseModel):
     project_id: Optional[str] = None
@@ -45,6 +46,25 @@ async def _is_github_remote(driver: Any, remote: str) -> bool:
         return bool(re.match(r"^(https?://github\.com/|git@github\.com:|ssh://git@github\.com/)", url))
     except Exception:
         return False
+
+
+def _resolve_project(project_id: Optional[str], user_id: str, project_service: ProjectService):
+    active_project = project_service.get_active_project(user_id)
+    target_id = project_id or (active_project.get("id") if active_project else None)
+    if not target_id:
+        raise HTTPException(status_code=404, detail="No project selected")
+    project = project_service.repo.get_project(target_id, user_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return target_id, project
+
+
+async def _get_project_driver(project_id: Optional[str], user_id: str, workspace_manager: WorkspaceManagerService, project_service: ProjectService):
+    target_id, project = _resolve_project(project_id, user_id, project_service)
+    driver = await workspace_manager.get_driver_for_project(user_id, target_id)
+    if not driver:
+        raise HTTPException(status_code=404, detail="No workspace connected to this project")
+    return driver, target_id, project
 
 
 async def _get_saas_github_token(request: Request) -> Optional[str]:
@@ -67,10 +87,17 @@ async def _get_saas_github_token(request: Request) -> Optional[str]:
 
 @router.get("/status")
 async def git_status(
+    project_id: Optional[str] = Query(None),
     user_id: str = Depends(require_plan_feature("git")),
-    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    driver = await workspace_manager.get_driver(user_id)
+    try:
+        driver, _, _ = await _get_project_driver(project_id, user_id, workspace_manager, project_service)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return {"is_repo": False, "entries": [], "workspace_connected": False}
+        raise
     if not driver or not await GitStatusService.is_repo(driver):
         return {"is_repo": False, "entries": []}
     entries = await GitStatusService.status(driver)
@@ -78,10 +105,12 @@ async def git_status(
 
 @router.post("/init")
 async def git_init(
+    project_id: Optional[str] = Query(None),
     user_id: str = Depends(require_plan_feature("git")),
-    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    driver = await workspace_manager.get_driver(user_id)
+    driver, _, _ = await _get_project_driver(project_id, user_id, workspace_manager, project_service)
     if not driver:
         raise HTTPException(status_code=404, detail="No active workspace")
     return await GitCommitService.init_repo(driver)
@@ -90,10 +119,17 @@ async def git_init(
 async def git_diff(
     path: Optional[str] = None,
     staged: bool = False,
+    project_id: Optional[str] = Query(None),
     user_id: str = Depends(require_plan_feature("git")),
-    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    driver = await workspace_manager.get_driver(user_id)
+    try:
+        driver, _, _ = await _get_project_driver(project_id, user_id, workspace_manager, project_service)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return {"is_repo": False, "diff": ""}
+        raise
     if not driver or not await GitStatusService.is_repo(driver):
         return {"is_repo": False, "diff": ""}
     diff_text = await GitDiffService.diff(driver, path=path, staged=staged)
@@ -103,9 +139,10 @@ async def git_diff(
 async def git_commit(
     payload: CommitPayload,
     user_id: str = Depends(require_plan_feature("git")),
-    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    driver = await workspace_manager.get_driver(user_id)
+    driver, _, _ = await _get_project_driver(payload.project_id, user_id, workspace_manager, project_service)
     if not driver or not await GitStatusService.is_repo(driver):
         raise HTTPException(status_code=400, detail="Not a git repository")
     return await GitCommitService.commit(driver, message=payload.message, paths=payload.paths)
@@ -118,21 +155,13 @@ async def git_push(
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     project_service: ProjectService = Depends(get_project_service)
 ):
-    driver = await workspace_manager.get_driver(user_id)
-    if not driver:
-        raise HTTPException(status_code=404, detail="No active workspace")
-
-    active_proj = project_service.get_active_project(user_id)
-    branch = payload.branch or (active_proj.get("git_branch_main") if active_proj else "main")
+    driver, target_project_id, active_proj = await _get_project_driver(payload.project_id, user_id, workspace_manager, project_service)
+    branch = payload.branch or active_proj.get("git_branch_main") or "main"
     remote = payload.remote or "origin"
 
     token = None
-    target_project_id = payload.project_id
-    if not target_project_id and active_proj:
-        target_project_id = active_proj.get("id")
-
     if target_project_id:
-        proj = project_service.repo.get_project(target_project_id, user_id)
+        proj = active_proj
         if proj:
             oauth_token_data = await container.oauth_repo.get_token(target_project_id, "github")
             if oauth_token_data and oauth_token_data.get("access_token"):
@@ -181,15 +210,25 @@ async def git_pull(
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     project_service: ProjectService = Depends(get_project_service)
 ):
-    driver = await workspace_manager.get_driver(user_id)
-    if not driver:
-        raise HTTPException(status_code=404, detail="No active workspace")
-
-    active_proj = project_service.get_active_project(user_id)
-    branch = payload.branch or (active_proj.get("git_branch_main") if active_proj else "main")
+    driver, target_project_id, active_proj = await _get_project_driver(payload.project_id, user_id, workspace_manager, project_service)
+    branch = payload.branch or active_proj.get("git_branch_main") or "main"
     remote = payload.remote or "origin"
 
-    token = await _get_saas_github_token(request) if not isinstance(driver, WorkspaceSSHDriver) and await _is_github_remote(driver, remote) else None
+    token = None
+    oauth_token_data = await container.oauth_repo.get_token(target_project_id, "github")
+    if oauth_token_data and oauth_token_data.get("access_token"):
+        token = oauth_token_data["access_token"]
+    else:
+        pat_enc = active_proj.get("github_pat_enc")
+        if pat_enc:
+            try:
+                token = AESCryptoService.decrypt(pat_enc)
+            except Exception:
+                token = None
+    if not token and not isinstance(driver, WorkspaceSSHDriver) and await _is_github_remote(driver, remote):
+        token = await _get_saas_github_token(request)
+    if token and isinstance(driver, WorkspaceSSHDriver):
+        raise HTTPException(status_code=400, detail="Token authentication is not supported for SSH workspaces yet")
     pull_command = f"git pull {shlex.quote(remote)} {shlex.quote(branch)}"
     res = await driver.execute_command(pull_command, env=git_auth_env(token)) if token else await driver.execute_command(pull_command)
     return {
@@ -203,10 +242,17 @@ async def git_pull(
 @router.get("/log")
 async def git_log(
     n: int = 10,
+    project_id: Optional[str] = Query(None),
     user_id: str = Depends(require_plan_feature("git")),
-    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    driver = await workspace_manager.get_driver(user_id)
+    try:
+        driver, _, _ = await _get_project_driver(project_id, user_id, workspace_manager, project_service)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return {"is_repo": False, "commits": []}
+        raise
     if not driver or not await GitStatusService.is_repo(driver):
         return {"is_repo": False, "commits": []}
     commits = await GitLogService.log(driver, n=n)
@@ -214,10 +260,17 @@ async def git_log(
 
 @router.get("/branches")
 async def git_branches(
+    project_id: Optional[str] = Query(None),
     user_id: str = Depends(require_plan_feature("git")),
-    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager)
+    workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
+    project_service: ProjectService = Depends(get_project_service),
 ):
-    driver = await workspace_manager.get_driver(user_id)
+    try:
+        driver, _, _ = await _get_project_driver(project_id, user_id, workspace_manager, project_service)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return {"is_repo": False, "branches": []}
+        raise
     if not driver or not await GitStatusService.is_repo(driver):
         return {"is_repo": False, "branches": []}
     branches = await GitBranchService.branches(driver)
