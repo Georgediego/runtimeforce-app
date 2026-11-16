@@ -55,3 +55,17 @@ On Linux, the installer creates and enables the per-user `runtimeforce-app.servi
 ## License
 
 RuntimeForce IDE is distributed under the **Business Source License 1.1 (BUSL-1.1)**. It is source-available, not an OSI-approved open-source license. See [LICENSE](LICENSE) for the complete terms.
+
+
+## Developer documentation
+
+The public technical documentation lives in [docs/](docs/):
+
+- [Getting Started](docs/GETTING_STARTED.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Security & Data Handling](docs/SECURITY.md)
+- [Workspaces & SSH — Project Isolation](docs/WORKSPACES_AND_SSH.md)
+- [Git & GitHub — Project Isolation](docs/GIT_AND_GITHUB.md)
+- [Roadmap](docs/ROADMAP.md)
+
+Each project owns its Workspace / SSH configuration and Git / GitHub repository settings. New projects start disconnected and must be configured explicitly. The IDE does not fall back to another project's workspace when the selected project has no connection.
