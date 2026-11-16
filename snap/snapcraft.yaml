@@ -44,10 +44,11 @@ parts:
       - xdg-utils
     override-build: |
       set -eux
-      mkdir -p "$CRAFT_PART_INSTALL/app" "$CRAFT_PART_INSTALL/bin" "$CRAFT_PART_INSTALL/packaging/snap"
+      mkdir -p "$CRAFT_PART_INSTALL/app" "$CRAFT_PART_INSTALL/bin" "$CRAFT_PART_INSTALL/packaging/snap" "$CRAFT_PART_INSTALL/meta/gui"
       cp -a "$CRAFT_PART_SRC/app" "$CRAFT_PART_INSTALL/"
       cp "$CRAFT_PART_SRC/CHANGELOG.md" "$CRAFT_PART_INSTALL/"
       cp "$CRAFT_PART_SRC/requirements.txt" "$CRAFT_PART_INSTALL/"
+      cp "$CRAFT_PART_SRC/app/static/logo.png" "$CRAFT_PART_INSTALL/meta/gui/runtimeforce.png"
       cp "$CRAFT_PART_SRC/packaging/snap/launcher.py" "$CRAFT_PART_INSTALL/packaging/snap/"
       install -m 0755 "$CRAFT_PART_SRC/packaging/snap/launcher.sh" "$CRAFT_PART_INSTALL/bin/runtimeforce"
       python3.12 -m venv "$CRAFT_PART_INSTALL/venv"
