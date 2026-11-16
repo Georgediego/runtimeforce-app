@@ -192,8 +192,8 @@ def test_two_processes_cannot_race_database_migration(tmp_path):
 
 
 def test_master_key_comes_from_app_root_env_not_inherited_environment(tmp_path, monkeypatch):
-    master_key = b"app-root-master-key-32-bytes-long!"
-    inherited_key = b"inherited-master-key-32-bytes-long"
+    master_key = b"0123456789abcdef0123456789abcdef"
+    inherited_key = b"fedcba9876543210fedcba9876543210"
     encoded = __import__("base64").b64encode(master_key).decode("ascii")
     env_file = tmp_path / ".env"
     env_file.write_text(f"MASTER_KEY={encoded}\n", encoding="utf-8")
