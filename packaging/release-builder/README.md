@@ -1,70 +1,83 @@
 # RuntimeForce local Linux release builder
 
-This builder runs on the developer's Ubuntu laptop. It does not use GitHub Actions or the VPS.
+The builder runs on the developer's Ubuntu 24.04 amd64 laptop. It does not use GitHub Actions or the VPS. The script fetches the latest `main` itself and builds from a temporary clean checkout.
 
-## Requirements
+## 1. Install prerequisites
 
-- Ubuntu 24.04, amd64
-- Git and GitHub CLI (`gh`) for publishing
-- Debian build tools and the dependencies declared in `debian/control`
-- Docker Engine for the Snapcraft Core24 container
-- A GitHub account with permission to publish releases
-
-Install prerequisites manually; the builder never installs packages with sudo:
+Install Debian build dependencies:
 
 ```bash
 sudo apt update
-sudo apt install -y git build-essential devscripts debhelper dh-virtualenv python3.12-dev python3.12-venv python3-pip libffi-dev libssl-dev libsqlcipher-dev docker.io
-sudo systemctl enable --now docker
-sudo usermod -aG docker "$USER"
+sudo apt install -y git build-essential devscripts debhelper dh-virtualenv python3.12-dev python3.12-venv python3-pip libffi-dev libssl-dev libsqlcipher-dev
 ```
 
-Log out and back in after adding the user to the docker group. Authenticate once:
+Docker must already be installed and running, and your user must be allowed to run `docker` without sudo. Do not install `docker.io` over an existing Docker CE/containerd installation.
+
+Check:
+
+```bash
+docker --version
+docker run --rm hello-world
+```
+
+Install and authenticate GitHub CLI for publishing:
 
 ```bash
 gh auth login
 gh auth status
 ```
 
-## First run — build only
-
-From any directory:
+## 2. Install builder locally
 
 ```bash
-python3 ~/Runtimeforce/runtimeforce-app/packaging/release-builder/build_release.py
+mkdir -p ~/.local/share/runtimeforce-release-builder
+curl -fsSL https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/packaging/release-builder/build_release.py -o ~/.local/share/runtimeforce-release-builder/build_release.py
+chmod 700 ~/.local/share/runtimeforce-release-builder/build_release.py
 ```
 
-The script fetches the current `main` commit into a temporary directory, checks that CHANGELOG, Snap and DEB versions match, builds both packages, and saves them under:
+## 3. First run — build only
+
+```bash
+python3 ~/.local/share/runtimeforce-release-builder/build_release.py
+```
+
+The script checks Ubuntu 24.04 amd64, verifies that CHANGELOG, Snap and DEB versions match, builds both packages and writes SHA256 checksums to:
 
 ```
 ~/.local/share/runtimeforce-release-builder/artifacts/
 ```
 
-It also creates `SHA256SUMS`. The source checkout and temporary build files are removed automatically. No release is published in this mode.
+No GitHub release is published in this mode. Install and test both packages manually before enabling automation.
 
-Install and test both artifacts manually before enabling automated publishing.
-
-## Publish a release manually
-
-Only after both packages have been tested:
+## 4. Publish manually after successful testing
 
 ```bash
-python3 ~/Runtimeforce/runtimeforce-app/packaging/release-builder/build_release.py --publish
+python3 ~/.local/share/runtimeforce-release-builder/build_release.py --publish
 ```
 
-The script refuses to overwrite an existing GitHub Release tag. It publishes the DEB, Snap and checksums together.
+The script refuses to overwrite an existing release tag. DEB, Snap and SHA256SUMS are uploaded together.
 
-## Hourly automation
-
-The accompanying systemd service and timer are intentionally not enabled by installation. Enable them only after a successful manual build and install test. The timer checks after boot and then hourly; `Persistent=true` triggers a catch-up run after the laptop was powered off.
-
-To enable automated publishing after validation:
+## 5. Enable hourly automation only after validation
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp ~/Runtimeforce/runtimeforce-app/packaging/release-builder/systemd/runtimeforce-release-builder.{service,timer} ~/.config/systemd/user/
+curl -fsSL https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/packaging/release-builder/systemd/runtimeforce-release-builder.service -o ~/.config/systemd/user/runtimeforce-release-builder.service
+curl -fsSL https://raw.githubusercontent.com/Georgediego/runtimeforce-app/main/packaging/release-builder/systemd/runtimeforce-release-builder.timer -o ~/.config/systemd/user/runtimeforce-release-builder.timer
 systemctl --user daemon-reload
 systemctl --user enable --now runtimeforce-release-builder.timer
 ```
 
-The laptop must be powered on and the user systemd manager active. Missed checks are caught up on the next login/boot.
+The timer runs two minutes after the user manager starts and then hourly. `Persistent=true` catches up a missed run after the laptop was powered off. The laptop must be on and the user session/systemd manager active. The service publishes automatically, so do not enable it until both package types have been installed and tested successfully.
+
+Status and logs:
+
+```bash
+systemctl --user status runtimeforce-release-builder.timer
+journalctl --user -u runtimeforce-release-builder.service -n 100 --no-pager
+```
+
+To stop automation:
+
+```bash
+systemctl --user disable --now runtimeforce-release-builder.timer
+```
