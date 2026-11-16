@@ -22,7 +22,7 @@ sudo snap install snapcraft --classic
 From the repository root:
 
 ```bash
-snapcraft --destructive-mode --project-dir .
+snapcraft --destructive-mode
 ```
 
 If Snapcraft is not installed on the build host or destructive mode is unsuitable, use the normal Snapcraft build provider:
