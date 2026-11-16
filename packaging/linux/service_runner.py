@@ -25,11 +25,6 @@ def choose_port(uid: int) -> int:
 
 
 def main() -> None:
-    if os.geteuid() == 0:
-        # Root may run RuntimeForce from a root login session, but the process
-        # must never be started through sudo from another user's desktop.
-        pass
-
     if not VENV_PYTHON.is_file():
         raise RuntimeError(f"RuntimeForce Python environment is missing: {VENV_PYTHON}")
 
@@ -37,7 +32,14 @@ def main() -> None:
     if not runtime_home:
         raise RuntimeError("XDG_RUNTIME_DIR is not set; start RuntimeForce from a logged-in user session.")
 
-    runtime_dir = Path(runtime_home) / "runtimeforce"
+    runtime_root = Path(runtime_home)
+    try:
+        if runtime_root.stat().st_uid != os.getuid():
+            raise RuntimeError("XDG_RUNTIME_DIR belongs to a different Linux user; do not launch RuntimeForce through sudo.")
+    except OSError as exc:
+        raise RuntimeError(f"Cannot access the current user's XDG_RUNTIME_DIR: {exc}") from exc
+
+    runtime_dir = runtime_root / "runtimeforce"
     runtime_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(runtime_dir, 0o700)
 
