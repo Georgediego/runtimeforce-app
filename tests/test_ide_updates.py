@@ -141,3 +141,45 @@ def test_self_updater_refuses_apt_managed_install(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="managed by APT"):
         main_mod._apply_ide_update()
+
+
+def test_snap_install_detection_takes_priority_over_host_apt_marker(monkeypatch, tmp_path):
+    marker = tmp_path / "apt-managed"
+    marker.write_text("APT\\n", encoding="utf-8")
+    monkeypatch.setattr(main_mod, "APT_MANAGED_MARKER", marker)
+    monkeypatch.setenv("SNAP_NAME", "runtimeforce")
+    monkeypatch.setenv("SNAP", "/snap/runtimeforce/current")
+
+    assert main_mod.get_install_method() == "snap"
+
+
+def test_update_apply_rejects_snap_managed_install(monkeypatch, tmp_path):
+    marker = tmp_path / "apt-managed"
+    monkeypatch.setattr(main_mod, "APT_MANAGED_MARKER", marker)
+    monkeypatch.setenv("SNAP_NAME", "runtimeforce")
+    monkeypatch.setenv("SNAP", "/snap/runtimeforce/current")
+
+    response = client.post(
+        "/api/v1/updates/apply",
+        headers={
+            "Host": "127.0.0.1:23841",
+            "Origin": "http://127.0.0.1:23841",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "SNAP" in response.json()["detail"]
+
+
+def test_update_check_reports_snap_install_method(monkeypatch):
+    monkeypatch.setenv("SNAP_NAME", "runtimeforce")
+    monkeypatch.setenv("SNAP", "/snap/runtimeforce/current")
+
+    async def latest_version():
+        return "v1.1.20", "test"
+
+    monkeypatch.setattr(main_mod, "fetch_latest_ide_version", latest_version)
+    response = client.get("/api/v1/updates/check")
+
+    assert response.status_code == 200
+    assert response.json()["install_method"] == "snap"
