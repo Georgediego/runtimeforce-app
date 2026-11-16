@@ -2,7 +2,7 @@ name: RuntimeForce IDE CI
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, 'feature/**']
   pull_request:
     branches: [main]
 
