@@ -1,0 +1,56 @@
+name: runtimeforce
+base: core24
+version: "1.1.20"
+summary: Local-first AI development environment
+description: |
+  RuntimeForce IDE is a local-first AI development environment for software
+  engineering, local and SSH workspaces, terminal operations, Git workflows,
+  AI model integrations, and project memory.
+
+  Project files, chat history, credentials, and the encrypted local database
+  remain on the user's computer. Account authentication and subscription
+  checks use the official RuntimeForce service.
+license: BUSL-1.1
+grade: devel
+confinement: classic
+platforms:
+  amd64:
+    build-on: amd64
+    build-for: amd64
+
+apps:
+  runtimeforce:
+    command: bin/runtimeforce
+    desktop: meta/gui/runtimeforce.desktop
+
+parts:
+  runtimeforce:
+    plugin: nil
+    source: .
+    build-packages:
+      - build-essential
+      - python3.12
+      - python3.12-venv
+      - python3.12-dev
+      - libsqlcipher-dev
+      - libffi-dev
+      - libssl-dev
+    stage-packages:
+      - python3.12
+      - python3.12-venv
+      - libpython3.12t64
+      - libsqlcipher1
+      - git
+      - xdg-utils
+    override-build: |
+      set -eux
+      mkdir -p "$CRAFT_PART_INSTALL/app" "$CRAFT_PART_INSTALL/bin" "$CRAFT_PART_INSTALL/packaging/snap" "$CRAFT_PART_INSTALL/meta/gui"
+      cp -a "$CRAFT_PART_SRC/app" "$CRAFT_PART_INSTALL/"
+      cp "$CRAFT_PART_SRC/CHANGELOG.md" "$CRAFT_PART_INSTALL/"
+      cp "$CRAFT_PART_SRC/requirements.txt" "$CRAFT_PART_INSTALL/"
+      cp "$CRAFT_PART_SRC/app/static/logo.png" "$CRAFT_PART_INSTALL/meta/gui/runtimeforce.png"
+      cp "$CRAFT_PART_SRC/packaging/snap/launcher.py" "$CRAFT_PART_INSTALL/packaging/snap/"
+      install -m 0755 "$CRAFT_PART_SRC/packaging/snap/launcher.sh" "$CRAFT_PART_INSTALL/bin/runtimeforce"
+      python3.12 -m venv "$CRAFT_PART_INSTALL/venv"
+      env -u PYTHONPATH -u PYTHONHOME "$CRAFT_PART_INSTALL/venv/bin/python" -I -m pip install --isolated --ignore-installed --no-cache-dir -r "$CRAFT_PART_SRC/requirements.txt"
+      env -u PYTHONPATH -u PYTHONHOME "$CRAFT_PART_INSTALL/venv/bin/python" -I -c "import fastapi, uvicorn, sqlcipher3, litellm; print('DEPENDENCIES OK')"
