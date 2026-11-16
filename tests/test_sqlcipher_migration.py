@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 import sqlcipher3
 
+from app.core.security import aes_crypto_service
+
 from app.repository.db_connection import DatabaseConnectionManager, _derive_database_key
 
 
@@ -186,3 +188,33 @@ def test_two_processes_cannot_race_database_migration(tmp_path):
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
         manager.close()
+
+
+
+def test_master_key_comes_from_app_root_env_not_inherited_environment(tmp_path, monkeypatch):
+    master_key = b"app-root-master-key-32-bytes-long!"
+    inherited_key = b"inherited-master-key-32-bytes-long"
+    encoded = __import__("base64").b64encode(master_key).decode("ascii")
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"MASTER_KEY={encoded}\n", encoding="utf-8")
+    monkeypatch.setattr(aes_crypto_service, "ENV_PATH", env_file)
+    monkeypatch.setenv(
+        "MASTER_KEY",
+        __import__("base64").b64encode(inherited_key).decode("ascii"),
+    )
+
+    assert aes_crypto_service.AESCryptoService._get_or_create_master_key() == master_key
+
+
+def test_master_key_is_created_once_when_app_root_env_has_no_key(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("OTHER_SETTING=preserved\n", encoding="utf-8")
+    monkeypatch.setattr(aes_crypto_service, "ENV_PATH", env_file)
+    monkeypatch.delenv("MASTER_KEY", raising=False)
+
+    first = aes_crypto_service.AESCryptoService._get_or_create_master_key()
+    second = aes_crypto_service.AESCryptoService._get_or_create_master_key()
+
+    assert len(first) == 32
+    assert second == first
+    assert "OTHER_SETTING=preserved" in env_file.read_text(encoding="utf-8")
