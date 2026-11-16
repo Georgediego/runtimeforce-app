@@ -220,8 +220,8 @@ export const projectsUIController = {
         try {
             const res = await projectsApi.create({
                 name: name.trim(),
-                project_context: "Project architecture and stack guidelines.",
-                rules_of_engagement: "Workflow: Code -> Test -> Changelog -> Release",
+                project_context: "",
+                rules_of_engagement: "",
                 git_mode: "manual",
                 git_branch_main: "main",
                 git_branch_dev: "dev",
