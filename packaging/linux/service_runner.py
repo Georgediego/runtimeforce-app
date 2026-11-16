@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3.14
 """Start the shared RuntimeForce virtualenv as the current systemd user."""
 
 import os
