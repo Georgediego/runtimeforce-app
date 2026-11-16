@@ -22,9 +22,14 @@ class AESCryptoService:
         master_b64 = os.getenv("MASTER_KEY")
         if master_b64:
             try:
-                return base64.b64decode(master_b64)
+                master_key = base64.b64decode(master_b64, validate=True)
+                if len(master_key) != 32:
+                    raise ValueError("MASTER_KEY must decode to exactly 32 bytes")
+                if ENV_PATH.is_file():
+                    os.chmod(ENV_PATH, 0o600)
+                return master_key
             except Exception as e:
-                logger.error(f"Failed to decode MASTER_KEY: {e}")
+                logger.error(f"Failed to load MASTER_KEY: {type(e).__name__}")
                 raise
         new_key = AESGCM.generate_key(bit_length=256)
         new_key_b64 = base64.b64encode(new_key).decode("utf-8")
