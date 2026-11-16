@@ -44,7 +44,13 @@ def main() -> int:
     parser.add_argument("--repo", default=REPO_URL, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    required = ["git", "dpkg-buildpackage", "dpkg-checkbuilddeps", "docker", "sha256sum"]
+    os_release = Path("/etc/os-release").read_text(encoding="utf-8") if Path("/etc/os-release").exists() else ""
+    if 'VERSION_ID="24.04"' not in os_release and "VERSION_ID=24.04" not in os_release:
+        raise RuntimeError("This package builder currently supports Ubuntu 24.04 only.")
+    if shutil.which("dpkg") and subprocess.run(["dpkg", "--print-architecture"], capture_output=True, text=True).stdout.strip() != "amd64":
+        raise RuntimeError("This package builder currently creates amd64 packages only.")
+
+    required = ["git", "dpkg", "dpkg-buildpackage", "dpkg-checkbuilddeps", "docker", "sha256sum"]
     if args.publish:
         required.append("gh")
     missing = [name for name in required if not shutil.which(name)]
