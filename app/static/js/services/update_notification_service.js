@@ -39,7 +39,15 @@ function hasBlockingActivity() {
     });
 }
 
-function updateCommands() {
+function updateCommands(installMethod = "self-managed") {
+    if (installMethod === "apt") {
+        return [
+            "sudo apt update",
+            "sudo apt install --only-upgrade runtimeforce",
+            "",
+            "# RuntimeForce will restart from its systemd user service.",
+        ].join("\n");
+    }
     const platform = navigator.userAgentData?.platform || navigator.platform || "";
     if (/win/i.test(platform)) {
         return [
@@ -90,16 +98,23 @@ function ensureApplyButton() {
     copyButton.closest("#rf-update-modal")?.querySelector(".border-t")?.after(status);
 }
 
-function showUpdateModal(currentVersion, latestVersion) {
+function showUpdateModal(currentVersion, latestVersion, installMethod = "self-managed") {
     const modal = document.getElementById("rf-update-modal");
     if (!modal) return;
     document.getElementById("rf-update-current-version").textContent = currentVersion;
     document.getElementById("rf-update-latest-version").textContent = latestVersion;
-    document.getElementById("rf-update-commands").textContent = updateCommands();
+    document.getElementById("rf-update-commands").textContent = updateCommands(installMethod);
     modal.dataset.latestVersion = latestVersion;
+    modal.dataset.installMethod = installMethod;
+    const existingApplyButton = document.getElementById("rf-update-apply-btn");
+    if (installMethod === "apt") {
+        existingApplyButton?.classList.add("hidden");
+    } else {
+        ensureApplyButton();
+        existingApplyButton?.classList.remove("hidden");
+    }
     modal.classList.remove("hidden");
     modal.setAttribute("aria-hidden", "false");
-    ensureApplyButton();
     pendingUpdate = null;
 }
 
@@ -137,6 +152,8 @@ async function applyUpdate() {
     if (applyingUpdate) return;
     const modal = document.getElementById("rf-update-modal");
     const modalIsVisible = modal && !modal.classList.contains("hidden");
+    const installMethod = modalIsVisible ? modal.dataset.installMethod : pendingUpdate?.install_method;
+    if (installMethod === "apt") return;
     const latestVersion = (modalIsVisible ? modal.dataset.latestVersion : null)
         || pendingUpdate?.latest_version;
     const button = modalIsVisible
@@ -201,7 +218,11 @@ async function applyUpdate() {
 function presentPendingUpdate() {
     if (!pendingUpdate || document.hidden || hasBlockingActivity()) return;
     if (isSnoozed(pendingUpdate.latest_version)) return;
-    showUpdateModal(pendingUpdate.current_version, pendingUpdate.latest_version);
+    showUpdateModal(
+        pendingUpdate.current_version,
+        pendingUpdate.latest_version,
+        pendingUpdate.install_method,
+    );
 }
 
 async function checkForUpdates({ force = false } = {}) {
@@ -250,7 +271,9 @@ async function checkForUpdates({ force = false } = {}) {
         localStorage.setItem(UPDATE_LAST_CHECK_KEY, String(Date.now()));
         if (latest) latest.textContent = result.latest_version || "—";
         if (status) status.textContent = result.update_available
-            ? "A new update is available"
+            ? result.install_method === "apt"
+                ? "Update available — install with APT"
+                : "A new update is available"
             : result.installed_newer
                 ? "Installed version is newer than the latest stable release"
                 : "You're up to date";
@@ -261,10 +284,13 @@ async function checkForUpdates({ force = false } = {}) {
             pendingUpdate = null;
             return;
         }
-        if (settingsApplyButton) settingsApplyButton.classList.remove("hidden");
+        if (settingsApplyButton) {
+            settingsApplyButton.classList.toggle("hidden", result.install_method === "apt");
+        }
         pendingUpdate = {
             current_version: result.current_version,
             latest_version: result.latest_version,
+            install_method: result.install_method || "self-managed",
         };
         presentPendingUpdate();
     } catch (error) {
@@ -281,7 +307,6 @@ async function checkForUpdates({ force = false } = {}) {
 export const updateNotificationService = {
     init() {
         if (checkTimer) return;
-        ensureApplyButton();
         document.getElementById("rf-update-later-btn")?.addEventListener("click", () => {
             const version = document.getElementById("rf-update-modal")?.dataset.latestVersion;
             if (version) snooze(version);
