@@ -33,7 +33,7 @@ Build on Ubuntu 26.04 amd64:
 
 ```bash
 sudo apt update
-sudo apt install build-essential debhelper debhelper-compat dh-virtualenv python3.14 python3.14-venv python3-pip devscripts
+sudo apt install build-essential debhelper dh-virtualenv python3.14 python3.14-venv python3-pip libffi-dev libssl-dev
 dpkg-buildpackage -us -uc -b
 ```
 
