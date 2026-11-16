@@ -7,6 +7,10 @@ import { showToast } from "./toast_ui_controller.js";
 import { projectsUIController } from "./projects_ui_controller.js";
 
 export const gitUIController = {
+    getProjectId() {
+        return localStorage.getItem("rf_active_project_id") || "";
+    },
+
     init() {
         document.getElementById("git-init-btn")?.addEventListener("click", () => this.handleInitClick());
         document.getElementById("commit-btn")?.addEventListener("click", () => this.openCommitModal());
@@ -36,7 +40,7 @@ export const gitUIController = {
         const branchName = document.getElementById("git-branch-name");
         const commitBtn = document.getElementById("commit-btn");
         try {
-            const data = await gitApi.status();
+            const data = await gitApi.status(this.getProjectId());
             if (!data.is_repo) {
                 if (emptyState) emptyState.classList.remove("hidden");
                 if (gitContent) gitContent.classList.add("hidden");
@@ -89,7 +93,7 @@ export const gitUIController = {
     async loadBranchName(el) {
         if (!el) return;
         try {
-            const res = await gitApi.branches();
+            const res = await gitApi.branches(this.getProjectId());
             if (res.is_repo && res.branches && res.branches.length) {
                 const current = res.branches.find((b) => b.current);
                 el.textContent = current ? current.name : res.branches[0].name;
@@ -112,7 +116,7 @@ export const gitUIController = {
     async initRepository() {
         try {
             showToast("Initializing Git repository...", "info");
-            const res = await gitApi.init();
+            const res = await gitApi.init(this.getProjectId());
             if (res.success) {
                 showToast("Git repository initialized", "success");
                 await this.loadGitStatus();
@@ -135,7 +139,7 @@ export const gitUIController = {
             modal.style.display = "flex";
         }
         try {
-            const res = await gitApi.diff(path);
+            const res = await gitApi.diff(path, false, this.getProjectId());
             if (contentEl) contentEl.textContent = res.diff || "No diff available";
         } catch (e) {
             if (contentEl) contentEl.textContent = `Error: ${e.message}`;
@@ -156,7 +160,7 @@ export const gitUIController = {
         const msgInput = document.getElementById("commit-message-input");
         if (msgInput) msgInput.value = "";
         try {
-            const data = await gitApi.status();
+            const data = await gitApi.status(this.getProjectId());
             const entries = data.entries || [];
             if (previewEl) {
                 previewEl.innerHTML = entries
@@ -193,7 +197,7 @@ export const gitUIController = {
         }
         try {
             showToast("Committing changes...", "info");
-            const res = await gitApi.commit(msg);
+            const res = await gitApi.commit(msg, null, this.getProjectId());
             if (res.error) {
                 showToast(`Commit failed: ${res.error}`, "error");
             } else {
@@ -209,7 +213,7 @@ export const gitUIController = {
     async executePush() {
         try {
             showToast("Pushing to remote...", "info");
-            const res = await gitApi.push();
+            const res = await gitApi.push(this.getProjectId());
             if (res.success) {
                 showToast("Git push completed!", "success");
             } else showToast(`Push failed: ${res.stderr || "Unknown error"}`, "error");
@@ -221,7 +225,7 @@ export const gitUIController = {
     async executePull() {
         try {
             showToast("Pulling latest...", "info");
-            const res = await gitApi.pull();
+            const res = await gitApi.pull(this.getProjectId());
             if (res.success) {
                 showToast("Git pull completed!", "success");
                 await this.loadGitStatus();
