@@ -183,16 +183,20 @@ class DatabaseConnectionManager:
         self._lock = threading.Lock()
         self._local = threading.local()
         self._migrate_or_initialize_encryption()
+        self.init_db()
 
     def _connect_encrypted(self, path: Optional[str] = None):
         conn = sqlite3.connect(path or self.db_path, check_same_thread=False, timeout=10.0)
-        conn.execute(f"PRAGMA key = {_sqlcipher_key_clause(self._database_key)}")
-        conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
-        version = conn.execute("PRAGMA cipher_version").fetchone()
-        if not version or not version[0]:
+        try:
+            conn.execute(f"PRAGMA key = {_sqlcipher_key_clause(self._database_key)}")
+            conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+            version = conn.execute("PRAGMA cipher_version").fetchone()
+            if not version or not version[0]:
+                raise RuntimeError("The installed SQLite driver does not provide SQLCipher.")
+            return conn
+        except Exception:
             conn.close()
-            raise RuntimeError("The installed SQLite driver does not provide SQLCipher.")
-        return conn
+            raise
 
     def _is_currently_encrypted(self) -> bool:
         if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) == 0:
