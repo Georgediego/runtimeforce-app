@@ -232,8 +232,12 @@ async function checkForUpdates({ force = false } = {}) {
         // Always show the locally installed version, even if all remote sources fail.
         if (current) current.textContent = result.current_version || "—";
         if (!result.checked) {
-            if (latest) latest.textContent = "—";
-            if (status) status.textContent = "GitHub is temporarily unavailable";
+            if (latest) latest.textContent = "Unavailable";
+            if (status) {
+                const reason = result.check_error ? String(result.check_error).slice(0, 180) : "GitHub is temporarily unavailable";
+                status.textContent = `Unable to read GitHub main: ${reason}`;
+                status.title = result.check_error || "";
+            }
             pendingUpdate = null;
             return;
         }
