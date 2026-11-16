@@ -1,7 +1,7 @@
 Source: runtimeforce
 Section: devel
 Priority: optional
-Maintainer: RuntimeForce Maintainers <maintainers@runtimeforce.dev>
+Maintainer: Georgediego <203426657+Georgediego@users.noreply.github.com>
 Standards-Version: 4.7.2
 Build-Depends:
  debhelper-compat (= 13),
