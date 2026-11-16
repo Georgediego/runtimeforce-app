@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import re
 import shutil
 import subprocess
@@ -13,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 REPO_URL = "https://github.com/Georgediego/runtimeforce-app.git"
+DEB_IMAGE = "ubuntu:24.04"
 SNAP_IMAGE = "ghcr.io/canonical/snapcraft:8_core24"
 STATE_DIR = Path.home() / ".local/share/runtimeforce-release-builder"
 ARTIFACT_DIR = STATE_DIR / "artifacts"
@@ -45,18 +45,18 @@ def main() -> int:
     parser.add_argument("--repo", default=REPO_URL, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    os_release = Path("/etc/os-release").read_text(encoding="utf-8") if Path("/etc/os-release").exists() else ""
-    if 'VERSION_ID="24.04"' not in os_release and "VERSION_ID=24.04" not in os_release:
-        raise RuntimeError("This package builder currently supports Ubuntu 24.04 only.")
-    if shutil.which("dpkg") and subprocess.run(["dpkg", "--print-architecture"], capture_output=True, text=True).stdout.strip() != "amd64":
+    if shutil.which("dpkg") and subprocess.run(
+        ["dpkg", "--print-architecture"], capture_output=True, text=True
+    ).stdout.strip() != "amd64":
         raise RuntimeError("This package builder currently creates amd64 packages only.")
 
-    required = ["git", "dpkg", "dpkg-buildpackage", "dpkg-checkbuilddeps", "docker", "sha256sum"]
+    required = ["git", "docker", "sha256sum"]
     if args.publish:
         required.append("gh")
     missing = [name for name in required if not shutil.which(name)]
     if missing:
         raise RuntimeError("Missing commands: " + ", ".join(missing))
+    run(["docker", "info"], capture=True)
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
@@ -94,8 +94,27 @@ def main() -> int:
                 return 0
 
         print(f"Building RuntimeForce {version} from main commit {commit[:12]}")
-        run(["dpkg-checkbuilddeps"], cwd=checkout)
-        run(["dpkg-buildpackage", "-us", "-uc", "-b"], cwd=checkout)
+
+        # Build DEB in a clean Ubuntu 24.04 container so the host can be Ubuntu 26.04+.
+        deb_build = (
+            "set -e; "
+            "if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then "
+            "sed -i 's/^Components: .*/Components: main universe/' "
+            "/etc/apt/sources.list.d/ubuntu.sources; fi; "
+            "apt-get update; "
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y "
+            "build-essential dpkg-dev debhelper dh-virtualenv "
+            "libffi-dev libssl-dev libsqlcipher-dev "
+            "python3.12 python3.12-dev python3.12-venv python3-pip; "
+            "dpkg-checkbuilddeps; "
+            "dpkg-buildpackage -us -uc -b"
+        )
+        run([
+            "docker", "run", "--rm",
+            "-v", f"{temp_dir}:/workspace",
+            "-w", "/workspace/source",
+            DEB_IMAGE, "bash", "-lc", deb_build,
+        ])
 
         deb_candidates = sorted(temp_dir.glob("*.deb"))
         if not deb_candidates:
@@ -104,8 +123,9 @@ def main() -> int:
         if deb.stat().st_size < 1024:
             raise RuntimeError("DEB artifact is unexpectedly small.")
 
+        # Snapcraft Core24 image matches snap/base and builds independently of host OS.
         run([
-            "docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}",
+            "docker", "run", "--rm",
             "-v", f"{checkout}:/project",
             "-w", "/project",
             SNAP_IMAGE,
