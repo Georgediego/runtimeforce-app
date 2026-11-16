@@ -2,7 +2,6 @@
 Single source of truth for encrypted SQLite connections, schema migrations,
 and context transactions.
 """
-import base64
 import logging
 import os
 import sqlite3 as stdlib_sqlite3
@@ -11,7 +10,6 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Generator, Optional
 
 try:
@@ -201,13 +199,16 @@ class DatabaseConnectionManager:
     def _is_currently_encrypted(self) -> bool:
         if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) == 0:
             return False
+        conn = None
         try:
             conn = self._connect_encrypted()
-            conn.execute("PRAGMA integrity_check").fetchone()
-            conn.close()
-            return True
+            result = conn.execute("PRAGMA integrity_check").fetchone()
+            return bool(result and result[0] == "ok")
         except Exception:
             return False
+        finally:
+            if conn is not None:
+                conn.close()
 
     def _migrate_or_initialize_encryption(self) -> None:
         if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) == 0:
