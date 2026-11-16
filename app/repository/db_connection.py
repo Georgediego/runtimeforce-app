@@ -239,8 +239,9 @@ class DatabaseConnectionManager:
             finally:
                 checkpoint.close()
 
+            # A fresh SQLCipher connection without PRAGMA key opens a legacy
+            # plaintext SQLite database. An empty key is invalid in SQLCipher 0.6.x.
             source = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10.0)
-            source.execute("PRAGMA key = ''")
             source.execute("SELECT count(*) FROM sqlite_master").fetchone()
 
             _attach_sqlcipher_database(source, temp_path, "encrypted", self._database_key)
@@ -316,9 +317,6 @@ class DatabaseConnectionManager:
     def init_db(self):
         with self._lock:
             conn = self.get_connection()
-            conn.execute("DROP TABLE IF EXISTS project_oauth_tokens")
-            conn.execute("DROP TABLE IF EXISTS social_post_drafts")
-            conn.execute("DROP TABLE IF EXISTS social_feedback_items")
             conn.executescript(SCHEMA)
             conn.commit()
         try:
