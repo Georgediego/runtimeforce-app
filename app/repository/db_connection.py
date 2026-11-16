@@ -191,6 +191,9 @@ class DatabaseConnectionManager:
             version = conn.execute("PRAGMA cipher_version").fetchone()
             if not version or not version[0]:
                 raise RuntimeError("The installed SQLite driver does not provide SQLCipher.")
+            protected_path = path or self.db_path
+            if os.path.isfile(protected_path):
+                os.chmod(protected_path, stat.S_IRUSR | stat.S_IWUSR)
             return conn
         except Exception:
             conn.close()
@@ -251,6 +254,7 @@ class DatabaseConnectionManager:
             source = None
 
             for candidate in (temp_path, backup_path):
+                os.chmod(candidate, stat.S_IRUSR | stat.S_IWUSR)
                 verify = self._connect_encrypted(candidate)
                 result = verify.execute("PRAGMA integrity_check").fetchone()
                 verify.close()
