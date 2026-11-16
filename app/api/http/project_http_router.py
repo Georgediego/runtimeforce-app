@@ -82,7 +82,12 @@ async def create_project(
     # Project access is derived from the authoritative project limit.
     # Do not require a duplicate features.projects flag: cached entitlements
     # may omit it while a dynamic plan still grants project slots.
-    max_projects = limits.get("max_projects", 1)
+    # Admin plan editor stores the project/workspace allowance as
+    # workspaces_limit; accept the explicit max_projects key when present,
+    # but keep older plan payloads compatible.
+    max_projects = limits.get("max_projects")
+    if max_projects is None:
+        max_projects = limits.get("workspaces_limit", 1)
     try:
         max_projects = max(0, int(max_projects))
     except (TypeError, ValueError):
