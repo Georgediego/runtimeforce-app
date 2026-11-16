@@ -1355,7 +1355,7 @@ ATM (Autonomous Team Mode) Panel Styles
     margin-right: 0.5rem !important;
     margin-bottom: 0.25rem !important;
     float: left !important;
-    user-select: none !important;
+    user-select: text !important;
 }
 
 /* Непрерывное вращение орбиты во время мышления */
@@ -2085,3 +2085,14 @@ html.light .rf-system-monitor{background:rgba(255,255,255,.82)}
 }
 
 #rf-memory-widget-body.rf-cube-body{display:flex!important;flex-direction:column;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important}
+
+
+/* Make interface copyable by default without overriding editor/terminal engines. */
+body, body * {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
+.monaco-editor, .monaco-editor *, .xterm, .xterm * {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
