@@ -334,8 +334,12 @@ if (typeof window !== "undefined" && !window.__rfGlobalErrorToastsBound) {
         showToast(reason ?? "Unknown async error", "error", 0);
     });
     window.addEventListener("error", (event) => {
-        if (!event.message) return;
-        showToast(`Application error: ${event.message}`, "error", 0);
+        const message = String(event.message || "").trim();
+        // Browsers expose cross-origin script failures as the unhelpful
+        // generic "Script error." string; do not present it as a diagnosis.
+        if (!message || /^script error\.?$/i.test(message)) return;
+        const source = event.filename ? ` (${event.filename.split("/").pop()}:${event.lineno || 0})` : "";
+        showToast(`Application error: ${message}${source}`, "error", 0);
     });
 }
 
