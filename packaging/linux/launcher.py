@@ -24,7 +24,16 @@ def main() -> int:
         print("Check it with: journalctl --user -u runtimeforce.service -n 80", file=sys.stderr)
         return 1
 
-    port_file = Path(runtime_home) / "runtimeforce" / "port"
+    runtime_root = Path(runtime_home)
+    try:
+        if runtime_root.stat().st_uid != os.getuid():
+            print("XDG_RUNTIME_DIR belongs to another Linux user; do not launch RuntimeForce through sudo.", file=sys.stderr)
+            return 1
+    except OSError as exc:
+        print(f"Cannot access XDG_RUNTIME_DIR: {exc}", file=sys.stderr)
+        return 1
+
+    port_file = runtime_root / "runtimeforce" / "port"
     deadline = time.monotonic() + 30
     url = None
     while time.monotonic() < deadline:
