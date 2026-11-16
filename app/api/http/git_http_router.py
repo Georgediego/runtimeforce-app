@@ -76,7 +76,7 @@ def _validate_project_remote_url(url: str) -> str:
         or value.startswith("git@github.com:")
         or value.startswith("ssh://git@github.com/")
     )
-    if not allowed or any(char in value for char in (" ", "\\n", "\\r", ";", "|", "&")):
+    if not allowed or any(char in value for char in (" ", "\n", "\r", ";", "|", "&")):
         raise HTTPException(status_code=400, detail="Project GitHub remote must be a valid GitHub clone URL")
     return value
 
