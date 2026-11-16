@@ -231,7 +231,7 @@ def test_master_key_migrates_from_legacy_user_install_without_changing_key(tmp_p
     target = tmp_path / "config" / "runtimeforce" / ".env"
     legacy.parent.mkdir()
     legacy.write_text(
-        f"MASTER_KEY={base64.b64encode(key).decode('ascii')}\\n",
+        f"MASTER_KEY={base64.b64encode(key).decode('ascii')}\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(aes_crypto_service, "ENV_PATH", target)
@@ -253,8 +253,8 @@ def test_conflicting_legacy_master_keys_fail_closed(tmp_path, monkeypatch):
     legacy_a = tmp_path / "old-a.env"
     legacy_b = tmp_path / "old-b.env"
     target = tmp_path / "config" / ".env"
-    legacy_a.write_text(f"MASTER_KEY={base64.b64encode(first_key).decode('ascii')}\\n")
-    legacy_b.write_text(f"MASTER_KEY={base64.b64encode(second_key).decode('ascii')}\\n")
+    legacy_a.write_text(f"MASTER_KEY={base64.b64encode(first_key).decode('ascii')}\n")
+    legacy_b.write_text(f"MASTER_KEY={base64.b64encode(second_key).decode('ascii')}\n")
     monkeypatch.setattr(aes_crypto_service, "ENV_PATH", target)
     monkeypatch.setattr(
         aes_crypto_service, "_legacy_env_paths", lambda: [legacy_a, legacy_b]
@@ -265,11 +265,3 @@ def test_conflicting_legacy_master_keys_fail_closed(tmp_path, monkeypatch):
 
     assert not target.exists()
 
-
-def test_xdg_config_path_is_per_user_and_outside_application_tree(monkeypatch, tmp_path):
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    monkeypatch.setattr(aes_crypto_service.Path, "home", lambda: tmp_path / "home")
-    # Reloading is unnecessary for the constant under test: validate the path
-    # construction used by the module from its documented environment contract.
-    expected = tmp_path / "xdg" / "runtimeforce" / ".env"
-    assert expected != aes_crypto_service.REPO_ROOT / ".env"
