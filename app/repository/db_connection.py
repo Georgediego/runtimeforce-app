@@ -228,7 +228,7 @@ class DatabaseConnectionManager:
             # Checkpoint any legacy WAL before exporting its contents.
             checkpoint = stdlib_sqlite3.connect(self.db_path, timeout=10.0)
             try:
-                checkpoint.execute("PRAGMA wal_checkpoint(FULL)")
+                checkpoint.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 check = checkpoint.execute("PRAGMA integrity_check").fetchone()
                 if not check or check[0] != "ok":
                     raise RuntimeError(f"Legacy SQLite integrity check failed: {check}")
