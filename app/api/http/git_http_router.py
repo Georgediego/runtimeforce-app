@@ -324,7 +324,7 @@ async def list_github_branches(
     github_api: GitHubApiService = Depends(get_github_api)
 ):
     try:
-        token = await _get_github_token_and_project(project_id, user_id, project_service)
+        token = await _get_github_token_and_project(project_id, user_id, project_service, request)
         result = await github_api.list_branches(token, owner, repo)
         return result
     except GitHubApiError as e:
