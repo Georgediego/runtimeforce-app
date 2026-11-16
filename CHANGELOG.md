@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Migrate legacy workspace references into independent project-owned workspace records while preserving existing paths and SSH settings.
+
+### Changed
+- Apply each project's configured GitHub repository to its own workspace origin before Git initialization, push and pull.
+- Use the current project repository branch for push and pull when no branch is explicitly supplied.
+
+### Fixed
+- Reject legacy workspace references owned by another project.
+- Convert configured GitHub HTTPS remotes to SSH remotes for SSH workspaces so the remote host uses its own GitHub SSH key.
+
 ## [Unreleased]
 
 ### Added
