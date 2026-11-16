@@ -16,7 +16,7 @@ import { terminalUIController } from "./components/terminal.js";
 import { projectsUIController } from "./components/projects_ui_controller.js";
 import { traceUIController } from "./components/trace_ui_controller.js";
 import { setupWizardUIController } from "./components/setup_wizard_ui_controller.js";
-import { updateNotificationService } from "./services/update_notification_service.js";
+import { updateNotificationService } from "./services/update_notification_service.js?v=updates-check-diagnostics-2";
 
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("🚀 Initializing RuntimeForce IDE...");
