@@ -16,14 +16,6 @@ def main() -> int:
         print("RuntimeForce must be started from a logged-in Linux user session.", file=sys.stderr)
         return 1
 
-    try:
-        subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-        subprocess.run(["systemctl", "--user", "start", "runtimeforce.service"], check=True)
-    except (OSError, subprocess.CalledProcessError) as exc:
-        print(f"Unable to start the RuntimeForce user service: {exc}", file=sys.stderr)
-        print("Check it with: journalctl --user -u runtimeforce.service -n 80", file=sys.stderr)
-        return 1
-
     runtime_root = Path(runtime_home)
     try:
         if runtime_root.stat().st_uid != os.getuid():
@@ -31,6 +23,14 @@ def main() -> int:
             return 1
     except OSError as exc:
         print(f"Cannot access XDG_RUNTIME_DIR: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+        subprocess.run(["systemctl", "--user", "start", "runtimeforce.service"], check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"Unable to start the RuntimeForce user service: {exc}", file=sys.stderr)
+        print("Check it with: journalctl --user -u runtimeforce.service -n 80", file=sys.stderr)
         return 1
 
     port_file = runtime_root / "runtimeforce" / "port"
