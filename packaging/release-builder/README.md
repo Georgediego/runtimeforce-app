@@ -1,21 +1,19 @@
 # RuntimeForce local Linux release builder
 
-The builder runs on the developer's Ubuntu 24.04 amd64 laptop. It does not use GitHub Actions or the VPS. The script fetches the latest `main` itself and builds from a temporary clean checkout.
+The builder runs on the developer's Ubuntu amd64 laptop. It does not use GitHub Actions or the VPS. The script fetches the latest `main` itself and builds from a temporary clean checkout.
 
-## 1. Install prerequisites
+DEB packages are built inside an Ubuntu 24.04 Docker container. Snap packages are built inside Canonical's Core24 Snapcraft container. The host Ubuntu version can therefore be newer than 24.04.
 
-Install Debian build dependencies:
+## 1. Host prerequisites
 
-```bash
-sudo apt update
-sudo apt install -y git build-essential devscripts debhelper dh-virtualenv python3.12-dev python3.12-venv python3-pip libffi-dev libssl-dev libsqlcipher-dev
-```
+The host needs Git, Docker and (for publishing) GitHub CLI. No host-side Debian/Python build toolchain is required.
 
 Docker must already be installed and running, and your user must be allowed to run `docker` without sudo. Do not install `docker.io` over an existing Docker CE/containerd installation.
 
 Check:
 
 ```bash
+git --version
 docker --version
 docker run --rm hello-world
 ```
@@ -41,13 +39,13 @@ chmod 700 ~/.local/share/runtimeforce-release-builder/build_release.py
 python3 ~/.local/share/runtimeforce-release-builder/build_release.py
 ```
 
-The script checks Ubuntu 24.04 amd64, verifies that CHANGELOG, Snap and DEB versions match, builds both packages and writes SHA256 checksums to:
+The script checks amd64 architecture and verifies that CHANGELOG, Snap and DEB versions match. It then builds both packages in isolated Docker containers and writes SHA256 checksums to:
 
 ```
 ~/.local/share/runtimeforce-release-builder/artifacts/
 ```
 
-No GitHub release is published in this mode. Install and test both packages manually before enabling automation.
+The first run downloads the Ubuntu 24.04 and Snapcraft build images and may take some time. No GitHub release is published in build-only mode. Install and test both packages manually before enabling automation.
 
 ## 4. Publish manually after successful testing
 
