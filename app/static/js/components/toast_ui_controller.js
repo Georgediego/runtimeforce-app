@@ -59,6 +59,14 @@ export function showToast(message, type = "info", duration = 3000) {
                 const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
                 const clientInstanceId = localStorage.getItem("rf_client_instance_id") || (crypto.randomUUID ? crypto.randomUUID() : "rf-" + Date.now() + "-" + Math.random().toString(36).slice(2));
                 localStorage.setItem("rf_client_instance_id", clientInstanceId);
+                let reportedVersion = document.documentElement.dataset.appVersion || "unknown";
+                try {
+                    const versionResponse = await fetch("/api/v1/version", { cache: "no-store" });
+                    if (versionResponse.ok) {
+                        const versionData = await versionResponse.json();
+                        reportedVersion = versionData.version || reportedVersion;
+                    }
+                } catch (_) {}
                 const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports", {
                     method: "POST",
                     credentials: "include",
@@ -71,11 +79,12 @@ export function showToast(message, type = "info", duration = 3000) {
                         message: detail.slice(0, 8000),
                         component: "IDE Notification",
                         diagnostics: {
-                            app_version: document.documentElement.dataset.appVersion || "unknown",
+                            app_version: reportedVersion,
                             url: location.pathname,
                             user_agent: navigator.userAgent,
                             occurred_at: new Date().toISOString(),
-                            client_instance_id: clientInstanceId
+                            client_instance_id: clientInstanceId,
+                            error_details: window.__rfLastErrorDiagnostics || null
                         }
                     })
                 });
@@ -329,17 +338,38 @@ initRuntimeForceTooltips();
 // Surface otherwise-unhandled frontend failures in the persistent error center.
 if (typeof window !== "undefined" && !window.__rfGlobalErrorToastsBound) {
     window.__rfGlobalErrorToastsBound = true;
+    window.__rfLastErrorDiagnostics = null;
     window.addEventListener("unhandledrejection", (event) => {
         const reason = event.reason;
+        window.__rfLastErrorDiagnostics = {
+            type: "unhandledrejection",
+            message: errorText(reason),
+            stack: reason?.stack || null,
+            occurred_at: new Date().toISOString(),
+        };
         showToast(reason ?? "Unknown async error", "error", 0);
     });
     window.addEventListener("error", (event) => {
-        const message = String(event.message || "").trim();
-        // Browsers expose cross-origin script failures as the unhelpful
-        // generic "Script error." string; do not present it as a diagnosis.
-        if (!message || /^script error\.?$/i.test(message)) return;
-        const source = event.filename ? ` (${event.filename.split("/").pop()}:${event.lineno || 0})` : "";
-        showToast(`Application error: ${message}${source}`, "error", 0);
+        const message = String(event.message || "Unknown script error").trim();
+        const filename = event.filename || null;
+        const line = Number(event.lineno) || null;
+        const column = Number(event.colno) || null;
+        const stack = event.error?.stack || null;
+        window.__rfLastErrorDiagnostics = {
+            type: "window.error",
+            message,
+            filename,
+            line,
+            column,
+            stack,
+            occurred_at: new Date().toISOString(),
+        };
+        const generic = /^script error\.?$/i.test(message);
+        const detail = generic
+            ? "Script error (browser did not expose the original error details)"
+            : message;
+        const source = filename ? ` (${filename.split("/").pop()}:${line || 0}:${column || 0})` : "";
+        showToast(`Application error: ${detail}${source}`, "error", 0);
     });
 }
 
