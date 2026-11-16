@@ -37,7 +37,7 @@ GitHub account authorization allows RuntimeForce to discover and access reposito
 
 ## SSH repositories
 
-A project may use an SSH workspace and a Git remote configured for SSH authentication. Token-based HTTPS authentication is not supported for SSH workspace drivers in the current implementation; configure the appropriate SSH key and remote URL on the target host.
+A project may use an SSH workspace and a Git remote configured for SSH authentication. When a project remote is stored as a GitHub HTTPS clone URL and the workspace runs over SSH, RuntimeForce converts the project's `origin` remote to the equivalent GitHub SSH URL before initialization, push or pull. The remote host must have an SSH key authorized for that GitHub repository.
 
 ## Troubleshooting
 
