@@ -1,3 +1,4 @@
+import multiprocessing
 import sqlite3
 from pathlib import Path
 
@@ -125,3 +126,63 @@ def test_corrupt_legacy_database_is_not_replaced(tmp_path):
 
     assert database.read_bytes() == original
     assert not list(tmp_path.glob("runtime.db.pre-sqlcipher-*.enc"))
+
+
+
+def _concurrent_migration_worker(database: str, row_id: str, barrier) -> None:
+    barrier.wait(timeout=15)
+    manager = DatabaseConnectionManager(database, master_key=TEST_MASTER_KEY)
+    try:
+        connection = manager.get_connection()
+        connection.execute(
+            "INSERT INTO sessions (id, title, user_id) VALUES (?, ?, ?)",
+            (row_id, f"Concurrent {row_id}", "test-user"),
+        )
+        connection.commit()
+    finally:
+        manager.close()
+
+
+def test_two_processes_cannot_race_database_migration(tmp_path):
+    database = tmp_path / "runtime.db"
+    legacy = sqlite3.connect(str(database))
+    legacy.execute(
+        "CREATE TABLE legacy_data (id INTEGER PRIMARY KEY, value TEXT NOT NULL)"
+    )
+    legacy.execute("INSERT INTO legacy_data(value) VALUES ('must-survive')")
+    legacy.commit()
+    legacy.close()
+
+    context = multiprocessing.get_context("fork")
+    barrier = context.Barrier(2)
+    processes = [
+        context.Process(
+            target=_concurrent_migration_worker,
+            args=(str(database), f"process-{index}", barrier),
+        )
+        for index in range(2)
+    ]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(timeout=30)
+
+    for process in processes:
+        if process.is_alive():
+            process.terminate()
+            process.join()
+        assert process.exitcode == 0
+
+    manager = DatabaseConnectionManager(str(database), master_key=TEST_MASTER_KEY)
+    try:
+        connection = manager.get_connection()
+        assert connection.execute(
+            "SELECT value FROM legacy_data WHERE id=1"
+        ).fetchone()[0] == "must-survive"
+        rows = connection.execute(
+            "SELECT id FROM sessions WHERE id LIKE 'process-%' ORDER BY id"
+        ).fetchall()
+        assert [row[0] for row in rows] == ["process-0", "process-1"]
+        assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    finally:
+        manager.close()
