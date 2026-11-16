@@ -67,6 +67,48 @@ async def _get_project_driver(project_id: Optional[str], user_id: str, workspace
     return driver, target_id, project
 
 
+def _validate_project_remote_url(url: str) -> str:
+    value = (url or "").strip()
+    if not value:
+        return ""
+    allowed = (
+        value.startswith("https://github.com/")
+        or value.startswith("git@github.com:")
+        or value.startswith("ssh://git@github.com/")
+    )
+    if not allowed or any(char in value for char in (" ", "\\n", "\\r", ";", "|", "&")):
+        raise HTTPException(status_code=400, detail="Project GitHub remote must be a valid GitHub clone URL")
+    return value
+
+
+async def _ensure_project_remote(driver: Any, project: dict, remote: str) -> None:
+    # The selected GitHub repository is stored per project. Keep origin in
+    # that project's own workspace aligned with its project settings.
+    if remote != "origin":
+        return
+    configured_url = _validate_project_remote_url(project.get("github_remote_url") or "")
+    if not configured_url:
+        return
+    current = await driver.execute_command("git remote get-url origin")
+    current_url = (current.get("stdout") or "").strip()
+    if current.get("exit_code") == 0:
+        if current_url == configured_url:
+            return
+        command = f"git remote set-url origin {shlex.quote(configured_url)}"
+    else:
+        command = f"git remote add origin {shlex.quote(configured_url)}"
+    result = await driver.execute_command(command)
+    if result.get("exit_code") != 0:
+        detail = (result.get("stderr") or result.get("stdout") or "Could not configure project GitHub remote").strip()
+        raise HTTPException(status_code=400, detail=detail)
+
+
+async def _current_branch(driver: Any, fallback: str) -> str:
+    result = await driver.execute_command("git branch --show-current")
+    branch = (result.get("stdout") or "").strip()
+    return branch if result.get("exit_code") == 0 and branch else fallback
+
+
 async def _get_saas_github_token(request: Request) -> Optional[str]:
     authorization = request.headers.get("Authorization", "")
     if not authorization.startswith("Bearer "):
@@ -110,10 +152,11 @@ async def git_init(
     workspace_manager: WorkspaceManagerService = Depends(get_workspace_manager),
     project_service: ProjectService = Depends(get_project_service),
 ):
-    driver, _, _ = await _get_project_driver(project_id, user_id, workspace_manager, project_service)
-    if not driver:
-        raise HTTPException(status_code=404, detail="No active workspace")
-    return await GitCommitService.init_repo(driver)
+    driver, _, project = await _get_project_driver(project_id, user_id, workspace_manager, project_service)
+    result = await GitCommitService.init_repo(driver)
+    if result.get("success"):
+        await _ensure_project_remote(driver, project, "origin")
+    return result
 
 @router.get("/diff")
 async def git_diff(
@@ -156,8 +199,10 @@ async def git_push(
     project_service: ProjectService = Depends(get_project_service)
 ):
     driver, target_project_id, active_proj = await _get_project_driver(payload.project_id, user_id, workspace_manager, project_service)
-    branch = payload.branch or active_proj.get("git_branch_main") or "main"
     remote = payload.remote or "origin"
+    await _ensure_project_remote(driver, active_proj, remote)
+    branch_fallback = active_proj.get("git_branch_main") or "main"
+    branch = payload.branch or await _current_branch(driver, branch_fallback)
 
     token = None
     pat_enc = active_proj.get("github_pat_enc")
@@ -202,8 +247,10 @@ async def git_pull(
     project_service: ProjectService = Depends(get_project_service)
 ):
     driver, target_project_id, active_proj = await _get_project_driver(payload.project_id, user_id, workspace_manager, project_service)
-    branch = payload.branch or active_proj.get("git_branch_main") or "main"
     remote = payload.remote or "origin"
+    await _ensure_project_remote(driver, active_proj, remote)
+    branch_fallback = active_proj.get("git_branch_main") or "main"
+    branch = payload.branch or await _current_branch(driver, branch_fallback)
 
     token = None
     pat_enc = active_proj.get("github_pat_enc")
