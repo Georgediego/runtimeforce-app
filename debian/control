@@ -22,7 +22,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
  python3.12,
- libsqlcipher0,
+ libsqlcipher1,
  git,
  systemd,
  xdg-utils
