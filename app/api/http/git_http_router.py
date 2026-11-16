@@ -160,21 +160,12 @@ async def git_push(
     remote = payload.remote or "origin"
 
     token = None
-    if target_project_id:
-        proj = active_proj
-        if proj:
-            oauth_token_data = await container.oauth_repo.get_token(target_project_id, "github")
-            if oauth_token_data and oauth_token_data.get("access_token"):
-                token = oauth_token_data["access_token"]
-            else:
-                pat_enc = proj.get("github_pat_enc")
-                if pat_enc:
-                    try:
-                        decrypted_pat = AESCryptoService.decrypt(pat_enc)
-                        if decrypted_pat:
-                            token = decrypted_pat
-                    except Exception:
-                        pass
+    pat_enc = active_proj.get("github_pat_enc")
+    if pat_enc:
+        try:
+            token = AESCryptoService.decrypt(pat_enc)
+        except Exception:
+            token = None
 
     if not token and not isinstance(driver, WorkspaceSSHDriver) and await _is_github_remote(driver, remote):
         token = await _get_saas_github_token(request)
@@ -215,16 +206,12 @@ async def git_pull(
     remote = payload.remote or "origin"
 
     token = None
-    oauth_token_data = await container.oauth_repo.get_token(target_project_id, "github")
-    if oauth_token_data and oauth_token_data.get("access_token"):
-        token = oauth_token_data["access_token"]
-    else:
-        pat_enc = active_proj.get("github_pat_enc")
-        if pat_enc:
-            try:
-                token = AESCryptoService.decrypt(pat_enc)
-            except Exception:
-                token = None
+    pat_enc = active_proj.get("github_pat_enc")
+    if pat_enc:
+        try:
+            token = AESCryptoService.decrypt(pat_enc)
+        except Exception:
+            token = None
     if not token and not isinstance(driver, WorkspaceSSHDriver) and await _is_github_remote(driver, remote):
         token = await _get_saas_github_token(request)
     if token and isinstance(driver, WorkspaceSSHDriver):
@@ -276,44 +263,39 @@ async def git_branches(
     branches = await GitBranchService.branches(driver)
     return {"is_repo": True, "branches": branches}
 
-async def _get_github_token_and_project(project_id: Optional[str], user_id: str, project_service: ProjectService) -> str:
-    target_project_id = project_id
-    if not target_project_id:
-        active_proj = project_service.get_active_project(user_id)
-        if active_proj:
-            target_project_id = active_proj.get("id")
-    
-    if not target_project_id:
-        raise HTTPException(status_code=404, detail="Project not found")
+async def _get_github_token_and_project(
+    project_id: Optional[str],
+    user_id: str,
+    project_service: ProjectService,
+    request: Request,
+) -> str:
+    target_project_id, project = _resolve_project(project_id, user_id, project_service)
 
-    proj = project_service.repo.get_project(target_project_id, user_id)
-    if not proj:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    oauth_token_data = await container.oauth_repo.get_token(target_project_id, "github")
-    if oauth_token_data and oauth_token_data.get("access_token"):
-        return oauth_token_data["access_token"]
-
-    pat_enc = proj.get("github_pat_enc")
+    pat_enc = project.get("github_pat_enc")
     if pat_enc:
         try:
             decrypted_pat = AESCryptoService.decrypt(pat_enc)
             if decrypted_pat:
                 return decrypted_pat
         except Exception:
-            pass
+            logger.warning("Could not decrypt project GitHub token for project %s", target_project_id)
+
+    token = await _get_saas_github_token(request)
+    if token:
+        return token
 
     raise HTTPException(status_code=409, detail={"error": "github_not_connected"})
 
 @router.get("/github/repos")
 async def list_github_repos(
+    request: Request,
     project_id: Optional[str] = None,
     user_id: str = Depends(require_plan_feature("git")),
     project_service: ProjectService = Depends(get_project_service),
     github_api: GitHubApiService = Depends(get_github_api)
 ):
     try:
-        token = await _get_github_token_and_project(project_id, user_id, project_service)
+        token = await _get_github_token_and_project(project_id, user_id, project_service, request)
         repos = await github_api.list_repos(token)
         return {"repos": repos}
     except GitHubApiError as e:
@@ -335,6 +317,7 @@ async def list_github_repos(
 async def list_github_branches(
     owner: str,
     repo: str,
+    request: Request,
     project_id: Optional[str] = None,
     user_id: str = Depends(require_plan_feature("git")),
     project_service: ProjectService = Depends(get_project_service),
