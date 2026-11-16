@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+export DH_VIRTUALENV_INSTALL_ROOT = /opt/venvs
+
+%:
+	dh $@ --with python-virtualenv
+
+override_dh_virtualenv:
+	dh_virtualenv --python /usr/bin/python3.12 --builtin-venv --skip-install
+	debian/runtimeforce/opt/venvs/runtimeforce/bin/python -m pip install --no-cache-dir -r requirements.txt
+	debian/runtimeforce/opt/venvs/runtimeforce/bin/python -m pip uninstall --yes pip

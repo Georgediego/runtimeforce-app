@@ -1,0 +1,7 @@
+runtimeforce (1.1.20) unstable; urgency=medium
+
+  * Add Ubuntu amd64 DEB packaging for RuntimeForce IDE.
+  * Run the IDE as a per-user systemd service.
+  * Keep user configuration, databases, encryption keys, and caches in user-owned locations.
+
+ -- Georgediego <203426657+Georgediego@users.noreply.github.com>  Tue, 17 Nov 2026 08:00:00 +0000
