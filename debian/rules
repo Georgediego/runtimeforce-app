@@ -7,3 +7,4 @@ export DH_VIRTUALENV_INSTALL_ROOT = /opt/venvs
 
 override_dh_virtualenv:
 	dh_virtualenv --python /usr/bin/python3.14 --builtin-venv --skip-install
+	/opt/venvs/runtimeforce/bin/python -m pip uninstall --yes pip
