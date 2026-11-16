@@ -103,7 +103,7 @@ def main() -> int:
             "/etc/apt/sources.list.d/ubuntu.sources; fi; "
             "apt-get update; "
             "DEBIAN_FRONTEND=noninteractive apt-get install -y "
-            "build-essential dpkg-dev debhelper dh-virtualenv "
+            "build-essential dpkg-dev debhelper dh-virtualenv fakeroot "
             "libffi-dev libssl-dev libsqlcipher-dev "
             "python3.12 python3.12-dev python3.12-venv python3-pip; "
             "dpkg-checkbuilddeps; "
