@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -104,7 +105,7 @@ def main() -> int:
             raise RuntimeError("DEB artifact is unexpectedly small.")
 
         run([
-            "docker", "run", "--rm",
+            "docker", "run", "--rm", "--user", f"{os.getuid()}:{os.getgid()}",
             "-v", f"{checkout}:/project",
             "-w", "/project",
             SNAP_IMAGE,
