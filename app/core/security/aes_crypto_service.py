@@ -10,32 +10,45 @@ from typing import Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from dotenv import load_dotenv, set_key
+from dotenv import dotenv_values, set_key
+from filelock import FileLock, Timeout as FileLockTimeout
 
 logger = logging.getLogger("runtimeforce.security.crypto")
-ENV_PATH = Path(".env")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+ENV_PATH = REPO_ROOT / ".env"
 
 class AESCryptoService:
     @staticmethod
     def _get_or_create_master_key() -> bytes:
-        load_dotenv(ENV_PATH)
-        master_b64 = os.getenv("MASTER_KEY")
-        if master_b64:
-            try:
-                return base64.b64decode(master_b64)
-            except Exception as e:
-                logger.error(f"Failed to decode MASTER_KEY: {e}")
-                raise
-        new_key = AESGCM.generate_key(bit_length=256)
-        new_key_b64 = base64.b64encode(new_key).decode("utf-8")
-        if not ENV_PATH.exists():
-            ENV_PATH.touch(mode=0o600)
-        set_key(str(ENV_PATH), "MASTER_KEY", new_key_b64)
+        ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = ENV_PATH.with_name(ENV_PATH.name + ".master-key.lock")
         try:
-            os.chmod(ENV_PATH, 0o600)
-        except Exception:
-            pass
-        return new_key
+            with FileLock(str(lock_path), timeout=30):
+                os.chmod(lock_path, 0o600)
+                # The app-root .env is authoritative; inherited shell variables
+                # must never silently select a different database key.
+                values = dotenv_values(ENV_PATH)
+                master_b64 = values.get("MASTER_KEY")
+                if master_b64:
+                    try:
+                        master_key = base64.b64decode(master_b64, validate=True)
+                        if len(master_key) != 32:
+                            raise ValueError("MASTER_KEY must decode to exactly 32 bytes")
+                        if ENV_PATH.is_file():
+                            os.chmod(ENV_PATH, 0o600)
+                        return master_key
+                    except Exception as exc:
+                        logger.error("Failed to load MASTER_KEY: %s", type(exc).__name__)
+                        raise
+                new_key = AESGCM.generate_key(bit_length=256)
+                new_key_b64 = base64.b64encode(new_key).decode("utf-8")
+                if not ENV_PATH.exists():
+                    ENV_PATH.touch(mode=0o600)
+                set_key(str(ENV_PATH), "MASTER_KEY", new_key_b64)
+                os.chmod(ENV_PATH, 0o600)
+                return new_key
+        except FileLockTimeout as exc:
+            raise RuntimeError("Timed out waiting for the local master-key lock.") from exc
 
     @staticmethod
     def _derive_key(master_key: bytes, salt: bytes, jwt_token: Optional[str] = None) -> bytes:

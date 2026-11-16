@@ -749,13 +749,8 @@ export const chatUIController = {
             '</div></div>';
         if (window.lucide) window.lucide.createIcons({ root: container });
         container.querySelector(".change-model-provider-btn")?.addEventListener("click", () => {
-            const strategySelect = document.getElementById("strategy-select");
-            if (strategySelect) {
-                strategySelect.value = "manual";
-                strategySelect.dispatchEvent(new Event("change", { bubbles: true }));
-            }
-            document.getElementById("settings-manual-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
-            document.getElementById("model-lock-trigger")?.click();
+            // Open the global settings modal directly on Providers & BYOK.
+            eventBus.emit("settings.modal.opened", "providers");
         });
         container.querySelector(".send-error-report-btn")?.addEventListener("click", (event) => {
             this.sendErrorReport(event.currentTarget, errText);

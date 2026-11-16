@@ -23,15 +23,16 @@ Do not send confidential material to a cloud model unless the provider's terms a
 
 ## Credential encryption
 
-The local app's credential-encryption service uses AES-256-GCM for supported credential values. The encryption key is derived from the local `MASTER_KEY` configuration in the app's environment.
+The local app uses two encryption layers:
 
-Important distinctions:
+- SQLCipher 4 encrypts the complete local SQLite database, including chat history, project metadata, audit records, graph memory, embeddings, settings, and credential ciphertext.
+- AES-256-GCM continues to encrypt supported credential values before they are stored in the database.
+- A dedicated database key is derived from the local 256-bit `MASTER_KEY` using HKDF-SHA256 with a database-specific context. The database key is not the SaaS JWT signing key and is not stored in plaintext.
+- SQLCipher is mandatory. The app fails closed rather than silently opening or creating a plaintext database if the SQLCipher driver is unavailable.
 
-- The SQLite database file is **not encrypted as a whole**.
-- Chat history, project metadata and audit records are not automatically protected by SQLite-level encryption.
-- The master key is stored in local environment configuration; it is not derived from the SaaS JWT signing key.
-- Protect the local app directory and environment file with operating-system permissions.
-- Use full-disk encryption and a protected operating-system account on machines containing sensitive projects.
+On first startup after this upgrade, an existing plaintext SQLite database is integrity-checked, exported to SQLCipher, and verified before atomic replacement. A cross-process file lock serializes migration so two RuntimeForce instances cannot export or replace the same database concurrently. A separately encrypted pre-migration backup is retained beside the database. If migration fails, the original database is left in place and the app does not start with plaintext storage.
+
+The `MASTER_KEY` in the local environment file is required to open the database. Keep a secure offline backup of that key: losing it makes the encrypted database unrecoverable. Protect the local app directory and environment file with operating-system permissions, and use full-disk encryption on machines containing sensitive projects.
 
 ## SSH safety
 
@@ -53,9 +54,10 @@ BYOK means the IDE sends cloud inference requests directly to the provider using
 
 ## Known limitations
 
-- SQLite is not encrypted at the file level.
-- Local credential encryption depends on protecting the local master key.
+- Database encryption protects data at rest, not data while RuntimeForce is running and the database is unlocked.
+- Local database and credential encryption depend on protecting and backing up the local master key.
+- SQLCipher does not encrypt project files, workspace files, application logs, downloaded model files, or operating-system swap outside the database.
 - Cloud inference necessarily sends request content to the selected provider.
-- Local-first architecture does not prevent a user, malware or another process with access to the same OS account from reading local project files.
+- Local-first architecture does not prevent a user, malware or another process with access to the same OS account from reading data available to that account.
 
 Report suspected security issues privately through the contact details on the RuntimeForce website rather than publishing credentials or exploit details in a public issue.

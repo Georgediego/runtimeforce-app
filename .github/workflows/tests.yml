@@ -2,9 +2,10 @@ name: RuntimeForce IDE CI
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, 'feature/**']
   pull_request:
-    branches: [main]
+    branches: [main, dev]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
