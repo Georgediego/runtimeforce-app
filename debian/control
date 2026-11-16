@@ -5,6 +5,9 @@ Maintainer: Georgediego <203426657+Georgediego@users.noreply.github.com>
 Standards-Version: 4.7.2
 Build-Depends:
  debhelper-compat (= 13),
+ build-essential,
+ libffi-dev,
+ libssl-dev,
  dh-virtualenv (>= 1.2),
  python3.14,
  python3.14-venv,
@@ -17,6 +20,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
  python3.14,
+ git,
  systemd,
  xdg-utils
 Description: Local-first AI development environment
