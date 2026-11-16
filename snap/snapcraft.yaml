@@ -1,5 +1,5 @@
 name: runtimeforce
-base: core26
+base: core24
 version: "1.1.20"
 summary: Local-first AI development environment
 description: |
@@ -13,8 +13,9 @@ description: |
 license: BUSL-1.1
 grade: devel
 confinement: classic
-architectures:
-  - build-on: amd64
+platforms:
+  amd64:
+    build-on: amd64
     build-for: amd64
 
 apps:
@@ -28,16 +29,16 @@ parts:
     source: .
     build-packages:
       - build-essential
-      - python3.14
-      - python3.14-venv
-      - python3.14-dev
+      - python3.12
+      - python3.12-venv
+      - python3.12-dev
       - libsqlcipher-dev
       - libffi-dev
       - libssl-dev
     stage-packages:
-      - python3.14
-      - python3.14-venv
-      - libpython3.14
+      - python3.12
+      - python3.12-venv
+      - libpython3.12
       - libsqlcipher0
       - git
       - xdg-utils
@@ -49,5 +50,5 @@ parts:
       cp "$CRAFT_PART_SRC/requirements.txt" "$CRAFT_PART_INSTALL/"
       cp "$CRAFT_PART_SRC/packaging/snap/launcher.py" "$CRAFT_PART_INSTALL/packaging/snap/"
       install -m 0755 "$CRAFT_PART_SRC/packaging/snap/launcher.sh" "$CRAFT_PART_INSTALL/bin/runtimeforce"
-      python3.14 -m venv "$CRAFT_PART_INSTALL/venv"
+      python3.12 -m venv "$CRAFT_PART_INSTALL/venv"
       "$CRAFT_PART_INSTALL/venv/bin/python" -m pip install --no-cache-dir -r "$CRAFT_PART_SRC/requirements.txt"
