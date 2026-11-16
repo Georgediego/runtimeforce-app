@@ -80,6 +80,7 @@ def main() -> int:
             "systemd-run",
             "--user",
             "--unit=runtimeforce-snap",
+            "--collect",
             "--property=Restart=on-failure",
             "--property=RestartSec=5",
             f"--setenv=PYTHONPATH={snap_root}",
