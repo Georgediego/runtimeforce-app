@@ -38,8 +38,8 @@ parts:
     stage-packages:
       - python3.12
       - python3.12-venv
-      - libpython3.12
-      - libsqlcipher0
+      - libpython3.12t64
+      - libsqlcipher1
       - git
       - xdg-utils
     override-build: |
