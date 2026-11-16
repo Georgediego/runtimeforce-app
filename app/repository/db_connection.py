@@ -232,7 +232,21 @@ class DatabaseConnectionManager:
             # Checkpoint any legacy WAL before exporting its contents.
             checkpoint = stdlib_sqlite3.connect(self.db_path, timeout=10.0)
             try:
-                checkpoint.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                checkpoint_result = checkpoint.execute(
+                    "PRAGMA wal_checkpoint(TRUNCATE)"
+                ).fetchone()
+                if (
+                    not checkpoint_result
+                    or checkpoint_result[0] != 0
+                    or (
+                        checkpoint_result[1] >= 0
+                        and checkpoint_result[2] != checkpoint_result[1]
+                    )
+                ):
+                    raise RuntimeError(
+                        "Legacy SQLite WAL checkpoint is incomplete or blocked: "
+                        f"{checkpoint_result}"
+                    )
                 check = checkpoint.execute("PRAGMA integrity_check").fetchone()
                 if not check or check[0] != "ok":
                     raise RuntimeError(f"Legacy SQLite integrity check failed: {check}")
