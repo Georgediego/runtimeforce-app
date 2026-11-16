@@ -13,7 +13,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from dotenv import load_dotenv, set_key
 
 logger = logging.getLogger("runtimeforce.security.crypto")
-ENV_PATH = Path(".env")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+ENV_PATH = REPO_ROOT / ".env"
 
 class AESCryptoService:
     @staticmethod
