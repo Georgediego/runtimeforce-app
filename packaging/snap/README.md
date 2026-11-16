@@ -13,17 +13,15 @@ This packaging target is experimental and is not published to the Snap Store yet
 
 ## Build
 
-Snapcraft's official Linux installation normally uses the Snap Store. If the Snap Store API is unreachable on the build machine, use the official Canonical Snapcraft OCI build image instead.
+The Snap Store API is unavailable from some networks. The repository includes a Docker-based build script that uses Canonical's Snapcraft 8 / Core 24 build image and does not require installing Snapcraft from the Snap Store.
 
-With Docker installed, from the repository root:
+From the repository root:
 
 ```bash
-docker run --rm --privileged \
-  -v "$PWD:/build" -w /build \
-  canonical/snapcraft:8_core24 snapcraft --destructive-mode
+bash packaging/snap/build.sh
 ```
 
-The build should produce a `.snap` artifact in the project directory. The first build is a development-grade package and is not suitable for Store publication.
+If Docker is missing, the script installs Ubuntu's `docker.io` package, starts the Docker service, builds the Snap, and restores ownership of generated files to the current user. The first build is a development-grade package and is not suitable for Store publication.
 
 ## Local installation test
 
