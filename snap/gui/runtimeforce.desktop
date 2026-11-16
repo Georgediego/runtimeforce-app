@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=RuntimeForce IDE
+Comment=Local-first AI development environment
+Exec=runtimeforce
+Icon=applications-development
+Terminal=false
+Categories=Development;IDE;
+StartupNotify=true
