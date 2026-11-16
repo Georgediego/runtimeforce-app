@@ -42,3 +42,13 @@ with `sudo apt install ./runtimeforce_1.1.20_amd64.deb`.
 
 This first package target is Ubuntu 26.04 amd64 only. Other Ubuntu releases and
 architectures require their own builds and compatibility tests.
+
+## License and repository distribution
+
+RuntimeForce is distributed under Business Source License 1.1. The license
+explicitly states that it is not an Open Source license. Keep the full LICENSE
+file in the binary package and do not submit this package to the official
+Ubuntu `main` archive or Flathub as open-source software. A direct .deb
+download or a vendor-managed APT repository is the intended initial route.
+Check the current Launchpad PPA terms and eligibility before attempting a PPA
+upload; do not assume a PPA is equivalent to acceptance into Ubuntu's archive.
