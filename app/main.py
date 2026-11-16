@@ -16,6 +16,7 @@ import stat
 import tempfile
 import zipfile
 from pathlib import PurePosixPath
+from urllib.parse import urlsplit
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -114,6 +115,16 @@ if STATIC_DIR.exists():
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# Installed by the Debian package. Its presence makes APT the sole owner of
+# application files and prevents the self-updater from writing into /usr.
+APT_MANAGED_MARKER = Path("/usr/share/runtimeforce/apt-managed")
+
+
+def get_install_method() -> str:
+    return "apt" if APT_MANAGED_MARKER.is_file() else "self-managed"
+
+
+
 _cached_app_version: Optional[str] = None
 _changelog_mtime: float = 0.0
 
@@ -205,6 +216,7 @@ async def check_ide_updates(response: Response):
             "installed_newer": is_newer_version(current_version, latest_version),
             "checked": True,
             "source": source,
+            "install_method": get_install_method(),
         }
     except Exception as exc:
         logger.info("IDE update check unavailable: %s", exc)
@@ -214,6 +226,7 @@ async def check_ide_updates(response: Response):
             "update_available": False,
             "checked": False,
             "check_error": str(exc)[:500],
+            "install_method": get_install_method(),
         }
 
 
@@ -223,6 +236,8 @@ _update_state = {"status": "idle", "message": ""}
 def _apply_ide_update():
     """Install the latest public stable ZIP without relying on Git or user credentials."""
     global _update_state
+    if get_install_method() == "apt":
+        raise RuntimeError("This installation is managed by APT; use the system package manager to update RuntimeForce.")
     root = BASE_DIR.parent.resolve()
     archive_url = "https://codeload.github.com/Georgediego/runtimeforce-app/zip/refs/heads/main"
     max_archive_bytes = 200 * 1024 * 1024
@@ -359,13 +374,32 @@ async def apply_ide_update(
     background_tasks: BackgroundTasks,
 ):
     global _update_state
-    host = request.headers.get("host", "").split(":")[0].lower()
+    host_header = request.headers.get("host", "")
     origin = request.headers.get("origin", "")
-    if host not in {"localhost", "127.0.0.1"} or origin not in {
-        f"http://{host}:8000",
-        f"https://{host}:8000",
-    }:
+    try:
+        request_host = urlsplit("//" + host_header)
+        origin_url = urlsplit(origin)
+        is_local_origin = (
+            request_host.hostname in {"localhost", "127.0.0.1"}
+            and origin_url.scheme in {"http", "https"}
+            and origin_url.hostname == request_host.hostname
+            and origin_url.port == request_host.port
+            and not origin_url.username
+            and not origin_url.password
+            and origin_url.path in {"", "/"}
+            and not origin_url.query
+            and not origin_url.fragment
+        )
+    except ValueError:
+        is_local_origin = False
+    if not is_local_origin:
         raise HTTPException(status_code=403, detail="Update requests are allowed only from the local IDE.")
+
+    if get_install_method() == "apt":
+        raise HTTPException(
+            status_code=409,
+            detail="This installation is managed by APT. Update it with: sudo apt update && sudo apt install --only-upgrade runtimeforce",
+        )
 
     if _update_state["status"] in {"updating", "installing", "restarting"}:
         return {"accepted": True, "status": _update_state["status"]}
