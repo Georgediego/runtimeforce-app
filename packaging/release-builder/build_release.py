@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Build RuntimeForce Linux packages locally and optionally publish a GitHub Release.
-
-Publishing is opt-in. The default invocation builds and verifies artifacts only.
-"""
+"""Build RuntimeForce Linux packages locally and optionally publish a GitHub Release."""
 from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import re
 import shutil
 import subprocess
@@ -35,23 +31,23 @@ def run(command: list[str], *, cwd: Path | None = None, capture: bool = False) -
     return result.stdout.strip() if capture else ""
 
 
-def version_from(path: Path, pattern: str) -> str:
-    match = re.search(pattern, path.read_text(encoding="utf-8"), re.MULTILINE)
+def extract(pattern: str, content: str, source: str) -> str:
+    match = re.search(pattern, content, re.MULTILINE)
     if not match:
-        raise RuntimeError(f"Cannot read package version from {path}")
+        raise RuntimeError(f"Cannot read version from {source}")
     return match.group(1)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--publish", action="store_true", help="Publish packages as a GitHub Release (requires gh auth)")
+    parser.add_argument("--publish", action="store_true", help="Publish packages to GitHub Releases")
     parser.add_argument("--repo", default=REPO_URL, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     required = ["git", "dpkg-buildpackage", "dpkg-checkbuilddeps", "docker", "sha256sum"]
+    if args.publish:
+        required.append("gh")
     missing = [name for name in required if not shutil.which(name)]
-    if args.publish and not shutil.which("gh"):
-        missing.append("gh")
     if missing:
         raise RuntimeError("Missing commands: " + ", ".join(missing))
 
@@ -59,24 +55,19 @@ def main() -> int:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="runtimeforce-release-") as temp:
-        checkout = Path(temp) / "source"
+        temp_dir = Path(temp)
+        checkout = temp_dir / "source"
         run(["git", "clone", "--filter=blob:none", "--no-checkout", args.repo, str(checkout)])
         run(["git", "fetch", "origin", "main"], cwd=checkout)
         commit = run(["git", "rev-parse", "origin/main"], cwd=checkout, capture=True)
         run(["git", "checkout", "--detach", commit], cwd=checkout)
 
-        changelog_version = version_from(
-            checkout / "CHANGELOG.md",
-            r"^## \\[([0-9]+\\.[0-9]+\\.[0-9]+)\\]",
-        )
-        snap_version = version_from(
-            checkout / "snap/snapcraft.yaml",
-            r'^version:\\s*["\\']?([0-9]+\\.[0-9]+\\.[0-9]+)',
-        )
-        deb_version = version_from(
-            checkout / "debian/changelog",
-            r"^runtimeforce \\(([0-9]+\\.[0-9]+\\.[0-9]+)\\)",
-        )
+        changelog = (checkout / "CHANGELOG.md").read_text(encoding="utf-8")
+        snap_yaml = (checkout / "snap/snapcraft.yaml").read_text(encoding="utf-8")
+        deb_changelog = (checkout / "debian/changelog").read_text(encoding="utf-8")
+        changelog_version = extract(r"^## \[([0-9]+\.[0-9]+\.[0-9]+)\]", changelog, "CHANGELOG.md")
+        snap_version = extract(r'^version:\s*["\']?([0-9]+\.[0-9]+\.[0-9]+)', snap_yaml, "snap/snapcraft.yaml")
+        deb_version = extract(r"^runtimeforce \(([0-9]+\.[0-9]+\.[0-9]+)\)", deb_changelog, "debian/changelog")
         if len({changelog_version, snap_version, deb_version}) != 1:
             raise RuntimeError(
                 f"Version mismatch: CHANGELOG={changelog_version}, "
@@ -87,37 +78,35 @@ def main() -> int:
         tag = f"v{version}"
         if args.publish:
             run(["gh", "auth", "status"])
-            release_exists = subprocess.run(
+            exists = subprocess.run(
                 ["gh", "release", "view", tag, "--repo", "Georgediego/runtimeforce-app"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             ).returncode == 0
-            if release_exists:
+            if exists:
                 print(f"Release {tag} already exists; refusing to overwrite it.")
                 return 0
 
         print(f"Building RuntimeForce {version} from main commit {commit[:12]}")
-        # Fail early with the exact missing Debian build dependencies; never sudo-install packages.
         run(["dpkg-checkbuilddeps"], cwd=checkout)
         run(["dpkg-buildpackage", "-us", "-uc", "-b"], cwd=checkout)
 
-        deb_candidates = sorted(Path(temp).glob("*.deb"))
+        deb_candidates = sorted(temp_dir.glob("*.deb"))
         if not deb_candidates:
-            raise RuntimeError("DEB build finished without producing a .deb file.")
+            raise RuntimeError("DEB build produced no .deb artifact.")
         deb = deb_candidates[0]
         if deb.stat().st_size < 1024:
             raise RuntimeError("DEB artifact is unexpectedly small.")
 
-        docker_args = [
+        run([
             "docker", "run", "--rm",
             "-v", f"{checkout}:/project",
             "-w", "/project",
             SNAP_IMAGE,
-            "snapcraft", "pack",
-        ]
-        run(docker_args)
+            "pack",
+        ])
         snap_candidates = sorted(checkout.glob("*.snap"))
         if not snap_candidates:
-            raise RuntimeError("Snap build finished without producing a .snap file.")
+            raise RuntimeError("Snap build produced no .snap artifact.")
         snap = snap_candidates[0]
         if snap.stat().st_size < 1024:
             raise RuntimeError("Snap artifact is unexpectedly small.")
@@ -130,25 +119,22 @@ def main() -> int:
     checksum_file = ARTIFACT_DIR / "SHA256SUMS"
     checksum_file.write_text(
         "".join(
-            f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\\n"
+            f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
             for path in (final_deb, final_snap)
         ),
         encoding="utf-8",
     )
     for path in (final_deb, final_snap):
-        if path.stat().st_size < 1024:
-            raise RuntimeError(f"Artifact verification failed: {path.name}")
         print(f"OK: {path} ({path.stat().st_size:,} bytes)")
     print(f"Checksums: {checksum_file}")
 
     if not args.publish:
-        print("Build-only mode: nothing was uploaded. Review and install both packages manually.")
+        print("Build-only mode: nothing was uploaded. Test both packages before enabling the timer.")
         return 0
 
     notes = ARTIFACT_DIR / "release-notes.md"
-    changelog = (checkout / "CHANGELOG.md").read_text(encoding="utf-8")
     section = re.search(
-        rf"^## \\[{re.escape(version)}\\].*?(?=^## \\[|\\Z)",
+        rf"^## \[{re.escape(version)}\].*?(?=^## \[|\Z)",
         changelog, re.MULTILINE | re.DOTALL,
     )
     notes.write_text(section.group(0).strip() if section else f"RuntimeForce {version}", encoding="utf-8")
