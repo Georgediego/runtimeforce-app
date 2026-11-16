@@ -257,12 +257,15 @@ class DatabaseConnectionManager:
                 if not result or result[0] != "ok":
                     raise RuntimeError(f"SQLCipher export integrity check failed for {candidate}: {result}")
 
-            # Atomic replacement: the plaintext source remains untouched until this point.
-            os.replace(temp_path, self.db_path)
+            # Remove checkpointed legacy sidecars before the atomic swap. The main
+            # plaintext database remains intact if any cleanup or replacement fails.
             for suffix in ("-wal", "-shm"):
                 sidecar = self.db_path + suffix
                 if os.path.exists(sidecar):
                     os.remove(sidecar)
+
+            # Atomic replacement: the plaintext source remains untouched until this point.
+            os.replace(temp_path, self.db_path)
             logger.info("SQLite database encrypted with SQLCipher; encrypted backup saved at %s", backup_path)
         except Exception as exc:
             if source is not None:
