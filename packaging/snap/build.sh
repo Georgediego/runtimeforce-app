@@ -31,4 +31,4 @@ find "$ROOT" -maxdepth 1 -type f -name '*.snap' \
 
 echo
 echo "Snap build finished. Artifact(s):"
-find "$ROOT" -maxdepth 1 -type f -name '*.snap' -printf '%f\\n'
+find "$ROOT" -maxdepth 1 -type f -name '*.snap' -printf '%f\n'
