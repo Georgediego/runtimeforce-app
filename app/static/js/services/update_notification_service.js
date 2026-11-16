@@ -44,8 +44,9 @@ function updateCommands(installMethod = "self-managed") {
         return [
             "sudo apt update",
             "sudo apt install --only-upgrade runtimeforce",
+            "systemctl --user restart runtimeforce.service",
             "",
-            "# RuntimeForce will restart from its systemd user service.",
+            "# The final command restarts RuntimeForce for this Linux user.",
         ].join("\n");
     }
     const platform = navigator.userAgentData?.platform || navigator.platform || "";
