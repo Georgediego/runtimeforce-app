@@ -269,6 +269,7 @@ async function checkForUpdates({ force = false } = {}) {
         presentPendingUpdate();
     } catch (error) {
         const status = document.getElementById("rf-update-settings-status");
+        const latest = document.getElementById("rf-update-settings-latest");
         if (status) status.textContent = `Unable to check updates: ${String(error?.message || error).slice(0, 180)}`;
         if (latest) latest.textContent = "Unavailable";
         console.debug("[Updates] Version check unavailable:", error);
