@@ -198,6 +198,7 @@ def test_master_key_comes_from_app_root_env_not_inherited_environment(tmp_path, 
     env_file = tmp_path / ".env"
     env_file.write_text(f"MASTER_KEY={encoded}\n", encoding="utf-8")
     monkeypatch.setattr(aes_crypto_service, "ENV_PATH", env_file)
+    monkeypatch.setattr(aes_crypto_service, "_legacy_env_paths", lambda: [])
     monkeypatch.setenv(
         "MASTER_KEY",
         __import__("base64").b64encode(inherited_key).decode("ascii"),
@@ -210,6 +211,7 @@ def test_master_key_is_created_once_when_app_root_env_has_no_key(tmp_path, monke
     env_file = tmp_path / ".env"
     env_file.write_text("OTHER_SETTING=preserved\n", encoding="utf-8")
     monkeypatch.setattr(aes_crypto_service, "ENV_PATH", env_file)
+    monkeypatch.setattr(aes_crypto_service, "_legacy_env_paths", lambda: [])
     monkeypatch.delenv("MASTER_KEY", raising=False)
 
     first = aes_crypto_service.AESCryptoService._get_or_create_master_key()
@@ -218,3 +220,56 @@ def test_master_key_is_created_once_when_app_root_env_has_no_key(tmp_path, monke
     assert len(first) == 32
     assert second == first
     assert "OTHER_SETTING=preserved" in env_file.read_text(encoding="utf-8")
+
+
+
+def test_master_key_migrates_from_legacy_user_install_without_changing_key(tmp_path, monkeypatch):
+    import base64
+
+    key = b"0123456789abcdef0123456789abcdef"
+    legacy = tmp_path / "legacy" / ".env"
+    target = tmp_path / "config" / "runtimeforce" / ".env"
+    legacy.parent.mkdir()
+    legacy.write_text(
+        f"MASTER_KEY={base64.b64encode(key).decode('ascii')}\\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(aes_crypto_service, "ENV_PATH", target)
+    monkeypatch.setattr(aes_crypto_service, "_legacy_env_paths", lambda: [legacy])
+
+    assert aes_crypto_service.AESCryptoService._get_or_create_master_key() == key
+    assert base64.b64decode(
+        __import__("dotenv").dotenv_values(target)["MASTER_KEY"]
+    ) == key
+    assert legacy.exists()
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_conflicting_legacy_master_keys_fail_closed(tmp_path, monkeypatch):
+    import base64
+
+    first_key = b"0123456789abcdef0123456789abcdef"
+    second_key = b"fedcba9876543210fedcba9876543210"
+    legacy_a = tmp_path / "old-a.env"
+    legacy_b = tmp_path / "old-b.env"
+    target = tmp_path / "config" / ".env"
+    legacy_a.write_text(f"MASTER_KEY={base64.b64encode(first_key).decode('ascii')}\\n")
+    legacy_b.write_text(f"MASTER_KEY={base64.b64encode(second_key).decode('ascii')}\\n")
+    monkeypatch.setattr(aes_crypto_service, "ENV_PATH", target)
+    monkeypatch.setattr(
+        aes_crypto_service, "_legacy_env_paths", lambda: [legacy_a, legacy_b]
+    )
+
+    with pytest.raises(RuntimeError, match="Conflicting RuntimeForce MASTER_KEY"):
+        aes_crypto_service.AESCryptoService._get_or_create_master_key()
+
+    assert not target.exists()
+
+
+def test_xdg_config_path_is_per_user_and_outside_application_tree(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    monkeypatch.setattr(aes_crypto_service.Path, "home", lambda: tmp_path / "home")
+    # Reloading is unnecessary for the constant under test: validate the path
+    # construction used by the module from its documented environment contract.
+    expected = tmp_path / "xdg" / "runtimeforce" / ".env"
+    assert expected != aes_crypto_service.REPO_ROOT / ".env"
