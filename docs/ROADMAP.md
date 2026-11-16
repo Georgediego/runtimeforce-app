@@ -14,6 +14,7 @@ This roadmap separates the product's current direction from features that should
 
 ## Planned improvements
 
+- Complete and validate restart-safe offline entitlement grace, including account verification while disconnected.
 - Stronger protection for local application secrets and master-key lifecycle.
 - More explicit security controls for local database backups and recovery.
 - More comprehensive automated tests for project switching and concurrent project operations.
