@@ -1,13 +1,12 @@
 [Unit]
 Description=RuntimeForce IDE (per-user)
-After=network-online.target
-Wants=network-online.target
-
 [Service]
 Type=simple
 WorkingDirectory=%h
 Environment=PYTHONPATH=/usr/lib/runtimeforce
 Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONNOUSERSITE=1
 Environment=HOST=127.0.0.1
 ExecStart=/usr/bin/python3.14 /usr/lib/runtimeforce/service_runner.py
 Restart=on-failure
