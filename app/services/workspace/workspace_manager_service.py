@@ -32,7 +32,7 @@ class WorkspaceManagerService:
     ) -> Optional[IWorkspaceDriver]:
         """Resolve driver strictly bound to given project_id."""
         if not project_id:
-            return await self.get_driver(user_id)
+            return None
 
         ws = self.workspace_repo.get_workspace_by_project_id(project_id, user_id)
         if not ws and self.project_repo:
@@ -76,10 +76,9 @@ class WorkspaceManagerService:
             # Never fall through to a different project's globally active SSH/local workspace.
             return None
 
-        active_ws = self.workspace_repo.get_active_workspace(user_id)
-        if not active_ws:
-            return None
-        return await self.get_driver_by_workspace_id(active_ws["id"], user_id)
+        # Project workspaces are isolated by design. Never fall back to a
+        # user-global workspace when no project is active.
+        return None
 
     async def get_driver_by_workspace_id(
         self, wid: str, user_id: str, override_ws: Optional[Dict[str, Any]] = None
