@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added
+- Add public documentation for installation, architecture, security, project-scoped workspaces and GitHub workflows.
+- Add automated tests for project workspace isolation and disconnected project creation.
+
+### Changed
+- Scope Git status, init, diff, commit, log, branches, push and pull to the selected project workspace.
+- Keep new projects disconnected from existing workspaces, SSH hosts, GitHub remotes and inherited local context.
+
+### Fixed
+- Remove the global workspace fallback when no project workspace is configured.
+- Validate project ownership before creating a workspace binding.
+- Use the RuntimeForce SaaS GitHub token bridge instead of a non-existent local OAuth repository reference.
+- Refresh project workspace and Git panels after project creation.
+
 ## [1.1.18] - 2026-11-15
 
 ### Added
