@@ -20,7 +20,7 @@ from pathlib import PurePosixPath
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException, Depends
+from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,7 +30,6 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.api import register_all
 from app.core.version_utils import is_newer_version
-from app.core.security.entitlements import require_plan_feature
 
 # Suppress noisy third-party loggers completely
 logging.getLogger("litellm").setLevel(logging.ERROR)
@@ -73,7 +72,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RuntimeForce IDE",
-    version="1.1.19",
+    version="1.1.20",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -358,7 +357,6 @@ def _apply_ide_update():
 async def apply_ide_update(
     request: Request,
     background_tasks: BackgroundTasks,
-    user_id: str = Depends(require_plan_feature("software_updates")),
 ):
     global _update_state
     host = request.headers.get("host", "").split(":")[0].lower()

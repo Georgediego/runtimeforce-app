@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [1.1.20] - 2026-11-16
+
+### Fixed
+- Allow the local stable updater to download and install public GitHub releases without requiring an authenticated account or plan entitlement; retain local-origin request validation.
+
+
 ## [1.1.19] - 2026-11-16
 
 ### Added
