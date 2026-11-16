@@ -9,6 +9,8 @@ import stat
 import sys
 import threading
 import time
+
+from filelock import FileLock, Timeout as FileLockTimeout
 from contextlib import contextmanager
 from typing import Generator, Optional
 
@@ -214,6 +216,19 @@ class DatabaseConnectionManager:
                 conn.close()
 
     def _migrate_or_initialize_encryption(self) -> None:
+        lock_path = f"{self.db_path}.migration.lock"
+        try:
+            with FileLock(lock_path, timeout=60):
+                os.chmod(lock_path, stat.S_IRUSR | stat.S_IWUSR)
+                # Re-check the database only after acquiring the process-wide lock.
+                self._migrate_or_initialize_encryption_locked()
+        except FileLockTimeout as exc:
+            raise RuntimeError(
+                "Timed out waiting for the database migration lock; "
+                "the original database was not modified."
+            ) from exc
+
+    def _migrate_or_initialize_encryption_locked(self) -> None:
         if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) == 0:
             return
         if self._is_currently_encrypted():
