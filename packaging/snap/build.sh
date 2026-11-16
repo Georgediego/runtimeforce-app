@@ -12,11 +12,13 @@ fi
 
 sudo systemctl start docker
 
+# Canonical publishes the supported Snapcraft OCI images on GHCR,
+# not Docker Hub. This image matches base: core24.
 sudo docker run --rm \
-  -v "$ROOT:/build" \
-  -w /build \
-  canonical/snapcraft:8_core24 \
-  snapcraft --destructive-mode
+  -v "$ROOT:/project" \
+  -w /project \
+  ghcr.io/canonical/snapcraft:8_core24 \
+  pack
 
 for path in parts stage prime; do
   if [ -d "$ROOT/$path" ]; then
@@ -29,4 +31,4 @@ find "$ROOT" -maxdepth 1 -type f -name '*.snap' \
 
 echo
 echo "Snap build finished. Artifact(s):"
-find "$ROOT" -maxdepth 1 -type f -name '*.snap' -printf '%f\n'
+find "$ROOT" -maxdepth 1 -type f -name '*.snap' -printf '%f\\n'
