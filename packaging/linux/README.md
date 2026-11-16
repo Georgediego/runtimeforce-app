@@ -22,8 +22,10 @@ Per-user state remains in the standard locations:
 The package must not create, chown, or migrate user data in maintainer scripts.
 The first launch creates only the current user's directories and key.
 
-The Python environment is built into the package with dh-virtualenv. Runtime
-installation does not run pip and does not download dependencies. APT owns
+The Python environment is built into the package with dh-virtualenv. The build
+uses Python 3.14 and removes pip from the final shared environment so users
+cannot mutate package-managed dependencies. Runtime installation does not run
+pip and does not download dependencies. APT owns
 updates and removal of package files; the IDE's self-updater must be disabled
 for this installation method.
 
