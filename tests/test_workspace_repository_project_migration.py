@@ -53,6 +53,12 @@ def test_legacy_project_ssh_fields_are_migrated_to_its_workspace(tmp_path):
     conn = db.get_connection()
     conn.execute(
         """
+        INSERT INTO ssh_keys (id, name, private_key_enc, user_id)
+        VALUES ('key-1', 'Deploy key', 'encrypted-private-key', 'user-b')
+        """
+    )
+    conn.execute(
+        """
         INSERT INTO projects
             (id, user_id, name, workspace_path, ssh_host, ssh_port, ssh_username, ssh_key_id, is_active)
         VALUES
