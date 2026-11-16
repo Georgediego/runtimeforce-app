@@ -18,7 +18,7 @@ def installed_version() -> str | None:
         content = changelog.read_text(encoding="utf-8")
     except OSError:
         return None
-    match = re.search(r"^##\\s+\\[?v?(\\d+\\.\\d+\\.\\d+)\\]?", content, re.MULTILINE)
+    match = re.search(r"^##\s+\[?v?(\d+\.\d+\.\d+)\]?", content, re.MULTILINE)
     return f"v{match.group(1)}" if match else None
 
 
