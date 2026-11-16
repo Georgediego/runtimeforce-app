@@ -121,7 +121,11 @@ APT_MANAGED_MARKER = Path("/usr/share/runtimeforce/apt-managed")
 
 
 def get_install_method() -> str:
-    return "apt" if APT_MANAGED_MARKER.is_file() else "self-managed"
+    if APT_MANAGED_MARKER.is_file():
+        return "apt"
+    if os.environ.get("SNAP_NAME") == "runtimeforce" or os.environ.get("SNAP"):
+        return "snap"
+    return "self-managed"
 
 
 
@@ -236,8 +240,10 @@ _update_state = {"status": "idle", "message": ""}
 def _apply_ide_update():
     """Install the latest public stable ZIP without relying on Git or user credentials."""
     global _update_state
-    if get_install_method() == "apt":
-        raise RuntimeError("This installation is managed by APT; use the system package manager to update RuntimeForce.")
+    install_method = get_install_method()
+    if install_method in {"apt", "snap"}:
+        updater = "Snap Store" if install_method == "snap" else "APT"
+        raise RuntimeError(f"This installation is managed by {updater}; update RuntimeForce through {updater}.")
     root = BASE_DIR.parent.resolve()
     archive_url = "https://codeload.github.com/Georgediego/runtimeforce-app/zip/refs/heads/main"
     max_archive_bytes = 200 * 1024 * 1024
@@ -395,11 +401,14 @@ async def apply_ide_update(
     if not is_local_origin:
         raise HTTPException(status_code=403, detail="Update requests are allowed only from the local IDE.")
 
-    if get_install_method() == "apt":
-        raise HTTPException(
-            status_code=409,
-            detail="This installation is managed by APT. Update it with: sudo apt update && sudo apt install --only-upgrade runtimeforce",
+    install_method = get_install_method()
+    if install_method in {"apt", "snap"}:
+        update_hint = (
+            "Update RuntimeForce through the Snap Store."
+            if install_method == "snap"
+            else "Update it with: sudo apt update && sudo apt install --only-upgrade runtimeforce"
         )
+        raise HTTPException(status_code=409, detail=f"This installation is managed by {install_method.upper()}. {update_hint}")
 
     if _update_state["status"] in {"updating", "installing", "restarting"}:
         return {"accepted": True, "status": _update_state["status"]}
