@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -96,7 +97,7 @@ def main() -> int:
         print(f"Building RuntimeForce {version} from main commit {commit[:12]}")
 
         # Build DEB in a clean Ubuntu 24.04 container so the host can be Ubuntu 26.04+.
-        host_uid, host_gid = __import__("os").getuid(), __import__("os").getgid()
+        host_uid, host_gid = os.getuid(), os.getgid()
         deb_build = (
             "set -e; "
             f"trap 'chown -R {host_uid}:{host_gid} /workspace || true' EXIT; "
