@@ -12,19 +12,6 @@ logger = logging.getLogger("runtimeforce.service.llm.discovery")
 class DiscoveryError(Exception):
     pass
 
-ALLOWED_CEREBRAS_MODELS = {
-    "llama3.1-8b",
-    "llama3.3-70b",
-    "llama-3.3-70b",
-    "llama3.1-70b"
-}
-
-ALLOWED_SAMBANOVA_MODELS = {
-    "meta-llama-3.1-8b-instruct",
-    "qwen2.5-coder-32b-instruct",
-    "qwen2.5-72b-instruct"
-}
-
 FREE_PROVIDERS = {"groq", "gemini"}
 
 NON_CHAT_MODEL_MARKERS = (
@@ -248,14 +235,6 @@ class LLMDiscoveryService:
             # OpenAI has deprecated the o3-mini model family; do not route new chats to it.
             if provider == "openai" and mid_lower.startswith("o3-mini"):
                 continue
-
-            if provider == "cerebras":
-                if not any(allowed in mid_lower for allowed in ALLOWED_CEREBRAS_MODELS):
-                    continue
-
-            if provider == "sambanova":
-                if not any(allowed in mid_lower for allowed in ALLOWED_SAMBANOVA_MODELS):
-                    continue
 
             model_id = mid if mid.startswith(f"{provider}/") else f"{provider}/{mid}"
             caps = ["chat_completion", "text", "code"]
