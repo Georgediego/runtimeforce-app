@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+### Fixed
+- Discover the current Groq chat model catalog instead of filtering against an outdated hard-coded model list.
+- Remove stale fixed model allowlists for Groq, SambaNova and Cerebras so supported chat models are not silently hidden.
+- Classify SambaNova and Cerebras models as Pro across provider settings, model filters and routing.
+
+### Changed
+- Arrange provider settings as collapsible Local Models, Free Providers and Additional BYOK Providers sections.
+- Display prominent setup-guide and API-key links for every cloud provider.
+
 ### Added
 - Added setup-guide and provider-dashboard links to cloud provider cards, plus Ollama and LM Studio guides in the local-model section.
 
