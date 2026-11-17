@@ -341,10 +341,23 @@ export const providersUIController = {
             selected = selected.filter(id => id !== modelId);
         }
 
+        const previous = [...(this._selectedModelsMap[pKey] || [])];
         this._selectedModelsMap[pKey] = selected;
-        keysApi.saveSelectedModels(providerName, selected).catch(() => {});
-        this.renderExistingLocalProviders();
-        eventBus.emit("providers.updated");
+        try {
+            await keysApi.saveSelectedModels(providerName, selected);
+            const persisted = await keysApi.getSelectedModels();
+            const saved = persisted.selected_models?.[pKey] || [];
+            if (JSON.stringify([...saved].sort()) !== JSON.stringify([...selected].sort())) {
+                throw new Error("The server did not confirm the selected models.");
+            }
+            await this.syncSelectedModelsFromSQLite();
+            await this.renderExistingLocalProviders();
+            eventBus.emit("providers.updated");
+        } catch (error) {
+            this._selectedModelsMap[pKey] = previous;
+            await this.renderExistingLocalProviders();
+            showToast(`Failed to save model selection: ${error.message}`, "error");
+        }
     },
 
     async removeLocalProvider(providerName) {
@@ -662,12 +675,28 @@ export const providersUIController = {
         }
     },
 
-    savePickerSelections() {
-        if (!activePickerProvider) return;
+    async savePickerSelections() {
+        if (!activePickerProvider) return false;
+        const providerId = activePickerProvider;
+        const providerKey = providerId.toLowerCase();
+        const previous = [...(this._selectedModelsMap[providerKey] || [])];
         const checked = Array.from(document.querySelectorAll("#model-picker-list .model-picker-cb:checked")).map(cb => cb.value);
-        this._selectedModelsMap[(activePickerProvider || "").toLowerCase()] = checked;
-        keysApi.saveSelectedModels(activePickerProvider, checked).catch(() => {});
-        this.updateStatus();
+
+        try {
+            await keysApi.saveSelectedModels(providerId, checked);
+            const persisted = await keysApi.getSelectedModels();
+            const saved = persisted.selected_models?.[providerKey] || [];
+            if (JSON.stringify([...saved].sort()) !== JSON.stringify([...checked].sort())) {
+                throw new Error("The server did not confirm the selected models. Please try again.");
+            }
+            this._selectedModelsMap[providerKey] = checked;
+            await this.updateStatus();
+            return true;
+        } catch (error) {
+            this._selectedModelsMap[providerKey] = previous;
+            showToast(`Failed to save model selection: ${error.message}`, "error");
+            return false;
+        }
     },
 
     closeModelPicker() {
@@ -734,10 +763,19 @@ export const providersUIController = {
 
         document.getElementById("close-model-picker-btn")?.addEventListener("click", () => this.closeModelPicker());
         document.getElementById("model-picker-cancel")?.addEventListener("click", () => this.closeModelPicker());
-        document.getElementById("model-picker-confirm")?.addEventListener("click", () => {
-            this.savePickerSelections();
-            showToast("Model preferences saved", "success");
-            this.closeModelPicker();
+        document.getElementById("model-picker-confirm")?.addEventListener("click", async () => {
+            const button = document.getElementById("model-picker-confirm");
+            if (button) button.disabled = true;
+            try {
+                const saved = await this.savePickerSelections();
+                if (saved) {
+                    showToast("Model preferences saved", "success");
+                    this.closeModelPicker();
+                    eventBus.emit("providers.updated");
+                }
+            } finally {
+                if (button) button.disabled = false;
+            }
         });
 
         document.getElementById("model-picker-search")?.addEventListener("input", () => {
