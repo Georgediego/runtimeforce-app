@@ -381,7 +381,7 @@ export const providersUIController = {
         return `
             <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2.5">
                 <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2 min-w-0 text-xs font-semibold">
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 text-xs font-semibold">
                         <span>${p.name}</span>
                         ${refLinkHTML}
                     </div>
