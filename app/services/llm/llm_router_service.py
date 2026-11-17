@@ -186,7 +186,7 @@ class LLMRouterService:
             return [m.id for m in candidates]
 
         def router_score(m: ModelMetadata):
-            is_fast_cloud = (m.provider in ("groq", "cerebras", "gemini", "sambanova"))
+            is_fast_cloud = (m.provider in ("groq", "gemini"))
             is_free = (m.tier == "free" or ":free" in m.id.lower() or is_fast_cloud)
             smart_score = scores.get(m.id, {}).get("total", 50.0)
             return (0 if is_fast_cloud else (1 if is_free else 2), -m.context_window, (100 - smart_score))

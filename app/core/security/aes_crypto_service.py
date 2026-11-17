@@ -1,6 +1,6 @@
 """
 AES-256-GCM encryption service for sensitive credentials (SSH keys, provider API keys).
-Uses master key derivation with random salt to guarantee deterministic decryption.
+Uses a per-user master key stored outside the application installation directory.
 """
 import os
 import base64
@@ -15,40 +15,96 @@ from filelock import FileLock, Timeout as FileLockTimeout
 
 logger = logging.getLogger("runtimeforce.security.crypto")
 REPO_ROOT = Path(__file__).resolve().parents[3]
-ENV_PATH = REPO_ROOT / ".env"
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")).expanduser()
+ENV_PATH = CONFIG_HOME / "runtimeforce" / ".env"
+
+
+def _legacy_env_paths() -> list[Path]:
+    """Locations used by older per-user installs before config moved to XDG."""
+    candidates = (REPO_ROOT / ".env", Path.home() / ".runtimeforce" / ".env")
+    result = []
+    for candidate in candidates:
+        candidate = candidate.expanduser()
+        if candidate != ENV_PATH and candidate not in result:
+            result.append(candidate)
+    return result
+
+
+def _decode_master_key(value: str, source: Path) -> bytes:
+    try:
+        key = base64.b64decode(value, validate=True)
+        if len(key) != 32:
+            raise ValueError("MASTER_KEY must decode to exactly 32 bytes")
+        return key
+    except Exception as exc:
+        logger.error("Invalid MASTER_KEY in %s: %s", source, type(exc).__name__)
+        raise RuntimeError(
+            f"Invalid RuntimeForce MASTER_KEY in {source}. "
+            "The existing key was not replaced."
+        ) from exc
+
 
 class AESCryptoService:
     @staticmethod
     def _get_or_create_master_key() -> bytes:
         ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(ENV_PATH.parent, 0o700)
+        except OSError:
+            pass
+
         lock_path = ENV_PATH.with_name(ENV_PATH.name + ".master-key.lock")
         try:
             with FileLock(str(lock_path), timeout=30):
                 os.chmod(lock_path, 0o600)
-                # The app-root .env is authoritative; inherited shell variables
-                # must never silently select a different database key.
+
+                # The XDG config file is authoritative. Never use an inherited
+                # MASTER_KEY environment variable to select a database key.
                 values = dotenv_values(ENV_PATH)
                 master_b64 = values.get("MASTER_KEY")
                 if master_b64:
-                    try:
-                        master_key = base64.b64decode(master_b64, validate=True)
-                        if len(master_key) != 32:
-                            raise ValueError("MASTER_KEY must decode to exactly 32 bytes")
-                        if ENV_PATH.is_file():
-                            os.chmod(ENV_PATH, 0o600)
-                        return master_key
-                    except Exception as exc:
-                        logger.error("Failed to load MASTER_KEY: %s", type(exc).__name__)
-                        raise
-                new_key = AESGCM.generate_key(bit_length=256)
-                new_key_b64 = base64.b64encode(new_key).decode("utf-8")
+                    master_key = _decode_master_key(str(master_b64), ENV_PATH)
+                    os.chmod(ENV_PATH, 0o600)
+                    return master_key
+
+                # Migrate keys from old source-tree and install.sh locations.
+                # If old locations disagree, stop rather than risk the wrong key.
+                legacy_keys = []
+                for legacy_path in _legacy_env_paths():
+                    if not legacy_path.is_file():
+                        continue
+                    legacy_value = dotenv_values(legacy_path).get("MASTER_KEY")
+                    if legacy_value:
+                        legacy_keys.append(
+                            (legacy_path, _decode_master_key(str(legacy_value), legacy_path))
+                        )
+
+                if legacy_keys:
+                    first_key = legacy_keys[0][1]
+                    if any(key != first_key for _, key in legacy_keys[1:]):
+                        raise RuntimeError(
+                            "Conflicting RuntimeForce MASTER_KEY values were found in "
+                            "legacy locations. No key was changed; resolve the conflict "
+                            "before starting RuntimeForce."
+                        )
+                    master_key = first_key
+                else:
+                    master_key = AESGCM.generate_key(bit_length=256)
+
+                # Preserve unrelated values already present in the new config file.
                 if not ENV_PATH.exists():
                     ENV_PATH.touch(mode=0o600)
-                set_key(str(ENV_PATH), "MASTER_KEY", new_key_b64)
+                set_key(
+                    str(ENV_PATH),
+                    "MASTER_KEY",
+                    base64.b64encode(master_key).decode("ascii"),
+                )
                 os.chmod(ENV_PATH, 0o600)
-                return new_key
+                return master_key
         except FileLockTimeout as exc:
-            raise RuntimeError("Timed out waiting for the local master-key lock.") from exc
+            raise RuntimeError(
+                "Timed out waiting for the local master-key lock."
+            ) from exc
 
     @staticmethod
     def _derive_key(master_key: bytes, salt: bytes, jwt_token: Optional[str] = None) -> bytes:

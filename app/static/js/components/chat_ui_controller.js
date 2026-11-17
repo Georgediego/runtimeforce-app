@@ -34,7 +34,7 @@ const traceMilestones = new Set();
 const approvedCommandsCache = new Set();
 
 const ALL_PROVIDERS = ["gemini", "openrouter", "groq", "sambanova", "cerebras", "ollama", "lm_studio", "openai", "anthropic", "deepseek", "xai"];
-const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
+const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "ollama", "lm_studio"]);
 
 function debouncedTreeReload() {
     if (treeReloadTimer) clearTimeout(treeReloadTimer);

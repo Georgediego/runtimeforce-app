@@ -30,10 +30,16 @@ RuntimeForce IDE runs on the user's computer. The RuntimeForce SaaS at [runtimef
 
 Public installers and the website download install the stable `main` branch.
 
-### Linux / macOS
+### Linux
 
 ```bash
 curl -fsSL https://runtimeforce.dev/install.sh | bash
+```
+
+### macOS
+
+```bash
+curl -fsSL https://runtimeforce.dev/install-macos.sh | bash
 ```
 
 ### Windows (PowerShell)
@@ -42,7 +48,13 @@ curl -fsSL https://runtimeforce.dev/install.sh | bash
 irm https://runtimeforce.dev/install.ps1 | iex
 ```
 
-On Linux, the installer creates and enables the per-user `runtimeforce-app.service` systemd service. It starts automatically after login. The installer selects the first available port from `8000`–`8010` and prints the local URL. On macOS and Windows, the installer selects an available port and runs the IDE in the current terminal.
+All installers use the stable `main` branch and select an available local port from `8000`–`8010`.
+
+- **Linux:** creates a per-user `runtimeforce-app.service` systemd service and starts it automatically at login.
+- **macOS:** creates a `launchd` LaunchAgent and starts RuntimeForce automatically at login.
+- **Windows:** starts the IDE in the PowerShell session; keep that terminal open while using RuntimeForce.
+
+Python 3.11+ and Git are required on all platforms. Review the installer source before running it.
 
 ## Requirements
 

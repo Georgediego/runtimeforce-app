@@ -23,7 +23,7 @@ class ModelMetadata:
     description: str = ""
     supports_function_calling: bool = True
 
-PRESEEDED_FREE_MODELS = [
+PRESEEDED_MODELS = [
     # Groq (500-1000 tok/s LPU)
     ModelMetadata("groq/llama-3.3-70b-versatile", "groq", "llama-3.3-70b-versatile", 128000, 8192, tier="free", capabilities=["chat_completion", "code", "text", "reasoning"]),
     ModelMetadata("groq/llama-3.1-8b-instant", "groq", "llama-3.1-8b-instant", 128000, 8192, tier="free", capabilities=["chat_completion", "code", "text"]),
@@ -35,11 +35,11 @@ PRESEEDED_FREE_MODELS = [
     ModelMetadata("gemini/gemini-3.1-pro-preview", "gemini", "gemini-3.1-pro-preview", 2000000, 8192, tier="free", capabilities=["chat_completion", "code", "text", "reasoning"]),
     ModelMetadata("gemini/gemini-1.5-pro", "gemini", "gemini-1.5-pro", 2000000, 8192, tier="free", capabilities=["chat_completion", "code", "text", "reasoning"]),
     # Cerebras
-    ModelMetadata("cerebras/llama3.1-8b", "cerebras", "llama3.1-8b", 8192, 4096, tier="free", capabilities=["chat_completion", "code", "text"]),
-    ModelMetadata("cerebras/llama3.3-70b", "cerebras", "llama3.3-70b", 8192, 4096, tier="free", capabilities=["chat_completion", "code", "text", "reasoning"]),
+    ModelMetadata("cerebras/llama3.1-8b", "cerebras", "llama3.1-8b", 8192, 4096, tier="pro", capabilities=["chat_completion", "code", "text"]),
+    ModelMetadata("cerebras/llama3.3-70b", "cerebras", "llama3.3-70b", 8192, 4096, tier="pro", capabilities=["chat_completion", "code", "text", "reasoning"]),
     # SambaNova
-    ModelMetadata("sambanova/Meta-Llama-3.1-8B-Instruct", "sambanova", "Meta-Llama-3.1-8B-Instruct", 8192, 4096, tier="free", capabilities=["chat_completion", "code", "text"]),
-    ModelMetadata("sambanova/Qwen2.5-Coder-32B-Instruct", "sambanova", "Qwen2.5-Coder-32B-Instruct", 32768, 8192, tier="free", capabilities=["chat_completion", "code", "text"]),
+    ModelMetadata("sambanova/Meta-Llama-3.1-8B-Instruct", "sambanova", "Meta-Llama-3.1-8B-Instruct", 8192, 4096, tier="pro", capabilities=["chat_completion", "code", "text"]),
+    ModelMetadata("sambanova/Qwen2.5-Coder-32B-Instruct", "sambanova", "Qwen2.5-Coder-32B-Instruct", 32768, 8192, tier="pro", capabilities=["chat_completion", "code", "text"]),
     # OpenRouter Free
     ModelMetadata("openrouter/google/gemini-2.0-flash-exp:free", "openrouter", "google/gemini-2.0-flash-exp:free", 1000000, 8192, tier="free", capabilities=["chat_completion", "code", "text"]),
     ModelMetadata("openrouter/meta-llama/llama-3.3-70b-instruct:free", "openrouter", "meta-llama/llama-3.3-70b-instruct:free", 128000, 8192, tier="free", capabilities=["chat_completion", "code", "text", "reasoning"]),
@@ -52,7 +52,7 @@ class LLMRegistryService:
         self._init_preseeded_models()
 
     def _init_preseeded_models(self):
-        for m in PRESEEDED_FREE_MODELS:
+        for m in PRESEEDED_MODELS:
             self._models[m.id] = m
 
     def set_cooldown(self, model_id: str, seconds: int = 180) -> None:

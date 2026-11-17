@@ -1,5 +1,32 @@
 ## [Unreleased]
 
+## [1.1.21] - 2026-11-18
+
+### Fixed
+- Keep the last working provider model catalog when live discovery returns no usable models.
+- Verify provider model selections are persisted before confirming the save; restore the previous selection and show the error when persistence fails.
+
+### Changed
+- Refresh Groq, SambaNova and Cerebras model catalogs from live provider discovery without outdated fixed allowlists.
+- Require Full Pro BYOK for SambaNova and Cerebras.
+
+### Added
+- Add provider setup guides and direct API-key dashboard links for cloud and local model providers.
+
+
+### Fixed
+- Discover the current Groq chat model catalog instead of filtering against an outdated hard-coded model list.
+- Remove stale fixed model allowlists for Groq, SambaNova and Cerebras so supported chat models are not silently hidden.
+- Classify SambaNova and Cerebras as paid providers throughout API-key entitlement checks, model discovery, preseeded catalog entries, model filters and runtime routing; require Full Pro BYOK.
+
+### Changed
+- Arrange provider settings as collapsible Local Models, Free Providers and Additional BYOK Providers sections.
+- Display prominent setup-guide and API-key links for every cloud provider; provider guides use absolute runtimeforce.dev URLs from the local IDE.
+
+### Added
+- Added setup-guide and provider-dashboard links to cloud provider cards, plus Ollama and LM Studio guides in the local-model section.
+
+
 ## [1.1.20] - 2026-11-16
 
 ### Fixed

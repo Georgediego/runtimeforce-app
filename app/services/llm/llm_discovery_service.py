@@ -12,28 +12,7 @@ logger = logging.getLogger("runtimeforce.service.llm.discovery")
 class DiscoveryError(Exception):
     pass
 
-ALLOWED_GROQ_MODELS = {
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "qwen-2.5-coder-32b",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it"
-}
-
-ALLOWED_CEREBRAS_MODELS = {
-    "llama3.1-8b",
-    "llama3.3-70b",
-    "llama-3.3-70b",
-    "llama3.1-70b"
-}
-
-ALLOWED_SAMBANOVA_MODELS = {
-    "meta-llama-3.1-8b-instruct",
-    "qwen2.5-coder-32b-instruct",
-    "qwen2.5-72b-instruct"
-}
-
-FREE_PROVIDERS = {"groq", "gemini", "sambanova", "cerebras"}
+FREE_PROVIDERS = {"groq", "gemini"}
 
 NON_CHAT_MODEL_MARKERS = (
     "whisper", "transcribe", "transcription", "diarize", "audio", "tts",
@@ -206,20 +185,36 @@ class LLMDiscoveryService:
                     return
 
                 data = resp.json()
-                self.registry.clear_provider_models(provider)
 
+                # Parse into a temporary registry first. A successful HTTP response
+                # can still contain an empty/invalid catalog; never erase the last
+                # known-good provider models until replacement models are available.
+                staged_registry = LLMRegistryService()
+                # Exclude preseeded fallback entries from the staged API result.
+                staged_registry._models.clear()
+                staged_discovery = LLMDiscoveryService(staged_registry)
                 parser_name = discovery["parser"]
                 if parser_name == "openai":
-                    self._parse_openai(provider, data)
+                    staged_discovery._parse_openai(provider, data)
                 elif parser_name == "openrouter":
-                    self._parse_openrouter(provider, data)
+                    staged_discovery._parse_openrouter(provider, data)
                 elif parser_name == "gemini":
-                    self._parse_gemini(provider, data)
+                    staged_discovery._parse_gemini(provider, data)
                 elif parser_name == "anthropic":
-                    self._parse_anthropic(provider, data)
+                    staged_discovery._parse_anthropic(provider, data)
 
-                if provider == "xai" and not self.registry.get_available_models(provider_filter="xai"):
-                    self._register_xai_fallbacks()
+                discovered_models = staged_registry.get_available_models(provider_filter=provider)
+                if not discovered_models:
+                    logger.warning(
+                        "[Discovery] Provider '%s' returned no usable chat models; "
+                        "keeping the last known-good catalog.",
+                        provider,
+                    )
+                    return
+
+                self.registry.clear_provider_models(provider)
+                for model in discovered_models:
+                    self.registry.register_model(model)
 
         except Exception as e:
             logger.warning(f"Discovery check for {provider} encountered non-critical error: {e}")
@@ -257,18 +252,6 @@ class LLMDiscoveryService:
             if provider == "openai" and mid_lower.startswith("o3-mini"):
                 continue
 
-            if provider == "groq":
-                if not any(allowed in mid_lower for allowed in ALLOWED_GROQ_MODELS):
-                    continue
-
-            if provider == "cerebras":
-                if not any(allowed in mid_lower for allowed in ALLOWED_CEREBRAS_MODELS):
-                    continue
-
-            if provider == "sambanova":
-                if not any(allowed in mid_lower for allowed in ALLOWED_SAMBANOVA_MODELS):
-                    continue
-
             model_id = mid if mid.startswith(f"{provider}/") else f"{provider}/{mid}"
             caps = ["chat_completion", "text", "code"]
             if any(x in mid_lower for x in ["reason", "think", "r1", "o1", "o3", "70b"]):
@@ -276,7 +259,7 @@ class LLMDiscoveryService:
 
             meta = ModelMetadata(
                 id=model_id, provider=provider, name=mid,
-                tier="free" if provider in FREE_PROVIDERS else "standard",
+                tier=("free" if provider in FREE_PROVIDERS else "pro" if provider in {"sambanova", "cerebras"} else "standard"),
                 capabilities=caps,
                 supports_function_calling=True
             )

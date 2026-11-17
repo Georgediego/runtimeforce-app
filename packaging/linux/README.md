@@ -25,7 +25,7 @@ The resulting `.deb` is created in the parent directory.
 ## Install and launch
 
 ```bash
-sudo apt install ./runtimeforce_1.1.20_amd64.deb
+sudo apt install ./runtimeforce_1.1.21_amd64.deb
 ```
 
 Launch **RuntimeForce IDE** from the desktop application menu. The launcher starts the per-user service and opens its local URL.

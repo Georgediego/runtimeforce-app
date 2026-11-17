@@ -32,7 +32,7 @@ The local app uses two encryption layers:
 
 On first startup after this upgrade, an existing plaintext SQLite database is integrity-checked, exported to SQLCipher, and verified before atomic replacement. A cross-process file lock serializes migration so two RuntimeForce instances cannot export or replace the same database concurrently. A separately encrypted pre-migration backup is retained beside the database. If migration fails, the original database is left in place and the app does not start with plaintext storage.
 
-The `MASTER_KEY` in the local environment file is required to open the database. Keep a secure offline backup of that key: losing it makes the encrypted database unrecoverable. Protect the local app directory and environment file with operating-system permissions, and use full-disk encryption on machines containing sensitive projects.
+The per-user `MASTER_KEY` is stored in `$XDG_CONFIG_HOME/runtimeforce/.env` (normally `~/.config/runtimeforce/.env`) with directory permissions `0700` and file permissions `0600`. The key is required to open the database. On first startup after this change, RuntimeForce migrates the existing key from the legacy source-tree `.env` or `~/.runtimeforce/.env` location without generating a replacement. Conflicting or invalid legacy keys stop startup; the application never silently replaces them. Keep a secure offline backup of the key: losing it makes the encrypted database unrecoverable. Use full-disk encryption on machines containing sensitive projects.
 
 ## SSH safety
 

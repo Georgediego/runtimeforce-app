@@ -13,10 +13,16 @@ RuntimeForce IDE is a local-first AI development environment for Linux, macOS an
 
 ## Install
 
-### Linux / macOS
+### Linux
 
 ```bash
 curl -fsSL https://runtimeforce.dev/install.sh | bash
+```
+
+### macOS
+
+```bash
+curl -fsSL https://runtimeforce.dev/install-macos.sh | bash
 ```
 
 ### Windows (PowerShell)
@@ -25,7 +31,13 @@ curl -fsSL https://runtimeforce.dev/install.sh | bash
 irm https://runtimeforce.dev/install.ps1 | iex
 ```
 
-The installers use the stable `main` branch. Review the installer source before running it if you want to inspect every installation step.
+The installers use the stable `main` branch. Python 3.11+ and Git are required.
+
+- **Linux:** installs a per-user systemd service with automatic startup at login.
+- **macOS:** installs a `launchd` LaunchAgent with automatic startup at login.
+- **Windows:** runs in the PowerShell session; keep the terminal open while using the IDE.
+
+Review the installer source before running it if you want to inspect every installation step.
 
 ## First launch
 

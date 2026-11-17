@@ -1,8 +1,0 @@
-[Unit]
-Description=Build and publish RuntimeForce Linux packages from GitHub main
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/python3 %h/.local/share/runtimeforce-release-builder/build_release.py --publish

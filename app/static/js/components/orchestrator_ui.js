@@ -236,11 +236,11 @@ export const orchestratorUIController = {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
         const enabledSet = await this.getEnabledModelsSet();
-        const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "sambanova", "cerebras", "ollama", "lm_studio"]);
+        const FREE_PROVIDERS_SET = new Set(["gemini", "groq", "ollama", "lm_studio"]);
 
         return models.filter((m) => {
             const provider = String(m.provider || "").toLowerCase();
-            const providerFeature = ["ollama", "lm_studio"].includes(provider) ? "local_models" : "local_byok";
+            const providerFeature = ["ollama", "lm_studio"].includes(provider) ? "local_models" : ["openai", "anthropic", "deepseek", "xai", "sambanova", "cerebras"].includes(provider) ? "full_pro_byok" : "local_byok";
             if (this._features[providerFeature] !== true) return false;
             if (enabledSet.size > 0 && !enabledSet.has(m.id)) return false;
             const isFree = m.tier === "free" || FREE_PROVIDERS_SET.has(m.provider);

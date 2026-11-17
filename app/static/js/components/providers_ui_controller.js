@@ -6,18 +6,18 @@ import { showToast, showConfirm, showFeatureUpgrade } from "./toast_ui_controlle
 import { eventBus } from "../core/event_bus.js";
 
 const FREE_PROVIDERS = [
-    { id: "gemini", name: "Gemini", placeholder: "AIza...", refUrl: "https://aistudio.google.com/app/apikey" },
-    { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-...", refUrl: "https://openrouter.ai/keys" },
-    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys" },
-    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys" },
-    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform" }
+    { id: "gemini", name: "Gemini", placeholder: "AIza...", refUrl: "https://aistudio.google.com/app/apikey", docsUrl: "https://runtimeforce.dev/providers/gemini" },
+    { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-...", refUrl: "https://openrouter.ai/keys", docsUrl: "https://runtimeforce.dev/providers/openrouter" },
+    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys", docsUrl: "https://runtimeforce.dev/providers/groq" }
 ];
 
 const PRO_PROVIDERS = [
-    { id: "openai", name: "OpenAI", placeholder: "sk-proj-..." },
-    { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." },
-    { id: "deepseek", name: "DeepSeek", placeholder: "sk-..." },
-    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." }
+    { id: "openai", name: "OpenAI", placeholder: "sk-proj-..." , refUrl: "https://platform.openai.com/api-keys", docsUrl: "https://runtimeforce.dev/providers/openai"},
+    { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." , refUrl: "https://console.anthropic.com/settings/keys", docsUrl: "https://runtimeforce.dev/providers/anthropic"},
+    { id: "deepseek", name: "DeepSeek", placeholder: "sk-..." , refUrl: "https://platform.deepseek.com/api_keys", docsUrl: "https://runtimeforce.dev/providers/deepseek"},
+    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." , refUrl: "https://console.x.ai/", docsUrl: "https://runtimeforce.dev/providers/xai"},
+    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys", docsUrl: "https://runtimeforce.dev/providers/sambanova"},
+    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform", docsUrl: "https://runtimeforce.dev/providers/cerebras"}
 ];
 
 let activePickerProvider = null;
@@ -125,8 +125,9 @@ export const providersUIController = {
                     </button>
                 </div>
                 <div id="local-providers-list" class="space-y-2"></div>
-                <div class="text-[11px] text-[var(--ide-text-muted)] italic leading-relaxed pt-1">
-                    💡 <b>Tip:</b> Free cloud providers (Groq, Gemini, SambaNova, Cerebras) deliver sub-second (500-1000 tok/s) performance with zero hardware load.
+                <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
+                    <a href="https://runtimeforce.dev/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
+                    <a href="https://runtimeforce.dev/providers/lm-studio" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">LM Studio setup guide ↗</a>
                 </div>
             </div>
         `;
@@ -340,10 +341,23 @@ export const providersUIController = {
             selected = selected.filter(id => id !== modelId);
         }
 
+        const previous = [...(this._selectedModelsMap[pKey] || [])];
         this._selectedModelsMap[pKey] = selected;
-        keysApi.saveSelectedModels(providerName, selected).catch(() => {});
-        this.renderExistingLocalProviders();
-        eventBus.emit("providers.updated");
+        try {
+            await keysApi.saveSelectedModels(providerName, selected);
+            const persisted = await keysApi.getSelectedModels();
+            const saved = persisted.selected_models?.[pKey] || [];
+            if (JSON.stringify([...saved].sort()) !== JSON.stringify([...selected].sort())) {
+                throw new Error("The server did not confirm the selected models.");
+            }
+            await this.syncSelectedModelsFromSQLite();
+            await this.renderExistingLocalProviders();
+            eventBus.emit("providers.updated");
+        } catch (error) {
+            this._selectedModelsMap[pKey] = previous;
+            await this.renderExistingLocalProviders();
+            showToast(`Failed to save model selection: ${error.message}`, "error");
+        }
     },
 
     async removeLocalProvider(providerName) {
@@ -372,7 +386,7 @@ export const providersUIController = {
     providerCardHTML(p) {
         const savedSelections = this._selectedModelsMap[(p.id || "").toLowerCase()] || null;
         const countBadgeText = Array.isArray(savedSelections) ? `${savedSelections.length} models selected` : "";
-        const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
+        const refLinkHTML = `<a href="${p.docsUrl || "#"}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[var(--ide-accent)]/30 bg-[var(--ide-accent)]/10 text-[10px] font-bold text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20">Setup guide ↗</a>${p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[var(--ide-border-subtle)] text-[10px] font-semibold text-[var(--ide-text-secondary)] hover:text-[var(--ide-accent)]">API keys ↗</a>` : ""}`;
         const requiresFullByok = PRO_PROVIDERS.some(provider => provider.id === p.id);
         const locked = requiresFullByok && this._entitlements?.features?.full_pro_byok !== true;
         const lockNote = locked ? `<button type="button" class="provider-upgrade-btn text-[10px] text-amber-400 hover:underline" data-provider="${p.id}">Requires Full Pro BYOK — view upgrade options</button>` : "";
@@ -380,7 +394,7 @@ export const providersUIController = {
         return `
             <div class="p-3 bg-[var(--ide-elevated)] rounded-lg border border-[var(--ide-border-subtle)] space-y-2.5">
                 <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2 min-w-0 text-xs font-semibold">
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 text-xs font-semibold">
                         <span>${p.name}</span>
                         ${refLinkHTML}
                     </div>
@@ -661,12 +675,28 @@ export const providersUIController = {
         }
     },
 
-    savePickerSelections() {
-        if (!activePickerProvider) return;
+    async savePickerSelections() {
+        if (!activePickerProvider) return false;
+        const providerId = activePickerProvider;
+        const providerKey = providerId.toLowerCase();
+        const previous = [...(this._selectedModelsMap[providerKey] || [])];
         const checked = Array.from(document.querySelectorAll("#model-picker-list .model-picker-cb:checked")).map(cb => cb.value);
-        this._selectedModelsMap[(activePickerProvider || "").toLowerCase()] = checked;
-        keysApi.saveSelectedModels(activePickerProvider, checked).catch(() => {});
-        this.updateStatus();
+
+        try {
+            await keysApi.saveSelectedModels(providerId, checked);
+            const persisted = await keysApi.getSelectedModels();
+            const saved = persisted.selected_models?.[providerKey] || [];
+            if (JSON.stringify([...saved].sort()) !== JSON.stringify([...checked].sort())) {
+                throw new Error("The server did not confirm the selected models. Please try again.");
+            }
+            this._selectedModelsMap[providerKey] = checked;
+            await this.updateStatus();
+            return true;
+        } catch (error) {
+            this._selectedModelsMap[providerKey] = previous;
+            showToast(`Failed to save model selection: ${error.message}`, "error");
+            return false;
+        }
     },
 
     closeModelPicker() {
@@ -733,10 +763,19 @@ export const providersUIController = {
 
         document.getElementById("close-model-picker-btn")?.addEventListener("click", () => this.closeModelPicker());
         document.getElementById("model-picker-cancel")?.addEventListener("click", () => this.closeModelPicker());
-        document.getElementById("model-picker-confirm")?.addEventListener("click", () => {
-            this.savePickerSelections();
-            showToast("Model preferences saved", "success");
-            this.closeModelPicker();
+        document.getElementById("model-picker-confirm")?.addEventListener("click", async () => {
+            const button = document.getElementById("model-picker-confirm");
+            if (button) button.disabled = true;
+            try {
+                const saved = await this.savePickerSelections();
+                if (saved) {
+                    showToast("Model preferences saved", "success");
+                    this.closeModelPicker();
+                    eventBus.emit("providers.updated");
+                }
+            } finally {
+                if (button) button.disabled = false;
+            }
         });
 
         document.getElementById("model-picker-search")?.addEventListener("input", () => {

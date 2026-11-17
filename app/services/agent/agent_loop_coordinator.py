@@ -182,10 +182,9 @@ class AgentLoopCoordinator:
         strict_enabled = self._resolve_strict_whitelist(enabled_models, user_id)
         if strict_enabled is not None:
             # Enforce entitlements using the registry metadata for the exact model.
-            # A provider-wide "local_byok" check incorrectly blocks Free-tier cloud
-            # models (Gemini/Groq/Cerebras/SambaNova and free OpenRouter models).
-            # Local runtimes still require local_models; paid cloud models require
-            # local_byok. Unknown models fail closed and require local_byok.
+            # Free cloud models (Gemini/Groq and free OpenRouter entries) need no
+            # BYOK entitlement. Paid cloud providers, including SambaNova/Cerebras,
+            # require local_byok; local runtimes require local_models.
             allowed_models = []
             for model_id in strict_enabled:
                 metadata = self._llm_router.registry.get_model(model_id) if self._llm_router else None
@@ -195,6 +194,8 @@ class AgentLoopCoordinator:
                     required_feature = "local_models"
                 elif tier == "free" or model_id.lower().endswith(":free"):
                     required_feature = None
+                elif tier == "pro" or provider in {"openai", "anthropic", "deepseek", "xai", "sambanova", "cerebras"}:
+                    required_feature = "full_pro_byok"
                 else:
                     required_feature = "local_byok"
 
