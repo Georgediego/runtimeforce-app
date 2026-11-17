@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+- Added setup-guide and provider-dashboard links to cloud provider cards, plus Ollama and LM Studio guides in the local-model section.
+
+
 ## [1.1.20] - 2026-11-16
 
 ### Fixed
