@@ -194,6 +194,8 @@ class AgentLoopCoordinator:
                     required_feature = "local_models"
                 elif tier == "free" or model_id.lower().endswith(":free"):
                     required_feature = None
+                elif tier == "pro" or provider in {"openai", "anthropic", "deepseek", "xai", "sambanova", "cerebras"}:
+                    required_feature = "full_pro_byok"
                 else:
                     required_feature = "local_byok"
 
