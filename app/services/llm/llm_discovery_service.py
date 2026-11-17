@@ -190,6 +190,8 @@ class LLMDiscoveryService:
                 # can still contain an empty/invalid catalog; never erase the last
                 # known-good provider models until replacement models are available.
                 staged_registry = LLMRegistryService()
+                # Exclude preseeded fallback entries from the staged API result.
+                staged_registry._models.clear()
                 staged_discovery = LLMDiscoveryService(staged_registry)
                 parser_name = discovery["parser"]
                 if parser_name == "openai":
