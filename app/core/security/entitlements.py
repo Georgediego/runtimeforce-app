@@ -42,7 +42,7 @@ def provider_feature_key(provider: str) -> str:
     normalized = str(provider or "").strip().lower()
     if normalized in {"ollama", "lm_studio"}:
         return "local_models"
-    if normalized in {"openai", "anthropic", "deepseek", "xai"}:
+    if normalized in {"openai", "anthropic", "deepseek", "xai", "sambanova", "cerebras"}:
         return "full_pro_byok"
     return "local_byok"
 
