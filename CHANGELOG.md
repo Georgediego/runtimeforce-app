@@ -7,7 +7,7 @@
 
 ### Changed
 - Arrange provider settings as collapsible Local Models, Free Providers and Additional BYOK Providers sections.
-- Display prominent setup-guide and API-key links for every cloud provider.
+- Display prominent setup-guide and API-key links for every cloud provider; provider guides use absolute runtimeforce.dev URLs from the local IDE.
 
 ### Added
 - Added setup-guide and provider-dashboard links to cloud provider cards, plus Ollama and LM Studio guides in the local-model section.
