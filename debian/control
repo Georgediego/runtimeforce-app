@@ -1,0 +1,33 @@
+Source: runtimeforce
+Section: devel
+Priority: optional
+Maintainer: Georgediego <203426657+Georgediego@users.noreply.github.com>
+Standards-Version: 4.7.2
+Build-Depends:
+ debhelper-compat (= 13),
+ build-essential,
+ libffi-dev,
+ libssl-dev,
+ libsqlcipher-dev,
+ dh-virtualenv (>= 1.2),
+ python3.12,
+ python3.12-dev,
+ python3.12-venv,
+ python3-pip
+Rules-Requires-Root: no
+
+Package: runtimeforce
+Architecture: amd64
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ python3.12,
+ libsqlcipher1,
+ git,
+ systemd,
+ xdg-utils
+Description: Local-first AI development environment
+ RuntimeForce IDE is a local-first AI development environment with local
+ workspaces, SSH, Git, AI model integrations, and project memory.
+ The application runs as the logged-in desktop user. Each Linux account
+ has its own configuration, encryption key, database, cache, and service.
