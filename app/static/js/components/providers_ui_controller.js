@@ -14,10 +14,10 @@ const FREE_PROVIDERS = [
 ];
 
 const PRO_PROVIDERS = [
-    { id: "openai", name: "OpenAI", placeholder: "sk-proj-..." },
-    { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." },
-    { id: "deepseek", name: "DeepSeek", placeholder: "sk-..." },
-    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." }
+    { id: "openai", name: "OpenAI", placeholder: "sk-proj-..." , refUrl: "https://platform.openai.com/api-keys", docsUrl: "/providers/openai"},
+    { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." , refUrl: "https://console.anthropic.com/settings/keys", docsUrl: "/providers/anthropic"},
+    { id: "deepseek", name: "DeepSeek", placeholder: "sk-..." , refUrl: "https://platform.deepseek.com/api_keys", docsUrl: "/providers/deepseek"},
+    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." , refUrl: "https://console.x.ai/", docsUrl: "/providers/xai"}
 ];
 
 let activePickerProvider = null;
@@ -125,8 +125,9 @@ export const providersUIController = {
                     </button>
                 </div>
                 <div id="local-providers-list" class="space-y-2"></div>
-                <div class="text-[11px] text-[var(--ide-text-muted)] italic leading-relaxed pt-1">
-                    💡 <b>Tip:</b> Free cloud providers (Groq, Gemini, SambaNova, Cerebras) deliver sub-second (500-1000 tok/s) performance with zero hardware load.
+                <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
+                    <a href="/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
+                    <a href="/providers/lm-studio" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">LM Studio setup guide ↗</a>
                 </div>
             </div>
         `;
@@ -372,7 +373,7 @@ export const providersUIController = {
     providerCardHTML(p) {
         const savedSelections = this._selectedModelsMap[(p.id || "").toLowerCase()] || null;
         const countBadgeText = Array.isArray(savedSelections) ? `${savedSelections.length} models selected` : "";
-        const refLinkHTML = p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Get Free Key ↗</a>` : "";
+        const refLinkHTML = `<a href="${p.docsUrl || "#"}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Setup guide ↗</a>${p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-accent)]">API dashboard ↗</a>` : ""}`;
         const requiresFullByok = PRO_PROVIDERS.some(provider => provider.id === p.id);
         const locked = requiresFullByok && this._entitlements?.features?.full_pro_byok !== true;
         const lockNote = locked ? `<button type="button" class="provider-upgrade-btn text-[10px] text-amber-400 hover:underline" data-provider="${p.id}">Requires Full Pro BYOK — view upgrade options</button>` : "";
