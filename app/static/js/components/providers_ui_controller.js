@@ -6,18 +6,18 @@ import { showToast, showConfirm, showFeatureUpgrade } from "./toast_ui_controlle
 import { eventBus } from "../core/event_bus.js";
 
 const FREE_PROVIDERS = [
-    { id: "gemini", name: "Gemini", placeholder: "AIza...", refUrl: "https://aistudio.google.com/app/apikey", docsUrl: "/providers/gemini" },
-    { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-...", refUrl: "https://openrouter.ai/keys", docsUrl: "/providers/openrouter" },
-    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys", docsUrl: "/providers/groq" }
+    { id: "gemini", name: "Gemini", placeholder: "AIza...", refUrl: "https://aistudio.google.com/app/apikey", docsUrl: "https://runtimeforce.dev/providers/gemini" },
+    { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-...", refUrl: "https://openrouter.ai/keys", docsUrl: "https://runtimeforce.dev/providers/openrouter" },
+    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys", docsUrl: "https://runtimeforce.dev/providers/groq" }
 ];
 
 const PRO_PROVIDERS = [
-    { id: "openai", name: "OpenAI", placeholder: "sk-proj-..." , refUrl: "https://platform.openai.com/api-keys", docsUrl: "/providers/openai"},
-    { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." , refUrl: "https://console.anthropic.com/settings/keys", docsUrl: "/providers/anthropic"},
-    { id: "deepseek", name: "DeepSeek", placeholder: "sk-..." , refUrl: "https://platform.deepseek.com/api_keys", docsUrl: "/providers/deepseek"},
-    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." , refUrl: "https://console.x.ai/", docsUrl: "/providers/xai"},
-    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys", docsUrl: "/providers/sambanova"},
-    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform", docsUrl: "/providers/cerebras"}
+    { id: "openai", name: "OpenAI", placeholder: "sk-proj-..." , refUrl: "https://platform.openai.com/api-keys", docsUrl: "https://runtimeforce.dev/providers/openai"},
+    { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." , refUrl: "https://console.anthropic.com/settings/keys", docsUrl: "https://runtimeforce.dev/providers/anthropic"},
+    { id: "deepseek", name: "DeepSeek", placeholder: "sk-..." , refUrl: "https://platform.deepseek.com/api_keys", docsUrl: "https://runtimeforce.dev/providers/deepseek"},
+    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." , refUrl: "https://console.x.ai/", docsUrl: "https://runtimeforce.dev/providers/xai"},
+    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys", docsUrl: "https://runtimeforce.dev/providers/sambanova"},
+    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform", docsUrl: "https://runtimeforce.dev/providers/cerebras"}
 ];
 
 let activePickerProvider = null;
@@ -126,8 +126,8 @@ export const providersUIController = {
                 </div>
                 <div id="local-providers-list" class="space-y-2"></div>
                 <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
-                    <a href="/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
-                    <a href="/providers/lm-studio" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">LM Studio setup guide ↗</a>
+                    <a href="https://runtimeforce.dev/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
+                    <a href="https://runtimeforce.dev/providers/lm-studio" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">LM Studio setup guide ↗</a>
                 </div>
             </div>
         `;
