@@ -8,16 +8,16 @@ import { eventBus } from "../core/event_bus.js";
 const FREE_PROVIDERS = [
     { id: "gemini", name: "Gemini", placeholder: "AIza...", refUrl: "https://aistudio.google.com/app/apikey", docsUrl: "/providers/gemini" },
     { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-...", refUrl: "https://openrouter.ai/keys", docsUrl: "/providers/openrouter" },
-    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys", docsUrl: "/providers/groq" },
-    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys", docsUrl: "/providers/sambanova" },
-    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform", docsUrl: "/providers/cerebras" }
+    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys", docsUrl: "/providers/groq" }
 ];
 
 const PRO_PROVIDERS = [
     { id: "openai", name: "OpenAI", placeholder: "sk-proj-..." , refUrl: "https://platform.openai.com/api-keys", docsUrl: "/providers/openai"},
     { id: "anthropic", name: "Anthropic", placeholder: "sk-ant-..." , refUrl: "https://console.anthropic.com/settings/keys", docsUrl: "/providers/anthropic"},
     { id: "deepseek", name: "DeepSeek", placeholder: "sk-..." , refUrl: "https://platform.deepseek.com/api_keys", docsUrl: "/providers/deepseek"},
-    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." , refUrl: "https://console.x.ai/", docsUrl: "/providers/xai"}
+    { id: "xai", name: "xAI (Grok)", placeholder: "xai-..." , refUrl: "https://console.x.ai/", docsUrl: "/providers/xai"},
+    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys", docsUrl: "/providers/sambanova"},
+    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform", docsUrl: "/providers/cerebras"}
 ];
 
 let activePickerProvider = null;
@@ -373,7 +373,7 @@ export const providersUIController = {
     providerCardHTML(p) {
         const savedSelections = this._selectedModelsMap[(p.id || "").toLowerCase()] || null;
         const countBadgeText = Array.isArray(savedSelections) ? `${savedSelections.length} models selected` : "";
-        const refLinkHTML = `<a href="${p.docsUrl || "#"}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-accent)] hover:underline flex items-center gap-0.5">Setup guide ↗</a>${p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-[var(--ide-text-muted)] hover:text-[var(--ide-accent)]">API dashboard ↗</a>` : ""}`;
+        const refLinkHTML = `<a href="${p.docsUrl || "#"}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[var(--ide-accent)]/30 bg-[var(--ide-accent)]/10 text-[10px] font-bold text-[var(--ide-accent)] hover:bg-[var(--ide-accent)]/20">Setup guide ↗</a>${p.refUrl ? `<a href="${p.refUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[var(--ide-border-subtle)] text-[10px] font-semibold text-[var(--ide-text-secondary)] hover:text-[var(--ide-accent)]">API keys ↗</a>` : ""}`;
         const requiresFullByok = PRO_PROVIDERS.some(provider => provider.id === p.id);
         const locked = requiresFullByok && this._entitlements?.features?.full_pro_byok !== true;
         const lockNote = locked ? `<button type="button" class="provider-upgrade-btn text-[10px] text-amber-400 hover:underline" data-provider="${p.id}">Requires Full Pro BYOK — view upgrade options</button>` : "";
