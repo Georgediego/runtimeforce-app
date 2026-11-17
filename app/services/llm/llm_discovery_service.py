@@ -12,14 +12,6 @@ logger = logging.getLogger("runtimeforce.service.llm.discovery")
 class DiscoveryError(Exception):
     pass
 
-ALLOWED_GROQ_MODELS = {
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "qwen-2.5-coder-32b",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it"
-}
-
 ALLOWED_CEREBRAS_MODELS = {
     "llama3.1-8b",
     "llama3.3-70b",
@@ -33,7 +25,7 @@ ALLOWED_SAMBANOVA_MODELS = {
     "qwen2.5-72b-instruct"
 }
 
-FREE_PROVIDERS = {"groq", "gemini", "sambanova", "cerebras"}
+FREE_PROVIDERS = {"groq", "gemini"}
 
 NON_CHAT_MODEL_MARKERS = (
     "whisper", "transcribe", "transcription", "diarize", "audio", "tts",
@@ -257,10 +249,6 @@ class LLMDiscoveryService:
             if provider == "openai" and mid_lower.startswith("o3-mini"):
                 continue
 
-            if provider == "groq":
-                if not any(allowed in mid_lower for allowed in ALLOWED_GROQ_MODELS):
-                    continue
-
             if provider == "cerebras":
                 if not any(allowed in mid_lower for allowed in ALLOWED_CEREBRAS_MODELS):
                     continue
@@ -276,7 +264,7 @@ class LLMDiscoveryService:
 
             meta = ModelMetadata(
                 id=model_id, provider=provider, name=mid,
-                tier="free" if provider in FREE_PROVIDERS else "standard",
+                tier=("free" if provider in FREE_PROVIDERS else "pro" if provider in {"sambanova", "cerebras"} else "standard"),
                 capabilities=caps,
                 supports_function_calling=True
             )
