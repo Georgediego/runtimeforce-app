@@ -3,7 +3,7 @@
 ### Fixed
 - Discover the current Groq chat model catalog instead of filtering against an outdated hard-coded model list.
 - Remove stale fixed model allowlists for Groq, SambaNova and Cerebras so supported chat models are not silently hidden.
-- Classify SambaNova and Cerebras models as Pro across provider settings, model filters and routing.
+- Classify SambaNova and Cerebras as paid providers throughout API-key entitlement checks, model discovery, preseeded catalog entries, model filters and runtime routing; require Full Pro BYOK.
 
 ### Changed
 - Arrange provider settings as collapsible Local Models, Free Providers and Additional BYOK Providers sections.
