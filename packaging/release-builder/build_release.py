@@ -96,8 +96,10 @@ def main() -> int:
         print(f"Building RuntimeForce {version} from main commit {commit[:12]}")
 
         # Build DEB in a clean Ubuntu 24.04 container so the host can be Ubuntu 26.04+.
+        host_uid, host_gid = __import__("os").getuid(), __import__("os").getgid()
         deb_build = (
             "set -e; "
+            f"trap 'chown -R {host_uid}:{host_gid} /workspace || true' EXIT; "
             "if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then "
             "sed -i 's/^Components: .*/Components: main universe/' "
             "/etc/apt/sources.list.d/ubuntu.sources; fi; "
@@ -124,12 +126,16 @@ def main() -> int:
             raise RuntimeError("DEB artifact is unexpectedly small.")
 
         # Snapcraft Core24 image matches snap/base and builds independently of host OS.
+        snap_build = (
+            f"trap 'chown -R {host_uid}:{host_gid} /project || true' EXIT; "
+            "pack"
+        )
         run([
             "docker", "run", "--rm",
             "-v", f"{checkout}:/project",
             "-w", "/project",
             SNAP_IMAGE,
-            "pack",
+            "bash", "-lc", snap_build,
         ])
         snap_candidates = sorted(checkout.glob("*.snap"))
         if not snap_candidates:
