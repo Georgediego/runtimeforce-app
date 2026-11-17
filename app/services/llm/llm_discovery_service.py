@@ -185,20 +185,34 @@ class LLMDiscoveryService:
                     return
 
                 data = resp.json()
-                self.registry.clear_provider_models(provider)
 
+                # Parse into a temporary registry first. A successful HTTP response
+                # can still contain an empty/invalid catalog; never erase the last
+                # known-good provider models until replacement models are available.
+                staged_registry = LLMRegistryService()
+                staged_discovery = LLMDiscoveryService(staged_registry)
                 parser_name = discovery["parser"]
                 if parser_name == "openai":
-                    self._parse_openai(provider, data)
+                    staged_discovery._parse_openai(provider, data)
                 elif parser_name == "openrouter":
-                    self._parse_openrouter(provider, data)
+                    staged_discovery._parse_openrouter(provider, data)
                 elif parser_name == "gemini":
-                    self._parse_gemini(provider, data)
+                    staged_discovery._parse_gemini(provider, data)
                 elif parser_name == "anthropic":
-                    self._parse_anthropic(provider, data)
+                    staged_discovery._parse_anthropic(provider, data)
 
-                if provider == "xai" and not self.registry.get_available_models(provider_filter="xai"):
-                    self._register_xai_fallbacks()
+                discovered_models = staged_registry.get_available_models(provider_filter=provider)
+                if not discovered_models:
+                    logger.warning(
+                        "[Discovery] Provider '%s' returned no usable chat models; "
+                        "keeping the last known-good catalog.",
+                        provider,
+                    )
+                    return
+
+                self.registry.clear_provider_models(provider)
+                for model in discovered_models:
+                    self.registry.register_model(model)
 
         except Exception as e:
             logger.warning(f"Discovery check for {provider} encountered non-critical error: {e}")
