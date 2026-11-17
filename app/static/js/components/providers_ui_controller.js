@@ -6,11 +6,11 @@ import { showToast, showConfirm, showFeatureUpgrade } from "./toast_ui_controlle
 import { eventBus } from "../core/event_bus.js";
 
 const FREE_PROVIDERS = [
-    { id: "gemini", name: "Gemini", placeholder: "AIza...", refUrl: "https://aistudio.google.com/app/apikey" },
-    { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-...", refUrl: "https://openrouter.ai/keys" },
-    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys" },
-    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys" },
-    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform" }
+    { id: "gemini", name: "Gemini", placeholder: "AIza...", refUrl: "https://aistudio.google.com/app/apikey", docsUrl: "/providers/gemini" },
+    { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-...", refUrl: "https://openrouter.ai/keys", docsUrl: "/providers/openrouter" },
+    { id: "groq", name: "Groq", placeholder: "gsk_...", refUrl: "https://console.groq.com/keys", docsUrl: "/providers/groq" },
+    { id: "sambanova", name: "SambaNova", placeholder: "Key...", refUrl: "https://cloud.sambanova.ai/analytics/api-keys", docsUrl: "/providers/sambanova" },
+    { id: "cerebras", name: "Cerebras", placeholder: "Key...", refUrl: "https://cloud.cerebras.ai/platform", docsUrl: "/providers/cerebras" }
 ];
 
 const PRO_PROVIDERS = [
