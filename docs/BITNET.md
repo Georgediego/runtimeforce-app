@@ -1,36 +1,31 @@
-# BitNet local inference
+# BitNet external runtime integration
 
-RuntimeForce can run the Microsoft bitnet.cpp CPU inference server locally. Model files and source are stored under `$XDG_DATA_HOME/runtimeforce/bitnet` (normally `~/.local/share/runtimeforce/bitnet`). Prompts and project context stay on the local machine.
+RuntimeForce connects to a separately installed and managed BitNet inference server. RuntimeForce does not install BitNet, clone its source, compile it, download model weights, or stop the external process.
 
-## Linux prerequisites
+## 1. Run BitNet independently
 
-On Ubuntu 24.04, install the native build tools once:
+Install and configure Microsoft's BitNet runtime using its official instructions: https://github.com/microsoft/BitNet
 
-```bash
-sudo bash /usr/share/runtimeforce/install-bitnet-prerequisites.sh
-```
+Start its OpenAI-compatible HTTP server. The server must expose:
 
-For source checkouts, run `sudo apt-get install build-essential cmake git clang-18 python3-dev python3-venv`.
+- `GET /v1/models`
+- `POST /v1/chat/completions` with streaming SSE responses
 
-## Install a model
+Keep the server bound to localhost unless remote access is intentionally secured. The example URL below assumes port 8080; use the actual address and port configured in your BitNet runtime.
 
-Open **Settings → Providers → Local Models** and use **Download & Build** for one of the available models:
+## 2. Connect in RuntimeForce
 
-- BitNet-b1.58-2B-4T
-- Falcon3-7B-Instruct-1.58bit
+Open **Settings → Providers → Local Models → Add Local Engine** and enter:
 
-RuntimeForce clones the official Microsoft BitNet repository, downloads the selected weights from Hugging Face, and builds the OpenAI-compatible `llama-server`. The first setup can take a long time and requires free disk space for source, build artifacts, and model weights.
+- Provider Name: `bitnet`
+- Base URL: `http://localhost:8080` (replace with your server address)
 
-## CPU compatibility
+Select **Discover & Add**. RuntimeForce queries `/v1/models` and adds every model returned by the external server. There is no hard-coded two-model catalog.
 
-RuntimeForce detects CPU architecture, AVX2, NEON, and logical core count. On x86-64 without AVX2 it requests a generic `x86-64` compiler target instead of compiling with `-march=native`; this avoids making AVX2 a build-time assumption. The selected BitNet kernel still has to be supported by the upstream bitnet.cpp build and the model. RuntimeForce does not claim that every legacy x86 CPU is supported.
+## 3. Use models
 
-The local server binds only to `127.0.0.1:8088`. It starts on first use of a selected BitNet model and is stopped when RuntimeForce exits. The API is OpenAI-compatible at `/v1`, including `/v1/models` and streamed `/v1/chat/completions`.
+Select discovered `bitnet/<model-id>` models in the model picker. RuntimeForce sends chat requests to the configured server's `/v1/chat/completions` endpoint. Model installation, lifecycle, storage, CPU/GPU configuration, and updates remain the responsibility of the external BitNet runtime.
 
-## Storage and logs
+## Compatibility
 
-- Source/build: `~/.local/share/runtimeforce/bitnet/source`
-- Weights: `~/.local/share/runtimeforce/bitnet/models`
-- Server/setup log: `~/.local/share/runtimeforce/bitnet/bitnet.log`
-
-Model downloads require a working internet connection. Inference after installation is local.
+The external server must implement the OpenAI-compatible models endpoint and streamed chat-completions endpoint. Tool calling is forwarded when supplied by RuntimeForce; actual support depends on the selected BitNet server and model.
