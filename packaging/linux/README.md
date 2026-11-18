@@ -39,7 +39,9 @@ journalctl --user -u runtimeforce.service -n 80 --no-pager
 
 ## BitNet local inference
 
-Optional BitNet support requires a one-time compiler setup and model download. Install prerequisites with:
+BitNet is installed and managed independently. Connect its OpenAI-compatible server in Settings → Providers → Local Models → Add Local Engine using provider name `bitnet` and the server base URL. RuntimeForce does not install compilers, build BitNet, or download model weights. See `docs/BITNET.md`.
+
+## Remove
 
 ```bash
 sudo bash /usr/share/runtimeforce/install-bitnet-prerequisites.sh
