@@ -129,6 +129,7 @@ export const providersUIController = {
                 <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
                     <a href="https://runtimeforce.dev/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
                     <a href="https://runtimeforce.dev/providers/lm-studio" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">LM Studio setup guide ↗</a>
+                    <a href="https://github.com/microsoft/BitNet" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">BitNet runtime ↗</a>
                 </div>
             </div>
         `;
@@ -139,62 +140,6 @@ export const providersUIController = {
         this.renderExistingLocalProviders();
     },
 
-    async loadBitNetCatalog() {
-        const panel = document.getElementById('bitnet-models-panel');
-        if (!panel) return;
-        const token = localStorage.getItem('rf_jwt_token') || localStorage.getItem('access_token') || '';
-        try {
-            const response = await fetch('/api/v1/models/bitnet/catalog', { headers: { Authorization: 'Bearer ' + token } });
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            const data = await response.json();
-            panel.textContent = '';
-            const heading = document.createElement('div');
-            heading.className = 'text-xs font-bold text-[var(--ide-text-primary)]';
-            heading.textContent = 'BitNet · 1.58-bit CPU models';
-            panel.appendChild(heading);
-            for (const model of (data.models || [])) {
-                const row = document.createElement('div');
-                row.className = 'flex items-center justify-between gap-2 rounded-md bg-[var(--ide-elevated)] p-2';
-                const label = document.createElement('span');
-                label.className = 'text-xs text-[var(--ide-text-primary)]';
-                label.textContent = model.name + (model.installed ? ' · Installed' : ' · Not installed');
-                row.appendChild(label);
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'bitnet-install-btn rounded px-3 py-1 text-[10px] font-bold bg-[var(--ide-accent)] text-black';
-                button.textContent = model.installed ? 'Installed' : 'Download & Build';
-                button.disabled = !!model.installed;
-                button.dataset.model = model.key;
-                button.addEventListener('click', () => this.installBitNetModel(model.key, button));
-                row.appendChild(button);
-                panel.appendChild(row);
-            }
-            const hw = document.createElement('div');
-            hw.className = 'text-[10px] text-[var(--ide-text-muted)]';
-            hw.textContent = 'CPU threads: ' + (data.hardware?.threads || '?') + ' · AVX2: ' + (data.hardware?.avx2 ? 'yes' : 'no') + ' · Port: ' + data.port;
-            panel.appendChild(hw);
-        } catch (error) { panel.textContent = 'BitNet status unavailable: ' + error.message; }
-    },
-
-    async installBitNetModel(modelId, button) {
-        const token = localStorage.getItem('rf_jwt_token') || localStorage.getItem('access_token') || '';
-        button.disabled = true;
-        button.textContent = 'Downloading / building…';
-        try {
-            const response = await fetch('/api/v1/models/bitnet/install', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ model_id: modelId }) });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.detail || ('HTTP ' + response.status));
-            showToast('BitNet model installed. Select it below in Local Models.', 'success', 7000);
-            await this.loadBitNetCatalog();
-            await this.syncSelectedModelsFromSQLite();
-            await this.renderExistingLocalProviders();
-            eventBus.emit('providers.updated');
-        } catch (error) {
-            showToast('BitNet installation failed: ' + error.message, 'error', 10000);
-            button.disabled = false;
-            button.textContent = 'Retry';
-        }
-    },
     addLocalProviderModal() {
         let modal = document.getElementById("add-local-provider-modal");
         if (modal) modal.remove();
@@ -212,7 +157,7 @@ export const providersUIController = {
 
                 <div>
                     <label class="block text-[11px] font-bold text-[var(--ide-text-muted)] mb-1">Provider Name</label>
-                    <input type="text" id="local-provider-name-input" placeholder="e.g. ollama, lm_studio" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
+                    <input type="text" id="local-provider-name-input" placeholder="e.g. ollama, lm_studio, bitnet" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
                 </div>
 
                 <div>
@@ -221,6 +166,7 @@ export const providersUIController = {
                     <div class="text-[10px] text-[var(--ide-text-muted)] mt-1 font-mono leading-relaxed">
                         Ollama: http://localhost:11434<br>
                         LM Studio: http://localhost:1234<br>
+                        BitNet: enter your OpenAI-compatible server URL<br>
                         BitNet (OpenAI-compatible): http://localhost:8080
                     </div>
                 </div>
