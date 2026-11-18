@@ -1,52 +1,49 @@
+"""OpenAI-compatible client for an independently managed BitNet server."""
 import json
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
+from urllib.parse import urlparse
 
 import httpx
-
-from app.services.llm.bitnet_manager import bitnet_manager
 
 logger = logging.getLogger("runtimeforce.service.llm.bitnet_provider")
 
 
 class BitNetProvider:
-    def __init__(self, manager=bitnet_manager):
-        self.manager = manager
+    @staticmethod
+    def normalize_base_url(base_url: str) -> str:
+        value = (base_url or "").strip().rstrip("/")
+        if not value:
+            raise ValueError("BitNet server URL is not configured.")
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("BitNet URL must be an http:// or https:// address.")
+        return value[:-3] if value.endswith("/v1") else value
 
-    async def healthcheck(self) -> bool:
-        status = await self.manager.status()
-        return bool(status["running"])
-
-    async def list_models(self) -> List[Dict[str, Any]]:
-        return self.manager.catalog()
+    async def healthcheck(self, base_url: str) -> bool:
+        base = self.normalize_base_url(base_url)
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                response = await client.get(f"{base}/v1/models")
+                return response.status_code == 200
+        except httpx.HTTPError:
+            return False
 
     async def stream_chat(
-        self,
-        model_id: str,
-        messages: List[Dict[str, Any]],
-        temperature: float = 0.2,
-        max_tokens: int = 4096,
+        self, base_url: str, model_id: str, messages: List[Dict[str, Any]],
+        temperature: float = 0.2, max_tokens: int = 4096,
         tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        base_url = await self.manager.ensure_running(model_id)
-        payload = {
-            "model": model_id,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
+        base = self.normalize_base_url(base_url)
+        payload = {"model": model_id, "messages": messages, "temperature": temperature,
+                   "max_tokens": max_tokens, "stream": True}
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
         timeout = httpx.Timeout(900.0, connect=10.0, read=900.0)
         tool_calls: Dict[int, Dict[str, str]] = {}
         async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream(
-                "POST", f"{base_url}/chat/completions",
-                headers={"Authorization": "Bearer runtimeforce-local"},
-                json=payload,
-            ) as response:
+            async with client.stream("POST", f"{base}/v1/chat/completions", json=payload) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if not line or not line.startswith("data:"):
@@ -64,9 +61,8 @@ class BitNetProvider:
                         continue
                     choice = choices[0]
                     delta = choice.get("delta") or {}
-                    content = delta.get("content")
-                    if content:
-                        yield {"status": "streaming", "content": content}
+                    if delta.get("content"):
+                        yield {"status": "streaming", "content": delta["content"]}
                     for call in delta.get("tool_calls") or []:
                         index = int(call.get("index", 0))
                         item = tool_calls.setdefault(index, {"id": "", "name": "", "arguments": ""})
@@ -76,14 +72,8 @@ class BitNetProvider:
                         item["name"] += function.get("name") or ""
                         item["arguments"] += function.get("arguments") or ""
                     if choice.get("finish_reason") == "tool_calls" and tool_calls:
-                        calls = []
-                        for index in sorted(tool_calls):
-                            item = tool_calls[index]
-                            if item["name"]:
-                                calls.append({
-                                    "id": item["id"] or f"bitnet_call_{index}",
-                                    "name": item["name"],
-                                    "arguments": item["arguments"] or "{}",
-                                })
+                        calls = [{"id": item["id"] or f"bitnet_call_{index}", "name": item["name"],
+                                  "arguments": item["arguments"] or "{}"}
+                                 for index, item in sorted(tool_calls.items()) if item["name"]]
                         if calls:
                             yield {"status": "tool_calls", "calls": calls}
