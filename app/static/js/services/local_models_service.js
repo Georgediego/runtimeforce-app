@@ -9,7 +9,7 @@ export const localModelsService = {
         try {
             const data = await modelsApi.list();
             const models = data.models || {};
-            const local = [...(models.ollama || []), ...(models.lm_studio || [])];
+            const local = [...(models.ollama || []), ...(models.lm_studio || []), ...(models.bitnet || [])];
             eventBus.emit("models:local_discovered", local);
             return local;
         } catch (e) {

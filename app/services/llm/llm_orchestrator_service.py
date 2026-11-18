@@ -13,6 +13,7 @@ from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.llm.llm_rotation_service import LLMRotationService
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.core.security.aes_crypto_service import AESCryptoService
+from app.services.llm.bitnet_provider import BitNetProvider
 
 logger = logging.getLogger("runtimeforce.service.llm.orchestrator")
 
@@ -146,7 +147,7 @@ class LLMOrchestratorService:
             else:
                 api_key = decrypted_val
 
-        is_local_provider = provider in ("ollama", "lm_studio", "local") or model_id.startswith("local/")
+        is_local_provider = provider in ("ollama", "lm_studio", "local", "bitnet") or model_id.startswith(("local/", "bitnet/"))
         if not is_local_provider and not api_key:
             yield {
                 "status": "error",
@@ -186,6 +187,29 @@ class LLMOrchestratorService:
                     "error": f"Local model '{clean_name}' failed on CPU: {err_desc}",
                     "permanent": False,
                     "retry_after": 180,
+                }
+                return
+
+        if provider == "bitnet" or model_id.startswith("bitnet/"):
+            try:
+                async for chunk in BitNetProvider().stream_chat(
+                    model_id=model_id,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                ):
+                    yield chunk
+                return
+            except Exception as e:
+                err_desc = f"{type(e).__name__}: {str(e) or 'local server unavailable'}"
+                logger.warning("[Orchestrator] BitNet request failed: %s", err_desc)
+                yield {
+                    "status": "error",
+                    "error_code": "LOCAL_UNREACHABLE",
+                    "error": f"BitNet local engine failed: {err_desc}",
+                    "permanent": False,
+                    "retry_after": 30,
                 }
                 return
 
@@ -370,13 +394,30 @@ class LLMOrchestratorService:
         
         provider = model_id.split("/", 1)[0].lower() if "/" in model_id else "unknown"
         api_key = None
-        if provider not in ("ollama", "lm_studio"):
+        if provider not in ("ollama", "lm_studio", "bitnet"):
             try:
                 encrypted_keys = self.provider_keys_repo.get_all_provider_keys(user_id)
                 if provider in encrypted_keys:
                     api_key = AESCryptoService.decrypt(encrypted_keys[provider])
             except Exception as e:
                 logger.warning(f"[Orchestrator] Key decrypt failed for critic validation on {provider}: {e}")
+
+        if provider == "bitnet":
+            try:
+                content = ""
+                async for chunk in BitNetProvider().stream_chat(
+                    model_id=model_id,
+                    messages=messages,
+                    temperature=0.1,
+                    max_tokens=512,
+                ):
+                    if chunk.get("status") == "streaming":
+                        content += chunk.get("content", "")
+                data = json.loads(content)
+                return {"passed": bool(data.get("passed", True)), "feedback": data.get("feedback", "")}
+            except Exception as e:
+                logger.warning("[Orchestrator] BitNet validation failed: %s", e)
+                return {"passed": True, "feedback": f"validation error: {e}"}
 
         temp = 0.1
 

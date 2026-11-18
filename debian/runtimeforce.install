@@ -7,3 +7,4 @@ packaging/linux/runtimeforce.desktop usr/share/applications/
 packaging/linux/apt-managed usr/share/runtimeforce/
 app/static/logo.png usr/share/icons/hicolor/256x256/apps/runtimeforce.png
 LICENSE usr/share/doc/runtimeforce/
+packaging/linux/install-bitnet-prerequisites.sh usr/share/runtimeforce/

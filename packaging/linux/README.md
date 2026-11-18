@@ -37,6 +37,16 @@ systemctl --user status runtimeforce.service --no-pager
 journalctl --user -u runtimeforce.service -n 80 --no-pager
 ```
 
+## BitNet local inference
+
+Optional BitNet support requires a one-time compiler setup and model download. Install prerequisites with:
+
+```bash
+sudo bash /usr/share/runtimeforce/install-bitnet-prerequisites.sh
+```
+
+Then open Settings → Providers → Local Models and select **Download & Build**. See `docs/BITNET.md` for CPU compatibility, model storage, and runtime details.
+
 ## Remove
 
 ```bash

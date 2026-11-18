@@ -45,6 +45,7 @@ export const providersUIController = {
         this.renderLocalModelsSection();
         this.bindCardEvents();
         await this.syncSelectedModelsFromSQLite();
+        await this.renderExistingLocalProviders();
         await this.updateStatus();
     },
 
@@ -124,6 +125,7 @@ export const providersUIController = {
                         + Add Local Engine
                     </button>
                 </div>
+                <div id="bitnet-models-panel" class="border border-[var(--ide-border-subtle)] rounded-lg p-3 space-y-2"></div>
                 <div id="local-providers-list" class="space-y-2"></div>
                 <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
                     <a href="https://runtimeforce.dev/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
@@ -136,8 +138,65 @@ export const providersUIController = {
 
         document.getElementById("add-local-provider-btn")?.addEventListener("click", () => this.addLocalProviderModal());
         this.renderExistingLocalProviders();
+        this.loadBitNetCatalog();
     },
 
+    async loadBitNetCatalog() {
+        const panel = document.getElementById('bitnet-models-panel');
+        if (!panel) return;
+        const token = localStorage.getItem('rf_jwt_token') || localStorage.getItem('access_token') || '';
+        try {
+            const response = await fetch('/api/v1/models/bitnet/catalog', { headers: { Authorization: 'Bearer ' + token } });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const data = await response.json();
+            panel.textContent = '';
+            const heading = document.createElement('div');
+            heading.className = 'text-xs font-bold text-[var(--ide-text-primary)]';
+            heading.textContent = 'BitNet · 1.58-bit CPU models';
+            panel.appendChild(heading);
+            for (const model of (data.models || [])) {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-2 rounded-md bg-[var(--ide-elevated)] p-2';
+                const label = document.createElement('span');
+                label.className = 'text-xs text-[var(--ide-text-primary)]';
+                label.textContent = model.name + (model.installed ? ' · Installed' : ' · Not installed');
+                row.appendChild(label);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'bitnet-install-btn rounded px-3 py-1 text-[10px] font-bold bg-[var(--ide-accent)] text-black';
+                button.textContent = model.installed ? 'Installed' : 'Download & Build';
+                button.disabled = !!model.installed;
+                button.dataset.model = model.key;
+                button.addEventListener('click', () => this.installBitNetModel(model.key, button));
+                row.appendChild(button);
+                panel.appendChild(row);
+            }
+            const hw = document.createElement('div');
+            hw.className = 'text-[10px] text-[var(--ide-text-muted)]';
+            hw.textContent = 'CPU threads: ' + (data.hardware?.threads || '?') + ' · AVX2: ' + (data.hardware?.avx2 ? 'yes' : 'no') + ' · Port: ' + data.port;
+            panel.appendChild(hw);
+        } catch (error) { panel.textContent = 'BitNet status unavailable: ' + error.message; }
+    },
+
+    async installBitNetModel(modelId, button) {
+        const token = localStorage.getItem('rf_jwt_token') || localStorage.getItem('access_token') || '';
+        button.disabled = true;
+        button.textContent = 'Downloading / building…';
+        try {
+            const response = await fetch('/api/v1/models/bitnet/install', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ model_id: modelId }) });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.detail || ('HTTP ' + response.status));
+            showToast('BitNet model installed. Select it below in Local Models.', 'success', 7000);
+            await this.loadBitNetCatalog();
+            await this.syncSelectedModelsFromSQLite();
+            await this.renderExistingLocalProviders();
+            eventBus.emit('providers.updated');
+        } catch (error) {
+            showToast('BitNet installation failed: ' + error.message, 'error', 10000);
+            button.disabled = false;
+            button.textContent = 'Retry';
+        }
+    },
     addLocalProviderModal() {
         let modal = document.getElementById("add-local-provider-modal");
         if (modal) modal.remove();
@@ -251,14 +310,14 @@ export const providersUIController = {
             const allModels = data.models || {};
 
             const localProviders = Object.entries(allModels).filter(([pName, models]) => {
-                return models.length > 0 && (models[0].tier === "local" || pName === "local" || pName === "ollama" || pName === "lm_studio");
+                return models.length > 0 && (models[0].tier === "local" || pName === "local" || pName === "ollama" || pName === "lm_studio" || pName === "bitnet");
             });
 
             if (localProviders.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-4 text-[var(--ide-text-muted)] border border-dashed border-[var(--ide-border-subtle)] rounded-lg space-y-1">
                         <div class="font-bold text-xs text-[var(--ide-text-primary)]">No local engines detected</div>
-                        <div class="text-[10px]">Make sure Ollama is running on http://localhost:11434</div>
+                        <div class="text-[10px]">Install a local engine such as Ollama, LM Studio or BitNet</div>
                     </div>
                 `;
                 return;
@@ -279,7 +338,7 @@ export const providersUIController = {
                             </div>
                             <div class="flex items-center gap-2">
                                 <button class="toggle-local-provider-btn text-xs text-[var(--ide-accent)] hover:underline font-bold cursor-pointer" data-provider="${pName}">${selectedCount ? "Disconnect" : "Connect"}</button>
-                                <button class="remove-local-provider-btn text-xs text-red-400 hover:text-red-300 font-bold cursor-pointer" data-provider="${pName}">Remove</button>
+                                <button class="remove-local-provider-btn text-xs text-red-400 hover:text-red-300 font-bold cursor-pointer" data-provider="${pName}" ${pName === "bitnet" ? "disabled title=\"BitNet is managed in the model panel\"" : ""}>Remove</button>
                             </div>
                         </div>
 
@@ -436,7 +495,22 @@ export const providersUIController = {
         const provider = String(providerId || "").toLowerCase();
         const selected = [...(this._selectedModelsMap[provider] || [])];
         try {
-            if (selected.length) {
+            if (provider === "bitnet") {
+                if (selected.length) {
+                    await keysApi.saveSelectedModels(provider, []);
+                    showToast("BitNet models disconnected.", "info");
+                } else {
+                    const modelData = await modelsApi.list();
+                    const bitnetModels = (modelData.models || {}).bitnet || [];
+                    const ids = bitnetModels.map(model => model.id);
+                    if (!ids.length) {
+                        showToast("Install a BitNet model first.", "warning");
+                        return;
+                    }
+                    await keysApi.saveSelectedModels(provider, ids);
+                    showToast("BitNet models connected.", "success");
+                }
+            } else if (selected.length) {
                 await keysApi.saveSelectedModels(provider, []);
                 this._selectedModelsMap[provider] = [];
                 showToast(`${provider} disconnected. API key retained.`, "info");

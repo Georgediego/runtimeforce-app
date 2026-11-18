@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+- Add a local BitNet 1.58-bit inference runtime with OpenAI-compatible SSE streaming, model downloads, process lifecycle management, CPU-aware thread selection, and Local-mode routing.
+- Add BitNet model management controls to Settings → Providers → Local Models and Linux build-prerequisite installation.
+
 ## [1.1.21] - 2026-11-18
 
 ### Fixed

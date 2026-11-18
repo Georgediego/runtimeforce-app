@@ -438,7 +438,7 @@ class AgentLoopCoordinator:
 
             provider_id = (metadata.provider or "").lower()
             tier = (metadata.tier or "").lower()
-            if provider_id in ("ollama", "lm_studio", "local") or tier == "local":
+            if provider_id in ("ollama", "lm_studio", "local", "bitnet") or tier == "local":
                 required_feature = "local_models"
             elif tier == "free" or model_id.lower().endswith(":free"):
                 required_feature = None
@@ -455,7 +455,7 @@ class AgentLoopCoordinator:
             eligible_models.append(model)
 
         candidate_models = eligible_models
-        local_providers = ("ollama", "lm_studio")
+        local_providers = ("ollama", "lm_studio", "bitnet")
         if strategy_upper == "LOCAL":
             candidate_models = [
                 model for model in candidate_models
