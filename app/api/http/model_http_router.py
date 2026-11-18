@@ -16,7 +16,6 @@ from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.llm.llm_discovery_service import LLMDiscoveryService, DiscoveryError
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.core.security.aes_crypto_service import AESCryptoService
-from app.services.llm.llm_registry_service import ModelMetadata
 
 logger = logging.getLogger("runtimeforce.api.http.models")
 router = APIRouter(prefix="/api/v1/models", tags=["models"])
@@ -135,15 +134,6 @@ async def list_models(
         decrypted_keys["lm_studio"] = "http://localhost:1234"
 
     await discovery.discover_all(decrypted_keys)
-    for item in bitnet_manager.catalog():
-        if item['installed']:
-            registry.register_model(ModelMetadata(
-                id=item['id'], provider='bitnet', name=item['name'],
-                context_window=8192, max_output_tokens=4096, tier='local',
-                capabilities=['chat_completion', 'text', 'code'],
-                description='BitNet 1.58-bit local model (' + item['quantization'] + ')',
-                supports_function_calling=True,
-            ))
     models = registry.get_available_models()
 
     by_provider = {}
