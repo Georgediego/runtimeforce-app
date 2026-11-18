@@ -192,7 +192,10 @@ class LLMOrchestratorService:
 
         if provider == "bitnet" or model_id.startswith("bitnet/"):
             try:
+                if not api_base:
+                    raise RuntimeError("BitNet server URL is not configured. Add it in Settings → Providers → Local Models.")
                 async for chunk in BitNetProvider().stream_chat(
+                    base_url=api_base,
                     model_id=model_id,
                     messages=messages,
                     temperature=temperature,
