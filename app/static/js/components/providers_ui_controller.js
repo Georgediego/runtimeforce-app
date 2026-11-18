@@ -125,7 +125,6 @@ export const providersUIController = {
                         + Add Local Engine
                     </button>
                 </div>
-                <div id="bitnet-models-panel" class="border border-[var(--ide-border-subtle)] rounded-lg p-3 space-y-2"></div>
                 <div id="local-providers-list" class="space-y-2"></div>
                 <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
                     <a href="https://runtimeforce.dev/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
@@ -138,7 +137,6 @@ export const providersUIController = {
 
         document.getElementById("add-local-provider-btn")?.addEventListener("click", () => this.addLocalProviderModal());
         this.renderExistingLocalProviders();
-        this.loadBitNetCatalog();
     },
 
     async loadBitNetCatalog() {
@@ -222,7 +220,8 @@ export const providersUIController = {
                     <input type="text" id="local-provider-url-input" placeholder="http://localhost:11434" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
                     <div class="text-[10px] text-[var(--ide-text-muted)] mt-1 font-mono leading-relaxed">
                         Ollama: http://localhost:11434<br>
-                        LM Studio: http://localhost:1234
+                        LM Studio: http://localhost:1234<br>
+                        BitNet (OpenAI-compatible): http://localhost:8080
                     </div>
                 </div>
 
