@@ -62,11 +62,6 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("🛑 RuntimeForce IDE shutting down...")
     try:
-        from app.services.llm.bitnet_manager import bitnet_manager
-        await bitnet_manager.stop()
-    except Exception as e:
-        logger.warning(f"BitNet cleanup failed: {e}")
-    try:
         await container.command_approval_service.close_all()
     except Exception as e:
         logger.warning(f"Command approval cleanup failed: {e}")
