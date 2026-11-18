@@ -35,7 +35,8 @@ class BitNetProvider:
         tools: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         base = self.normalize_base_url(base_url)
-        payload = {"model": model_id, "messages": messages, "temperature": temperature,
+        model_name = model_id.split("/", 1)[1] if model_id.startswith("bitnet/") else model_id
+        payload = {"model": model_name, "messages": messages, "temperature": temperature,
                    "max_tokens": max_tokens, "stream": True}
         if tools:
             payload["tools"] = tools
