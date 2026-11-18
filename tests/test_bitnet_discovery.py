@@ -1,5 +1,5 @@
 from app.services.llm.llm_discovery_service import LLMDiscoveryService
-from app.services.llm.llm_registry_service import LLMRegistryService
+from app.services.llm.llm_registry_service import LLMRegistryService, ModelMetadata
 
 
 def test_bitnet_openai_compatible_models_are_registered_with_provider_prefix():
@@ -21,10 +21,7 @@ def test_bitnet_openai_compatible_models_are_registered_with_provider_prefix():
 
     for model in models:
         registry.register_model(
-            __import__(
-                "app.services.llm.llm_registry_service",
-                fromlist=["ModelMetadata"],
-            ).ModelMetadata(
+            ModelMetadata(
                 id=model["id"],
                 provider="bitnet",
                 name=model["name"],
