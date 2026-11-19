@@ -129,7 +129,8 @@ export const providersUIController = {
                 <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
                     <a href="https://runtimeforce.dev/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
                     <a href="https://runtimeforce.dev/providers/lm-studio" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">LM Studio setup guide ↗</a>
-                    <a href="https://github.com/microsoft/BitNet" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">BitNet runtime ↗</a>
+                    <a href="https://runtimeforce.dev/providers/bitnet" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">BitNet setup guide ↗</a>
+                    <a href="https://github.com/microsoft/BitNet" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Official BitNet ↗</a>
                 </div>
             </div>
         `;

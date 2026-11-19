@@ -397,7 +397,22 @@ class LLMOrchestratorService:
         
         provider = model_id.split("/", 1)[0].lower() if "/" in model_id else "unknown"
         api_key = None
-        if provider not in ("ollama", "lm_studio", "bitnet"):
+        api_base = None
+
+        if provider == "bitnet":
+            try:
+                encrypted_keys = self.provider_keys_repo.get_all_provider_keys(user_id)
+                raw_value = encrypted_keys.get("bitnet") if encrypted_keys else None
+                if raw_value:
+                    try:
+                        decrypted_value = AESCryptoService.decrypt(raw_value)
+                    except Exception:
+                        decrypted_value = raw_value
+                    if decrypted_value.startswith(("http://", "https://")):
+                        api_base = decrypted_value.rstrip("/")
+            except Exception as e:
+                logger.warning("[Orchestrator] BitNet URL lookup failed for critic validation: %s", e)
+        elif provider not in ("ollama", "lm_studio"):
             try:
                 encrypted_keys = self.provider_keys_repo.get_all_provider_keys(user_id)
                 if provider in encrypted_keys:
@@ -407,8 +422,11 @@ class LLMOrchestratorService:
 
         if provider == "bitnet":
             try:
+                if not api_base:
+                    raise RuntimeError("BitNet server URL is not configured.")
                 content = ""
                 async for chunk in BitNetProvider().stream_chat(
+                    base_url=api_base,
                     model_id=model_id,
                     messages=messages,
                     temperature=0.1,
