@@ -16,8 +16,6 @@ from app.services.llm.llm_registry_service import LLMRegistryService
 from app.services.llm.llm_discovery_service import LLMDiscoveryService, DiscoveryError
 from app.repository.provider_keys_db_repository import ProviderKeysDBRepository
 from app.core.security.aes_crypto_service import AESCryptoService
-from app.services.llm.bitnet_manager import bitnet_manager
-from app.services.llm.llm_registry_service import ModelMetadata
 
 logger = logging.getLogger("runtimeforce.api.http.models")
 router = APIRouter(prefix="/api/v1/models", tags=["models"])
@@ -25,9 +23,6 @@ router = APIRouter(prefix="/api/v1/models", tags=["models"])
 class LocalDiscoveryRequest(BaseModel):
     base_url: str
     provider_name: Optional[str] = None
-
-class BitNetInstallRequest(BaseModel):
-    model_id: str
 
 def _get_system_hardware() -> Dict[str, Any]:
     """Detect system RAM, CPU cores and GPU capability without heavy external C-extensions."""
@@ -139,15 +134,6 @@ async def list_models(
         decrypted_keys["lm_studio"] = "http://localhost:1234"
 
     await discovery.discover_all(decrypted_keys)
-    for item in bitnet_manager.catalog():
-        if item['installed']:
-            registry.register_model(ModelMetadata(
-                id=item['id'], provider='bitnet', name=item['name'],
-                context_window=8192, max_output_tokens=4096, tier='local',
-                capabilities=['chat_completion', 'text', 'code'],
-                description='BitNet 1.58-bit local model (' + item['quantization'] + ')',
-                supports_function_calling=True,
-            ))
     models = registry.get_available_models()
 
     by_provider = {}
@@ -169,33 +155,3 @@ async def list_models(
         "hardware": _get_system_hardware()
     }
 
-
-@router.get('/bitnet/catalog')
-async def get_bitnet_catalog(user_id: str = Depends(require_authenticated_user)):
-    return await bitnet_manager.status()
-
-
-@router.post('/bitnet/install')
-async def install_bitnet_model(request: BitNetInstallRequest, user_id: str = Depends(require_plan_feature('local_models'))):
-    try:
-        return await bitnet_manager.install_model(request.model_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-
-
-@router.post('/bitnet/start')
-async def start_bitnet_model(request: BitNetInstallRequest, user_id: str = Depends(require_plan_feature('local_models'))):
-    try:
-        base_url = await bitnet_manager.ensure_running(request.model_id)
-        return {'status': 'running', 'base_url': base_url, 'model': request.model_id}
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-
-
-@router.post('/bitnet/stop')
-async def stop_bitnet_model(user_id: str = Depends(require_plan_feature('local_models'))):
-    return await bitnet_manager.stop()

@@ -1,8 +1,13 @@
 ## [Unreleased]
 
+## [1.1.22] - 2026-11-20
+
 ### Added
-- Add a local BitNet 1.58-bit inference runtime with OpenAI-compatible SSE streaming, model downloads, process lifecycle management, CPU-aware thread selection, and Local-mode routing.
-- Add BitNet model management controls to Settings → Providers → Local Models and Linux build-prerequisite installation.
+- Connect externally managed Microsoft BitNet runtimes through the OpenAI-compatible local-engine interface.
+- Add the BitNet setup guide, including Ubuntu installation, systemd autostart and RuntimeForce connection instructions.
+
+### Fixed
+- Pass the saved BitNet server URL to ATM Critic validation so the secondary validation request uses the same configured local runtime.
 
 ## [1.1.21] - 2026-11-18
 

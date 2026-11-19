@@ -25,7 +25,7 @@ The resulting `.deb` is created in the parent directory.
 ## Install and launch
 
 ```bash
-sudo apt install ./runtimeforce_1.1.21_amd64.deb
+sudo apt install ./runtimeforce_1.1.22_amd64.deb
 ```
 
 Launch **RuntimeForce IDE** from the desktop application menu. The launcher starts the per-user service and opens its local URL.
@@ -39,13 +39,11 @@ journalctl --user -u runtimeforce.service -n 80 --no-pager
 
 ## BitNet local inference
 
-Optional BitNet support requires a one-time compiler setup and model download. Install prerequisites with:
+BitNet is installed and managed independently. Connect its OpenAI-compatible server in Settings → Providers → Local Models → Add Local Engine using provider name `bitnet` and the server base URL. RuntimeForce does not install compilers, build BitNet, or download model weights. See `docs/BITNET.md`.
 
-```bash
-sudo bash /usr/share/runtimeforce/install-bitnet-prerequisites.sh
-```
+## BitNet local inference
 
-Then open Settings → Providers → Local Models and select **Download & Build**. See `docs/BITNET.md` for CPU compatibility, model storage, and runtime details.
+BitNet is installed and managed independently. See [docs/BITNET.md](../../docs/BITNET.md) for Ubuntu installation, systemd autostart, model compatibility and RuntimeForce connection instructions.
 
 ## Remove
 
