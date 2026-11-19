@@ -40,7 +40,7 @@ def tool_feature_key(tool_name: str) -> str | None:
 
 def provider_feature_key(provider: str) -> str:
     normalized = str(provider or "").strip().lower()
-    if normalized in {"ollama", "lm_studio"}:
+    if normalized in {"ollama", "lm_studio", "bitnet"}:
         return "local_models"
     if normalized in {"openai", "anthropic", "deepseek", "xai", "sambanova", "cerebras"}:
         return "full_pro_byok"

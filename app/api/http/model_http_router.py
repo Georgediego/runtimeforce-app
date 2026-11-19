@@ -154,3 +154,4 @@ async def list_models(
         "providers_with_keys": list(decrypted_keys.keys()),
         "hardware": _get_system_hardware()
     }
+

@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+## [1.1.22] - 2026-11-20
+
+### Added
+- Connect externally managed Microsoft BitNet runtimes through the OpenAI-compatible local-engine interface.
+- Add the BitNet setup guide, including Ubuntu installation, systemd autostart and RuntimeForce connection instructions.
+
+### Fixed
+- Pass the saved BitNet server URL to ATM Critic validation so the secondary validation request uses the same configured local runtime.
+
 ## [1.1.21] - 2026-11-18
 
 ### Fixed

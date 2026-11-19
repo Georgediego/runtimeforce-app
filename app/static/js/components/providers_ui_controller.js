@@ -45,6 +45,7 @@ export const providersUIController = {
         this.renderLocalModelsSection();
         this.bindCardEvents();
         await this.syncSelectedModelsFromSQLite();
+        await this.renderExistingLocalProviders();
         await this.updateStatus();
     },
 
@@ -128,6 +129,8 @@ export const providersUIController = {
                 <div class="flex flex-wrap gap-3 border-t border-[var(--ide-border-subtle)] pt-3 text-[10px]">
                     <a href="https://runtimeforce.dev/providers/ollama" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Ollama setup guide ↗</a>
                     <a href="https://runtimeforce.dev/providers/lm-studio" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">LM Studio setup guide ↗</a>
+                    <a href="https://runtimeforce.dev/providers/bitnet" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">BitNet setup guide ↗</a>
+                    <a href="https://github.com/microsoft/BitNet" target="_blank" rel="noopener noreferrer" class="text-[var(--ide-accent)] hover:underline">Official BitNet ↗</a>
                 </div>
             </div>
         `;
@@ -155,7 +158,7 @@ export const providersUIController = {
 
                 <div>
                     <label class="block text-[11px] font-bold text-[var(--ide-text-muted)] mb-1">Provider Name</label>
-                    <input type="text" id="local-provider-name-input" placeholder="e.g. ollama, lm_studio" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
+                    <input type="text" id="local-provider-name-input" placeholder="e.g. ollama, lm_studio, bitnet" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
                 </div>
 
                 <div>
@@ -163,7 +166,9 @@ export const providersUIController = {
                     <input type="text" id="local-provider-url-input" placeholder="http://localhost:11434" class="w-full p-2 bg-[var(--ide-bg)] border border-[var(--ide-border-subtle)] rounded text-white font-mono outline-none focus:border-[var(--ide-accent)]">
                     <div class="text-[10px] text-[var(--ide-text-muted)] mt-1 font-mono leading-relaxed">
                         Ollama: http://localhost:11434<br>
-                        LM Studio: http://localhost:1234
+                        LM Studio: http://localhost:1234<br>
+                        BitNet: enter your OpenAI-compatible server URL<br>
+                        BitNet (OpenAI-compatible): http://localhost:8080
                     </div>
                 </div>
 
@@ -251,14 +256,14 @@ export const providersUIController = {
             const allModels = data.models || {};
 
             const localProviders = Object.entries(allModels).filter(([pName, models]) => {
-                return models.length > 0 && (models[0].tier === "local" || pName === "local" || pName === "ollama" || pName === "lm_studio");
+                return models.length > 0 && (models[0].tier === "local" || pName === "local" || pName === "ollama" || pName === "lm_studio" || pName === "bitnet");
             });
 
             if (localProviders.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-4 text-[var(--ide-text-muted)] border border-dashed border-[var(--ide-border-subtle)] rounded-lg space-y-1">
                         <div class="font-bold text-xs text-[var(--ide-text-primary)]">No local engines detected</div>
-                        <div class="text-[10px]">Make sure Ollama is running on http://localhost:11434</div>
+                        <div class="text-[10px]">Install a local engine such as Ollama, LM Studio or BitNet</div>
                     </div>
                 `;
                 return;
@@ -279,7 +284,7 @@ export const providersUIController = {
                             </div>
                             <div class="flex items-center gap-2">
                                 <button class="toggle-local-provider-btn text-xs text-[var(--ide-accent)] hover:underline font-bold cursor-pointer" data-provider="${pName}">${selectedCount ? "Disconnect" : "Connect"}</button>
-                                <button class="remove-local-provider-btn text-xs text-red-400 hover:text-red-300 font-bold cursor-pointer" data-provider="${pName}">Remove</button>
+                                <button class="remove-local-provider-btn text-xs text-red-400 hover:text-red-300 font-bold cursor-pointer" data-provider="${pName}" ${pName === "bitnet" ? "disabled title=\"BitNet is managed in the model panel\"" : ""}>Remove</button>
                             </div>
                         </div>
 
@@ -436,7 +441,22 @@ export const providersUIController = {
         const provider = String(providerId || "").toLowerCase();
         const selected = [...(this._selectedModelsMap[provider] || [])];
         try {
-            if (selected.length) {
+            if (provider === "bitnet") {
+                if (selected.length) {
+                    await keysApi.saveSelectedModels(provider, []);
+                    showToast("BitNet models disconnected.", "info");
+                } else {
+                    const modelData = await modelsApi.list();
+                    const bitnetModels = (modelData.models || {}).bitnet || [];
+                    const ids = bitnetModels.map(model => model.id);
+                    if (!ids.length) {
+                        showToast("Install a BitNet model first.", "warning");
+                        return;
+                    }
+                    await keysApi.saveSelectedModels(provider, ids);
+                    showToast("BitNet models connected.", "success");
+                }
+            } else if (selected.length) {
                 await keysApi.saveSelectedModels(provider, []);
                 this._selectedModelsMap[provider] = [];
                 showToast(`${provider} disconnected. API key retained.`, "info");
