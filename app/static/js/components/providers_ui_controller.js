@@ -24,29 +24,48 @@ let activePickerProvider = null;
 let providerModelsMap = {};
 let activeFilterTag = "all";
 let cachedHardwareInfo = null;
+let providersModelsCache = null;
+let providersModelsCacheAt = 0;
+let providersModelsRequest = null;
+
+async function getProvidersModels() {
+    if (providersModelsCache && Date.now() - providersModelsCacheAt < 15000) return providersModelsCache;
+    if (providersModelsRequest) return providersModelsRequest;
+    providersModelsRequest = modelsApi.list().then(data => {
+        providersModelsCache = data || { models: {} };
+        providersModelsCacheAt = Date.now();
+        return providersModelsCache;
+    }).finally(() => { providersModelsRequest = null; });
+    return providersModelsRequest;
+}
 
 export const providersUIController = {
     async loadProvidersList() {
         const freeContainer = document.getElementById("providers-list-free");
         const proContainer = document.getElementById("providers-list-pro");
+        const localContainer = document.getElementById("providers-list-local") || document.getElementById("local-models-container");
+        const loadingHTML = `<div class="flex items-center justify-center gap-2 py-5 text-xs text-[var(--ide-text-muted)]" role="status"><span class="inline-block w-4 h-4 border-2 border-[var(--ide-accent)] border-t-transparent rounded-full animate-spin"></span><span>Loading provider settings...</span></div>`;
+        [freeContainer, proContainer, localContainer].forEach(el => { if (el) el.innerHTML = loadingHTML; });
 
-        try {
-            this._entitlements = await billingApi.entitlements();
-        } catch (error) {
-            // Fail closed: do not expose paid-provider key entry when plan access
-            // cannot be verified. The API enforces the same rule independently.
-            this._entitlements = null;
-        }
+        // Fetch independent account and local data concurrently instead of serially.
+        const results = await Promise.allSettled([
+            billingApi.entitlements(),
+            this.fetchHardwareDiagnostics(),
+            this.syncSelectedModelsFromSQLite()
+        ]);
+        this._entitlements = results[0].status === "fulfilled" ? results[0].value : null;
 
         if (freeContainer) freeContainer.innerHTML = FREE_PROVIDERS.map(p => this.providerCardHTML(p)).join("");
         if (proContainer) proContainer.innerHTML = PRO_PROVIDERS.map(p => this.providerCardHTML(p)).join("");
 
-        await this.fetchHardwareDiagnostics();
         this.renderLocalModelsSection();
         this.bindCardEvents();
-        await this.syncSelectedModelsFromSQLite();
-        await this.renderExistingLocalProviders();
-        await this.updateStatus();
+
+        // Both renderers share one short-lived model-catalog request.
+        await Promise.all([
+            this.renderExistingLocalProviders(),
+            this.updateStatus()
+        ]);
     },
 
     async fetchHardwareDiagnostics() {
@@ -248,11 +267,7 @@ export const providersUIController = {
         if (!container) return;
 
         try {
-            const token = localStorage.getItem("rf_jwt_token") || localStorage.getItem("access_token") || "";
-            const res = await fetch("/api/v1/models", {
-                headers: { "Authorization": `Bearer ${token}` }
-            });
-            const data = await res.json();
+            const data = await getProvidersModels();
             const allModels = data.models || {};
 
             const localProviders = Object.entries(allModels).filter(([pName, models]) => {
@@ -501,9 +516,11 @@ export const providersUIController = {
 
     async updateStatus() {
         try {
-            const data = await keysApi.status();
+            const [data, modelsRes] = await Promise.all([
+                keysApi.status(),
+                getProvidersModels().catch(() => ({ models: {} }))
+            ]);
             const connected = data.providers || {};
-            const modelsRes = await modelsApi.list().catch(() => ({ models: {} }));
             const availableModelsMap = modelsRes.models || {};
 
             [...FREE_PROVIDERS, ...PRO_PROVIDERS].forEach(p => {
