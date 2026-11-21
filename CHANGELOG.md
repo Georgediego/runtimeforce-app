@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.1.23] - 2026-11-22
 
 ### Fixed
 - Show an immediate loading indicator in Providers & BYOK and load independent provider data concurrently; reuse the model catalog briefly to avoid duplicate database/API reads.
