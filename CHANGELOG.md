@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+- Keep Local Models, Free Providers and Additional BYOK Providers collapsed by default while preserving their requested order.
+- Use a folder-tree icon for the Explorer sidebar entry.
+
 ## [1.1.22] - 2026-11-20
 
 ### Added
