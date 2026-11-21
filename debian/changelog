@@ -1,3 +1,11 @@
+runtimeforce (1.1.23) unstable; urgency=medium
+
+  * Improve Providers & BYOK loading with immediate feedback, concurrent data loading and short-lived model catalog caching.
+  * Bound BitNet stream idle waits and return recoverable errors when the local engine stops responding.
+  * Release the current development branch as RuntimeForce IDE 1.1.23.
+
+ -- Georgediego <203426657+Georgediego@users.noreply.github.com>  Sun, 22 Nov 2026 00:00:00 +0000
+
 runtimeforce (1.1.22) unstable; urgency=medium
 
   * Add external BitNet runtime setup guidance and provider documentation.

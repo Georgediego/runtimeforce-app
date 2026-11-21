@@ -41,7 +41,7 @@ class BitNetProvider:
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
-        timeout = httpx.Timeout(900.0, connect=10.0, read=900.0)
+        timeout = httpx.Timeout(180.0, connect=10.0, read=120.0)
         tool_calls: Dict[int, Dict[str, str]] = {}
         async with httpx.AsyncClient(timeout=timeout) as client:
             async with client.stream("POST", f"{base}/v1/chat/completions", json=payload) as response:
