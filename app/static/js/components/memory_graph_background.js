@@ -279,7 +279,6 @@ if (canvas) {
             model: String(e.model || liveContext.model || ""),
             mode: String(e.mode || liveContext.mode || "")
         };
-        const e=event||{};
         const phase=String(e.label||"").toLowerCase();
         if (/memory|retriev|context/.test(phase) || ["tool_start","tool_end"].includes(e.status)) {
             activityUntil=Date.now()+1800;
