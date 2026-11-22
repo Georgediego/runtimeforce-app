@@ -9,8 +9,9 @@ import { eventBus } from "../core/event_bus.js";
 const canvas = document.getElementById("rf-memory-graph-background");
 const widget = document.getElementById("rf-memory-widget");
 const widgetToggle = document.getElementById("rf-memory-widget-toggle");
+const widgetRestore = document.getElementById("rf-memory-widget-restore");
 const widgetStatus = document.getElementById("rf-memory-widget-status");
-if (canvas && widget && widgetToggle) {
+if (canvas && widget && widgetToggle && widgetRestore) {
     const ctx = canvas.getContext("2d", { alpha: true });
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
     const token = () => String(authFrontendService.getToken?.() || "").replace(/^Bearer\\s+/i, "");
@@ -30,6 +31,7 @@ if (canvas && widget && widgetToggle) {
     };
     const setCollapsed = collapsed => {
         widget.classList.toggle("is-collapsed", collapsed);
+        widgetRestore.classList.toggle("hidden", !collapsed);
         widgetToggle.setAttribute("aria-expanded", String(!collapsed));
         widgetToggle.setAttribute("aria-label", collapsed ? "Show memory graph" : "Hide memory graph");
         widgetToggle.title = collapsed ? "Show memory graph" : "Hide memory graph";
@@ -323,6 +325,7 @@ if (canvas && widget && widgetToggle) {
     window.addEventListener("storage", e => { if(e.key==="rf_active_project_id" && isVisible()) loadGraph(true); });
     window.addEventListener("resize", () => { if (isVisible()) resize(); });
     const observer=new ResizeObserver(() => { if (isVisible()) resize(); }); observer.observe(canvas);
-    widgetToggle.addEventListener("click", () => setCollapsed(!isVisible()));
+    widgetToggle.addEventListener("click", () => setCollapsed(true));
+    widgetRestore.addEventListener("click", () => setCollapsed(false));
     if (isVisible()) startRendering();
 }
