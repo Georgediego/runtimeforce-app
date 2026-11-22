@@ -2144,3 +2144,12 @@ body, body * {
 @media(max-height:620px){#rf-memory-widget.rf-memory-widget{flex-basis:150px;min-height:110px}}
 /* The graph belongs to the sidebar, never behind the chat. */
 #right-panel-chat #rf-memory-graph-background{display:none}
+
+/* Memory Graph: true hide/show control and geometrically centered sphere. */
+#rf-memory-widget.rf-memory-widget{box-sizing:border-box}
+#rf-memory-widget-body{position:relative!important;display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-width:0!important;min-height:0!important;flex:1 1 auto!important;overflow:hidden!important}
+#rf-memory-widget #rf-memory-graph-background{position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;margin:0!important;transform:none!important}
+#rf-memory-widget.is-collapsed{display:none!important}
+.rf-memory-widget-restore{flex:0 0 auto;align-self:flex-start;display:flex;align-items:center;gap:7px;margin:8px 10px;padding:6px 9px;border:1px solid var(--ide-border-subtle);border-radius:7px;background:rgba(90,120,210,.08);color:var(--ide-text-muted);font:700 8px 'Inter',sans-serif;letter-spacing:.07em;cursor:pointer}
+.rf-memory-widget-restore:hover{border-color:var(--ide-accent);color:var(--ide-accent);background:rgba(90,120,210,.14)}
+.rf-memory-widget-restore.hidden{display:none!important}
