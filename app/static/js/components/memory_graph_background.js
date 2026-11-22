@@ -67,14 +67,21 @@ if (canvas && widget && widgetToggle && widgetRestore) {
 
     function rebuildTopology() {
         const items = [];
-        const addRing = (kind, values, radius, tilt, color) => {
+        const addRing = (kind, values, radius, phase, color) => {
+            // Distribute every category over the full spherical shell (Fibonacci sphere),
+            // instead of placing each category on a flat circular orbit.
+            const count = Math.max(1, values.length);
             values.forEach((item, index) => {
-                const angle = (Math.PI * 2 * index) / Math.max(1, values.length) - Math.PI / 2;
+                const y = 1 - 2 * ((index + 0.5) / count);
+                const radial = Math.sqrt(Math.max(0, 1 - y * y));
+                const angle = (golden * index) + phase;
                 items.push({
-                    id: item.id, ring: kind, kind: item.id.startsWith("provider:") ? "provider" : item.id.startsWith("model:") ? "model" : kind, label: item.label, detail: item.detail || kind,
-                    x: Math.cos(angle) * radius,
-                    y: Math.sin(angle) * radius * Math.cos(tilt),
-                    z: Math.sin(angle) * radius * Math.sin(tilt),
+                    id: item.id, ring: kind,
+                    kind: item.id.startsWith("provider:") ? "provider" : item.id.startsWith("model:") ? "model" : kind,
+                    label: item.label, detail: item.detail || kind,
+                    x: Math.cos(angle) * radial * radius,
+                    y: y * radius,
+                    z: Math.sin(angle) * radial * radius,
                     color, angle
                 });
             });
@@ -245,18 +252,22 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             const p = rotate(item, rotation * .72, .42);
             orbitPoints.set(item.id, p);
         }
-        for (const ring of ["mode", "role", "tool", "ai"]) {
-            const group = topology.nodes.filter(n => n.ring === ring);
-            if (!group.length) continue;
-            const r = ring === "mode" ? 1.02 : ring === "role" ? 1.10 : ring === "tool" ? 1.19 : 1.28;
+        // Three intersecting great-circle guides make the orbital structure read as a sphere.
+        // They are visual guides only; actual relationships remain in topology.edges.
+        for (let axis = 0; axis < 3; axis++) {
             ctx.beginPath();
-            for (let i = 0; i <= 90; i++) {
-                const a = i / 90 * Math.PI * 2;
-                const p = rotate({ x: Math.cos(a) * r, y: Math.sin(a) * r * .88, z: Math.sin(a) * r * .22 }, rotation * .72, .42);
+            for (let i = 0; i <= 120; i++) {
+                const a = i / 120 * Math.PI * 2;
+                const base = axis === 0
+                    ? { x: Math.cos(a) * 1.16, y: Math.sin(a) * 1.16, z: 0 }
+                    : axis === 1
+                        ? { x: Math.cos(a) * 1.16, y: 0, z: Math.sin(a) * 1.16 }
+                        : { x: 0, y: Math.cos(a) * 1.16, z: Math.sin(a) * 1.16 };
+                const p = rotate(base, rotation * .72, .42);
                 if (!i) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
             }
-            ctx.strokeStyle = orbitColors[ring] + "45";
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = "rgba(130,155,255,.12)";
+            ctx.lineWidth = .7;
             ctx.stroke();
         }
         // Provider -> model links represent the saved provider/model configuration.
