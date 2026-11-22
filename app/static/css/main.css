@@ -2119,3 +2119,28 @@ body, body * {
 #rf-memory-graph-background{transition:opacity .35s ease}
 @media(max-width:760px){#rf-memory-graph-background{width:112%;height:78%;top:42%;opacity:.68}}
 @media(prefers-reduced-motion:reduce){#rf-memory-graph-background{opacity:.48}}
+
+
+/* Sidebar memory graph: rendering is suspended entirely while collapsed. */
+#rf-memory-widget.rf-memory-widget{
+    position:relative;z-index:2;display:flex;flex:0 0 230px;min-height:150px;max-height:34%;
+    width:100%;padding:9px 10px 8px;margin-top:auto;flex-direction:column;gap:6px;
+    overflow:hidden;border-top:1px solid var(--ide-border-subtle);
+    background:radial-gradient(ellipse at 50% 45%,rgba(70,105,220,.12),rgba(8,18,30,.08) 72%);
+}
+#rf-memory-widget .rf-memory-widget-heading{display:flex;align-items:center;justify-content:space-between;min-height:22px;flex:0 0 auto}
+#rf-memory-widget .rf-memory-heading-title{display:flex;align-items:center;gap:7px;font:700 9px 'Inter',sans-serif;letter-spacing:.09em;color:var(--ide-text-secondary)}
+#rf-memory-widget .rf-memory-live-dot{width:6px;height:6px;border-radius:50%;background:#8daeff;box-shadow:0 0 9px rgba(115,145,255,.75)}
+#rf-memory-widget .rf-memory-widget-toggle{width:24px;height:22px;display:flex;align-items:center;justify-content:center;border:1px solid var(--ide-border-subtle);border-radius:6px;background:rgba(120,145,210,.08);color:var(--ide-text-muted);cursor:pointer}
+#rf-memory-widget .rf-memory-widget-toggle:hover{border-color:var(--ide-accent);color:var(--ide-accent)}
+#rf-memory-widget-body{position:relative;display:flex;flex:1;min-height:0;overflow:hidden;align-items:center;justify-content:center}
+#rf-memory-graph-background{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:drop-shadow(0 0 18px rgba(105,135,255,.18))}
+#rf-memory-widget-stats{position:absolute;left:7px;bottom:4px;z-index:2;color:var(--ide-text-muted);font:8px 'JetBrains Mono',monospace;text-shadow:0 1px 4px #000}
+#rf-memory-widget.is-collapsed{display:flex;flex:0 0 38px;min-height:38px;max-height:38px;padding:7px 10px;margin-top:auto;border-top:1px solid var(--ide-border-subtle);background:transparent}
+#rf-memory-widget.is-collapsed #rf-memory-widget-body{display:none}
+#rf-memory-widget.is-collapsed .rf-memory-widget-toggle i{transform:rotate(180deg)}
+#rf-memory-widget .rf-memory-widget-toggle i{transition:transform .18s}
+@media(max-height:760px){#rf-memory-widget.rf-memory-widget{flex-basis:190px;min-height:130px}}
+@media(max-height:620px){#rf-memory-widget.rf-memory-widget{flex-basis:150px;min-height:110px}}
+/* The graph belongs to the sidebar, never behind the chat. */
+#right-panel-chat #rf-memory-graph-background{display:none}
