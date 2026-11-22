@@ -1,3 +1,12 @@
+## [1.1.24] - 2026-11-23
+
+### Added
+- Move the live Memory Graph into a collapsible card at the bottom of the left sidebar, with rendering paused while hidden.
+- Distribute topology nodes across a rotating 3D sphere and show spatial guide circles while preserving real memory and provider-model relationships.
+
+### Changed
+- Center the Memory Graph in its sidebar card and provide a compact restore control when collapsed.
+
 ## [1.1.23] - 2026-11-22
 
 ### Fixed

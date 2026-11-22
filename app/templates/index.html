@@ -11,7 +11,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}-select-copy-3">
+    <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}-sidebar-memory-2">
     <link rel="stylesheet" href="/static/css/agent-graph.css?v={{ app_version }}-bug-reports-2">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
@@ -219,6 +219,23 @@
                 </div>
             </div>
 
+            <section id="rf-memory-widget" class="rf-memory-widget" aria-label="Runtime memory graph">
+                <div class="rf-memory-widget-heading">
+                    <span class="rf-memory-heading-title"><span class="rf-memory-live-dot"></span> MEMORY GRAPH</span>
+                    <button id="rf-memory-widget-toggle" class="rf-memory-widget-toggle" type="button" aria-label="Hide memory graph" aria-expanded="true" title="Hide memory graph">
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+                <div id="rf-memory-widget-body" class="rf-memory-widget-body">
+                    <canvas id="rf-memory-graph-background" aria-hidden="true"></canvas>
+                    <div class="rf-memory-widget-stats"><span id="rf-memory-widget-status">Waiting for activity</span></div>
+                </div>
+            </section>
+            <button id="rf-memory-widget-restore" type="button" class="rf-memory-widget-restore hidden" aria-label="Show memory graph" title="Show memory graph">
+                <i data-lucide="orbit" class="w-3.5 h-3.5"></i>
+                <span>MEMORY GRAPH</span>
+            </button>
+
         </section>
 
         <!-- CENTER PANEL -->
@@ -236,6 +253,7 @@
             </div>
             <!-- CHAT PANEL -->
             <div id="right-panel-chat" class="right-panel-content flex-1 flex flex-col overflow-hidden relative">
+                <canvas id="rf-memory-graph-background" aria-hidden="true"></canvas>
                 <div id="chat-container" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
                     <div id="chat-history" class="w-full flex flex-col gap-3"></div>
                 </div>
@@ -962,6 +980,7 @@
 <script type="module" src="/static/js/components/providers_ui_controller.js?v={{ app_version }}-provider-controls-1"></script>
 <script type="module" src="/static/js/components/settings_ui_controller.js?v=updates-check-diagnostics-2"></script>
 <script type="module" src="/static/js/components/orchestrator_ui.js?v={{ app_version }}-bug-reports"></script>
+<script type="module" src="/static/js/components/memory_graph_background.js?v={{ app_version }}-memory-sphere-3"></script>
 <script type="module" src="/static/js/components/chat_ui_controller.js?v={{ app_version }}-bug-reports-2"></script>
 <script type="module" src="/static/js/components/terminal.js?v={{ app_version }}-bug-reports"></script>
 <script type="module" src="/static/js/components/projects_ui_controller.js?v={{ app_version }}-project-workspace-flow-1"></script>
