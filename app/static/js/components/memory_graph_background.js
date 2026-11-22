@@ -45,7 +45,7 @@ if (canvas) {
             values.forEach((item, index) => {
                 const angle = (Math.PI * 2 * index) / Math.max(1, values.length) - Math.PI / 2;
                 items.push({
-                    id: item.id, kind, label: item.label, detail: item.detail || kind,
+                    id: item.id, ring: kind, kind: item.id.startsWith("provider:") ? "provider" : item.id.startsWith("model:") ? "model" : kind, label: item.label, detail: item.detail || kind,
                     x: Math.cos(angle) * radius,
                     y: Math.sin(angle) * radius * Math.cos(tilt),
                     z: Math.sin(angle) * radius * Math.sin(tilt),
@@ -219,7 +219,7 @@ if (canvas) {
             orbitPoints.set(item.id, p);
         }
         for (const ring of ["mode", "role", "tool", "ai"]) {
-            const group = topology.nodes.filter(n => n.kind === ring);
+            const group = topology.nodes.filter(n => n.ring === ring);
             if (!group.length) continue;
             const r = ring === "mode" ? 1.02 : ring === "role" ? 1.10 : ring === "tool" ? 1.19 : 1.28;
             ctx.beginPath();
@@ -247,7 +247,7 @@ if (canvas) {
                 || (item.kind === "model" && liveContext.model && item.detail.toLowerCase().includes(liveContext.model.toLowerCase()))
                 || (item.kind === "mode" && liveContext.mode && item.id.endsWith(liveContext.mode.toLowerCase()));
             const color = active ? "#ffffff" : item.color;
-            const size = active ? 3.2 : (item.kind === "ai" ? 2.2 : 2.6);
+            const size = active ? 3.2 : (item.kind === "model" ? 2.0 : item.kind === "provider" ? 3.0 : 2.6);
             ctx.beginPath(); ctx.arc(p.x, p.y, size * p.scale, 0, Math.PI * 2);
             ctx.fillStyle = color; ctx.shadowBlur = active ? 18 : 8; ctx.shadowColor = item.color;
             ctx.fill(); ctx.shadowBlur = 0;
