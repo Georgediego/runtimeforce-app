@@ -2111,8 +2111,8 @@ body, body * {
 
 
 /* Full-chat Memory Graph sphere: real project nodes/edges behind the conversation. */
-#right-panel-chat{isolation:isolate;background:radial-gradient(ellipse at 50% 46%,rgba(5,28,23,.22),transparent 68%)}
-#rf-memory-graph-background{position:absolute;z-index:0;pointer-events:none;left:50%;top:44%;width:min(92%,900px);height:min(92%,900px);transform:translate(-50%,-50%);opacity:.96;filter:drop-shadow(0 0 36px rgba(20,235,170,.18))}
+#right-panel-chat{isolation:isolate;background:radial-gradient(ellipse at 50% 46%,rgba(20,25,65,.24),transparent 68%)}
+#rf-memory-graph-background{position:absolute;z-index:0;pointer-events:none;left:50%;top:44%;width:min(92%,900px);height:min(92%,900px);transform:translate(-50%,-50%);opacity:.96;filter:drop-shadow(0 0 36px rgba(105,135,255,.22))}
 #chat-container{position:relative;z-index:1;background:transparent!important}
 #chat-history{position:relative;z-index:1}
 #right-panel-chat>.relative.w-full,#right-panel-chat>.p-4.pt-0{position:relative;z-index:2}
