@@ -2135,7 +2135,7 @@ body, body * {
 #rf-memory-widget .rf-memory-widget-toggle:hover{border-color:var(--ide-accent);color:var(--ide-accent)}
 #rf-memory-widget-body{position:relative;display:flex;flex:1;min-height:0;overflow:hidden;align-items:center;justify-content:center}
 #rf-memory-graph-background{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:drop-shadow(0 0 18px rgba(105,135,255,.18))}
-#rf-memory-widget-stats{position:absolute;left:7px;bottom:4px;z-index:2;color:var(--ide-text-muted);font:8px 'JetBrains Mono',monospace;text-shadow:0 1px 4px #000}
+.rf-memory-widget-stats{position:absolute;left:7px;bottom:4px;z-index:2;color:var(--ide-text-muted);font:8px 'JetBrains Mono',monospace;text-shadow:0 1px 4px #000}
 #rf-memory-widget.is-collapsed{display:flex;flex:0 0 38px;min-height:38px;max-height:38px;padding:7px 10px;margin-top:auto;border-top:1px solid var(--ide-border-subtle);background:transparent}
 #rf-memory-widget.is-collapsed #rf-memory-widget-body{display:none}
 #rf-memory-widget.is-collapsed .rf-memory-widget-toggle i{transform:rotate(180deg)}
