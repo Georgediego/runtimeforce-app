@@ -106,11 +106,12 @@ if (canvas) {
 
         // Real project-memory relationships only — active edges get a bright pulse.
         const byId = new Map(nodes.map(n => [n.id,n]));
-        const projected = new Map(nodes.map(n => [n.id,rotate({
-            x: Math.cos(golden * (parseInt(n.id.replace(/\\D/g,"").slice(-5),10)||1)) * .8,
-            y: (((parseInt(n.id.replace(/\\D/g,"").slice(-5),10)||1)*.61803398875)%2)-1,
-            z: Math.sin(golden * (parseInt(n.id.replace(/\\D/g,"").slice(-5),10)||1)) * .8
-        },rotation,tilt)]));
+        const projected = new Map(nodes.map((n,i) => {
+            const y = 1 - 2 * ((i + .5) / Math.max(1,nodes.length));
+            const r = Math.sqrt(Math.max(0,1-y*y));
+            const a = golden * i;
+            return [n.id, rotate({ x:Math.cos(a)*r, y, z:Math.sin(a)*r },rotation,tilt)];
+        }));
         for (const edge of edges) {
             const a=projected.get(edge.source), b=projected.get(edge.target);
             if (!a || !b) continue;
@@ -160,12 +161,14 @@ if (canvas) {
         const phase=String(e.label||"").toLowerCase();
         if (/memory|retriev|context/.test(phase) || ["tool_start","tool_end"].includes(e.status)) {
             activityUntil=Date.now()+1800;
+            activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
             loadGraph(true);
         }
     });
     eventBus.on("agent:trace_event", event => {
         if (/memory|retriev|context/i.test(String(event?.text||""))) {
             activityUntil=Date.now()+2200;
+            activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
             loadGraph(true);
         }
     });
