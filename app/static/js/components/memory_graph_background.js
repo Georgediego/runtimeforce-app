@@ -7,7 +7,10 @@ import { authFrontendService } from "../services/auth_frontend_service.js";
 import { eventBus } from "../core/event_bus.js";
 
 const canvas = document.getElementById("rf-memory-graph-background");
-if (canvas) {
+const widget = document.getElementById("rf-memory-widget");
+const widgetToggle = document.getElementById("rf-memory-widget-toggle");
+const widgetStatus = document.getElementById("rf-memory-widget-status");
+if (canvas && widget && widgetToggle) {
     const ctx = canvas.getContext("2d", { alpha: true });
     const projectId = () => localStorage.getItem("rf_active_project_id") || "";
     const token = () => String(authFrontendService.getToken?.() || "").replace(/^Bearer\\s+/i, "");
@@ -16,6 +19,27 @@ if (canvas) {
     let busy = false, rotation = 0, raf = 0, lastFetch = 0, activityUntil = 0;
     let width = 0, height = 0, dpr = 1;
     const particles = [];
+    const isVisible = () => !widget.classList.contains("is-collapsed");
+    const stopRendering = () => { if (raf) cancelAnimationFrame(raf); raf = 0; };
+    const startRendering = () => {
+        if (!isVisible() || raf) return;
+        resize();
+        loadGraph(true);
+        loadTopology();
+        raf = requestAnimationFrame(draw);
+    };
+    const setCollapsed = collapsed => {
+        widget.classList.toggle("is-collapsed", collapsed);
+        widgetToggle.setAttribute("aria-expanded", String(!collapsed));
+        widgetToggle.setAttribute("aria-label", collapsed ? "Show memory graph" : "Hide memory graph");
+        widgetToggle.title = collapsed ? "Show memory graph" : "Hide memory graph";
+        try { localStorage.setItem("rf_memory_graph_collapsed", collapsed ? "1" : "0"); } catch (_) {}
+        if (collapsed) {
+            stopRendering();
+            ctx.clearRect(0, 0, width, height);
+        } else startRendering();
+    };
+    try { setCollapsed(localStorage.getItem("rf_memory_graph_collapsed") === "1"); } catch (_) {}
 
     const golden = Math.PI * (3 - Math.sqrt(5));
     let runtimeRegistry = { roles: [], tools: [] };
@@ -115,7 +139,7 @@ if (canvas) {
 
     async function loadGraph(force = false) {
         const pid = projectId();
-        if (!pid || busy || (!force && Date.now() - lastFetch < 7000)) return;
+        if (!isVisible() || !pid || busy || (!force && Date.now() - lastFetch < 7000)) return;
         busy = true; lastFetch = Date.now();
         try {
             const auth = token();
@@ -141,6 +165,7 @@ if (canvas) {
     }
 
     function draw() {
+        if (!isVisible()) { raf = 0; return; }
         if (!width || !height) { raf = requestAnimationFrame(draw); return; }
         ctx.clearRect(0, 0, width, height);
         const tilt = .30 + Math.sin(rotation * .23) * .075;
@@ -267,6 +292,7 @@ if (canvas) {
         ctx.fillStyle = "rgba(225,238,255,.88)"; ctx.fillText("ORCHESTRATOR", width / 2, height / 2 + 19);
 
         rotation += .0032;
+        if (widgetStatus) widgetStatus.textContent = nodes.length + " nodes · " + edges.length + " links";
         raf=requestAnimationFrame(draw);
     }
 
@@ -283,19 +309,20 @@ if (canvas) {
         if (/memory|retriev|context/.test(phase) || ["tool_start","tool_end"].includes(e.status)) {
             activityUntil=Date.now()+1800;
             activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
-            loadGraph(true);
+            if (isVisible()) loadGraph(true);
         }
     });
     eventBus.on("agent:trace_event", event => {
         if (/memory|retriev|context/i.test(String(event?.text||""))) {
             activityUntil=Date.now()+2200;
             activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
-            loadGraph(true);
+            if (isVisible()) loadGraph(true);
         }
     });
-    eventBus.on("session:selected", () => { activeIds.clear(); loadGraph(true); });
-    window.addEventListener("storage", e => { if(e.key==="rf_active_project_id") loadGraph(true); });
-    window.addEventListener("resize",resize);
-    const observer=new ResizeObserver(resize); observer.observe(canvas);
-    resize(); loadGraph(true); loadTopology(); raf=requestAnimationFrame(draw);
+    eventBus.on("session:selected", () => { activeIds.clear(); if (isVisible()) loadGraph(true); });
+    window.addEventListener("storage", e => { if(e.key==="rf_active_project_id" && isVisible()) loadGraph(true); });
+    window.addEventListener("resize", () => { if (isVisible()) resize(); });
+    const observer=new ResizeObserver(() => { if (isVisible()) resize(); }); observer.observe(canvas);
+    widgetToggle.addEventListener("click", () => setCollapsed(!isVisible()));
+    if (isVisible()) startRendering();
 }
