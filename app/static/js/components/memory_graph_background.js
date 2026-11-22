@@ -55,7 +55,7 @@ if (canvas) {
         };
         const modeSelect = document.getElementById("strategy-select");
         const modes = modeSelect ? Array.from(modeSelect.options).map(o => ({
-            id: "mode:" + o.value, label: (o.textContent || o.value).replace(/[^\\p{L}\\p{N} ]/gu, "").trim().toUpperCase(),
+            id: "mode:" + o.value, label: (o.textContent || o.value).replace(/[^\p{L}\p{N} ]/gu, "").trim().toUpperCase(),
             detail: "Chat mode"
         })) : [];
         const roles = (runtimeRegistry.roles || []).map(r => ({ id: "role:" + r.name, label: r.name, detail: "Agent role" }));
@@ -66,10 +66,10 @@ if (canvas) {
             ai.push({ id: "provider:" + provider, label: provider.toUpperCase(), detail: "AI provider" });
             ids.forEach(id => ai.push({ id: "model:" + id, label: String(id).split("/").pop(), detail: provider + " · " + id }));
         });
-        addRing("mode", modes, 1.18, .15, "#8fc8ff");
-        addRing("role", roles, 1.34, -.55, "#bd9aff");
-        addRing("tool", tools, 1.50, .78, "#ffd27b");
-        addRing("ai", ai, 1.68, -.28, "#67eaff");
+        addRing("mode", modes, 1.02, .15, "#8fc8ff");
+        addRing("role", roles, 1.10, -.55, "#bd9aff");
+        addRing("tool", tools, 1.19, .78, "#ffd27b");
+        addRing("ai", ai, 1.28, -.28, "#67eaff");
         topology.nodes = items;
         topology.edges = [];
         providers.forEach(([provider, ids]) => ids.forEach(id => topology.edges.push(["provider:" + provider, "model:" + id])));
@@ -221,7 +221,7 @@ if (canvas) {
         for (const ring of ["mode", "role", "tool", "ai"]) {
             const group = topology.nodes.filter(n => n.kind === ring);
             if (!group.length) continue;
-            const r = ring === "mode" ? 1.18 : ring === "role" ? 1.34 : ring === "tool" ? 1.50 : 1.68;
+            const r = ring === "mode" ? 1.02 : ring === "role" ? 1.10 : ring === "tool" ? 1.19 : 1.28;
             ctx.beginPath();
             for (let i = 0; i <= 90; i++) {
                 const a = i / 90 * Math.PI * 2;
