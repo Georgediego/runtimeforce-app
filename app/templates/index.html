@@ -11,7 +11,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}-sidebar-memory-1">
+    <link rel="stylesheet" href="/static/css/main.css?v={{ app_version }}-sidebar-memory-2">
     <link rel="stylesheet" href="/static/css/agent-graph.css?v={{ app_version }}-bug-reports-2">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
@@ -231,6 +231,10 @@
                     <div class="rf-memory-widget-stats"><span id="rf-memory-widget-status">Waiting for activity</span></div>
                 </div>
             </section>
+            <button id="rf-memory-widget-restore" type="button" class="rf-memory-widget-restore hidden" aria-label="Show memory graph" title="Show memory graph">
+                <i data-lucide="orbit" class="w-3.5 h-3.5"></i>
+                <span>MEMORY GRAPH</span>
+            </button>
 
         </section>
 
