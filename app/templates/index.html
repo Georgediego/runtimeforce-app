@@ -83,39 +83,45 @@
 
 <!-- ===== AUTH OVERLAY ===== -->
 <div id="rf-auth-overlay">
-    <div class="w-full max-w-sm mx-4 flex flex-col items-center text-center">
-        <img src="/static/logo-light.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-dark mb-4">
-        <img src="/static/logo-dark.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-light mb-4">
-        
-        <p class="text-xs text-[var(--ide-text-secondary)] mb-5 leading-relaxed">
-            Authenticate to sync your plan and settings.<br>Your code, database and keys remain strictly local.
-        </p>
+    <section class="w-full max-w-md mx-4 rounded-3xl border border-[var(--ide-border-bright)] bg-[var(--ide-surface)] shadow-2xl shadow-black/40 overflow-hidden">
+        <div class="px-7 pt-8 pb-7 sm:px-9 flex flex-col items-center text-center">
+            <a href="https://runtimeforce.dev/" class="mb-6 block hover:opacity-90 transition-opacity">
+                <img src="/static/logo-light.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-dark">
+                <img src="/static/logo-dark.png" alt="RuntimeForce" class="h-10 w-auto object-contain logo-light">
+            </a>
 
-        <button id="rf-auth-sync-btn" type="button" class="w-full mb-3 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[var(--ide-accent)] text-black font-bold text-xs hover:brightness-110 cursor-pointer transition-all shadow-md">
-            <i data-lucide="zap" class="w-4 h-4"></i> Already logged in on runtimeforce.dev? Click to Sync
-        </button>
+            <div class="w-full rounded-2xl border border-[var(--ide-accent)]/20 bg-[var(--ide-bg)] p-4 mb-6 text-left">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--ide-accent)]/10 text-[var(--ide-accent)]">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                    </span>
+                    <span class="text-[10px] font-bold tracking-[0.16em] uppercase text-[var(--ide-text-secondary)]">One RuntimeForce account</span>
+                </div>
+                <p class="text-xs text-[var(--ide-text-secondary)] leading-relaxed">
+                    Sign in once on RuntimeForce to sync your <span class="font-semibold text-[var(--ide-text-primary)]">plan, credits and settings</span> across web and local IDE.
+                </p>
+                <div class="my-3 h-px bg-[var(--ide-border-subtle)]"></div>
+                <p class="flex items-start gap-2 text-xs text-[var(--ide-text-secondary)] leading-relaxed">
+                    <i data-lucide="lock" class="w-3.5 h-3.5 mt-0.5 text-[var(--ide-accent)]"></i>
+                    <span>Your <span class="font-semibold text-[var(--ide-text-primary)]">code, database and keys</span> remain strictly local.</span>
+                </p>
+            </div>
 
-        <div class="flex items-center gap-3 w-full my-2.5">
-            <div class="flex-1 h-px bg-[var(--ide-border-subtle)]"></div>
-            <span class="text-[10px] text-[var(--ide-text-muted)] uppercase tracking-wider font-semibold">Or Sign In with</span>
-            <div class="flex-1 h-px bg-[var(--ide-border-subtle)]"></div>
-        </div>
-
-        <div class="w-full grid grid-cols-2 gap-2.5 max-w-[29rem] mx-auto">
-            <button id="rf-auth-google-btn" class="w-full max-w-[14rem] mx-auto flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-[var(--ide-elevated)] border border-[var(--ide-border-subtle)] text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover)] hover:border-[var(--ide-border-bright)] transition-colors cursor-pointer shadow-sm">
-                <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.63h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.8z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.27v3.1C3.25 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.29c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29v-3.1H1.27A11.96 11.96 0 0 0 0 12c0 1.94.46 3.77 1.27 5.39l4-3.1z"/><path fill="#EA4335" d="M12 4.77c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.7 1.27 6.61l4 3.1C6.22 6.88 8.87 4.77 12 4.77z"/></svg>
-                <span>Google</span>
+            <button id="rf-auth-sync-btn" type="button" class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[var(--ide-accent)] text-black font-bold text-sm hover:brightness-110 cursor-pointer transition-all shadow-md">
+                <i data-lucide="log-in" class="w-4 h-4"></i>
+                Continue with RuntimeForce
             </button>
-            <button id="rf-auth-github-btn" class="w-full max-w-[14rem] mx-auto flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-[var(--ide-elevated)] border border-[var(--ide-border-subtle)] text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover)] hover:border-[var(--ide-border-bright)] transition-colors cursor-pointer shadow-sm">
-                <svg class="w-4 h-4 shrink-0 fill-current text-white" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
-                <span>GitHub</span>
-            </button>
-        </div>
 
-        <p class="text-[10px] text-[var(--ide-text-muted)] mt-5">
-            By continuing you agree to the <a href="https://runtimeforce.dev/terms" target="_blank" rel="noopener noreferrer" class="underline hover:text-[var(--ide-text-secondary)]">Terms</a> and <a href="https://runtimeforce.dev/privacy" target="_blank" rel="noopener noreferrer" class="underline hover:text-[var(--ide-text-secondary)]">Privacy Policy</a>.
-        </p>
-    </div>
+            <p class="text-[10px] text-[var(--ide-text-muted)] mt-5 leading-relaxed">
+                By continuing you agree to the
+                <a href="https://runtimeforce.dev/terms" target="_blank" rel="noopener noreferrer" class="underline hover:text-[var(--ide-text-secondary)]">Terms</a>
+                and
+                <a href="https://runtimeforce.dev/privacy" target="_blank" rel="noopener noreferrer" class="underline hover:text-[var(--ide-text-secondary)]">Privacy Policy</a>.
+            </p>
+        </div>
+        <div class="h-px bg-gradient-to-r from-transparent via-[var(--ide-accent)]/40 to-transparent"></div>
+        <div class="px-7 py-3 text-center text-[10px] text-[var(--ide-text-muted)]">Secure sign-in · Local-first workspace</div>
+    </section>
 </div>
 
 <!-- ===== MAIN LAYOUT ===== -->
