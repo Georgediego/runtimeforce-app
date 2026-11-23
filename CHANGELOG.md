@@ -1,4 +1,4 @@
-## [1.1.25] - 2026-11-23
+## [1.1.26] - 2026-11-23
 
 ### Changed
 - Use the RuntimeForce server as the single authentication authority for the local IDE.
