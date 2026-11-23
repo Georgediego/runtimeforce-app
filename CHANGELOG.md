@@ -1,3 +1,10 @@
+## [1.1.25] - 2026-11-23
+
+### Changed
+- Use the RuntimeForce server as the single authentication authority for the local IDE.
+- Replace local provider sign-in choices with one secure handoff to the central server session.
+- Refresh the local sign-in overlay to match the unified RuntimeForce account card.
+
 ## [1.1.24] - 2026-11-23
 
 ### Added
