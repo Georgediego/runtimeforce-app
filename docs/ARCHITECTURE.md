@@ -18,7 +18,7 @@ The local IDE is a FastAPI application with a browser-based interface. It owns l
 
 The local IDE stores application state in a local SQLCipher-encrypted SQLite database. The database key is derived from a per-user MASTER_KEY stored under `$XDG_CONFIG_HOME/runtimeforce/.env` (normally `~/.config/runtimeforce/.env`); supported credential fields retain additional AES-256-GCM encryption. Legacy keys from the previous app-root or `~/.runtimeforce/.env` locations are migrated without changing the key. Existing plaintext databases are integrity-checked, exported, verified, and atomically replaced on first startup after the SQLCipher upgrade. An encrypted pre-migration backup is retained.
 
-### Hosted control plane — runtimeforce-server
+### Hosted control plane — [https://runtimeforce.dev/](https://runtimeforce.dev/)
 
 The hosted service provides:
 

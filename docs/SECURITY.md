@@ -1,6 +1,6 @@
 # Security & Data Handling
 
-This document describes the current architecture and its boundaries. It does not claim that every local database page or file is encrypted.
+This document describes the current architecture and its boundaries. SQLCipher encrypts the complete local SQLite database; files outside that database have separate protection requirements.
 
 ## What stays local
 
@@ -15,13 +15,13 @@ The local IDE is responsible for local filesystem access, terminal execution and
 
 ## What leaves the local machine
 
-- Account authentication and plan-entitlement requests go to `https://runtimeforce.dev`.
+- Account authentication and plan-entitlement requests go to the official service at [https://runtimeforce.dev/](https://runtimeforce.dev/).
 - When you use a cloud model, the prompt and selected context for that request are sent directly to the AI provider configured in the IDE.
 - When you use GitHub account integration, the authorization flow involves the RuntimeForce account service and GitHub.
 
 Do not send confidential material to a cloud model unless the provider's terms and your organization's policy allow it. Use a local model when a task must remain on the local machine.
 
-## Credential encryption
+## Database and credential encryption
 
 The local app uses two encryption layers:
 
@@ -60,4 +60,4 @@ BYOK means the IDE sends cloud inference requests directly to the provider using
 - Cloud inference necessarily sends request content to the selected provider.
 - Local-first architecture does not prevent a user, malware or another process with access to the same OS account from reading data available to that account.
 
-Report suspected security issues privately through the contact details on the RuntimeForce website rather than publishing credentials or exploit details in a public issue.
+Report suspected security issues privately through [https://runtimeforce.dev/](https://runtimeforce.dev/) rather than publishing credentials or exploit details in a public issue.

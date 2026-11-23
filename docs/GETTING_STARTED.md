@@ -52,6 +52,10 @@ Review the installer source before running it if you want to inspect every insta
 
 Install Ollama or LM Studio separately, download a model compatible with your machine, then configure the local runtime in RuntimeForce. Model performance depends on model size, quantization, available memory and hardware.
 
+## Local database protection
+
+RuntimeForce stores local application state in a SQLCipher-encrypted SQLite database. SQLCipher encrypts the complete database, not just selected credential columns. The database key is derived from the local `MASTER_KEY`; keep a secure backup of that key because the database cannot be opened without it. SQLCipher does not encrypt project files, workspace files, logs or other files outside the database.
+
 ## BYOK
 
 Add an API key for a provider supported by your plan. RuntimeForce stores supported credentials locally using its credential-encryption service. Cloud prompts and selected context are sent directly to the provider you choose. Provider pricing, quotas and data-retention policies are controlled by that provider.
