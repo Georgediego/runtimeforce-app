@@ -333,7 +333,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         };
         const phase = String(e.label || "").toLowerCase();
         if (/memory|retriev|context/.test(phase) || ["tool_start", "tool_end"].includes(e.status)) {
-            activityUntil = Date.now() + 1800;
+            activityUntil = Date.now() + 4000;
             if (isVisible()) loadGraph(true);
         }
     });
