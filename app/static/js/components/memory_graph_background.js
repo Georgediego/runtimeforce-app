@@ -18,7 +18,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
 
     let nodes = [], edges = [], activeIds = new Set();
     let eventActiveIds = new Set(), eventActiveEdgeIds = new Set();
-    let busy = false, memoryQueryActive = false, rotation = 0, raf = 0, lastFetch = 0, activityUntil = 0;
+    let busy = false, memoryQueryActive = false, rotation = 0, rotationSpeed = .00115, raf = 0, lastFetch = 0, activityUntil = 0;
     let width = 0, height = 0, dpr = 1;
     const particles = [];
     const isVisible = () => !widget.classList.contains("is-collapsed");
@@ -288,7 +288,10 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         ctx.font = "700 8px 'JetBrains Mono',monospace"; ctx.textAlign = "center";
         ctx.fillStyle = "rgba(225,238,255,.88)"; ctx.fillText("ORCHESTRATOR", width / 2, height / 2 + 19);
 
-        rotation += .0032;
+        const activeMotion = memoryQueryActive || Date.now() < activityUntil;
+        const targetRotationSpeed = activeMotion ? .0085 : .00115;
+        rotationSpeed += (targetRotationSpeed - rotationSpeed) * .035;
+        rotation += rotationSpeed;
         if (widgetStatus) widgetStatus.textContent = nodes.length + " nodes · " + edges.length + " links";
         raf=requestAnimationFrame(draw);
     }
@@ -303,21 +306,21 @@ if (canvas && widget && widgetToggle && widgetRestore) {
                 memoryQueryActive = true;
                 eventActiveIds.clear();
                 eventActiveEdgeIds.clear();
-                activityUntil = Date.now() + 1200;
+                activityUntil = Date.now() + 4000;
                 if (isVisible()) loadGraph(true);
             } else if (phase === "activity") {
                 (detail.active_node_ids || []).forEach(id => eventActiveIds.add(String(id)));
                 (detail.active_edge_ids || []).forEach(id => eventActiveEdgeIds.add(String(id)));
-                activityUntil = Date.now() + 1900;
+                activityUntil = Date.now() + 4500;
             } else if (phase === "completed") {
                 memoryQueryActive = false;
                 eventActiveIds = new Set((e.active_node_ids || []).map(String));
                 eventActiveEdgeIds = new Set((e.active_edge_ids || []).map(String));
-                activityUntil = Date.now() + 2800;
+                activityUntil = Date.now() + 5500;
                 if (isVisible()) loadGraph(true);
             } else if (phase === "failed") {
                 memoryQueryActive = false;
-                activityUntil = Date.now() + 700;
+                activityUntil = Date.now() + 1800;
             }
             return;
         }
@@ -336,7 +339,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
     });
     eventBus.on("agent:trace_event", event => {
         if (/memory|retriev|context/i.test(String(event?.text || ""))) {
-            activityUntil = Date.now() + 2200;
+            activityUntil = Date.now() + 4000;
             if (isVisible()) loadGraph(true);
         }
     });
