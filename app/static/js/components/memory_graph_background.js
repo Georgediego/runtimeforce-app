@@ -142,8 +142,8 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         nodes = raw.map(node => ({ ...node, id: String(node.id) }));
         const ids = new Set(nodes.map(n => n.id));
         edges = (Array.isArray(data?.edges) ? data.edges : []).filter(e =>
-            ids.has(String(e.source)) && ids.has(String(e.target))
-        ).map(e => ({ ...e, source: String(e.source), target: String(e.target) }));
+            e?.id != null && ids.has(String(e.source)) && ids.has(String(e.target))
+        ).map(e => ({ ...e, id: String(e.id), source: String(e.source), target: String(e.target) }));
         activeIds = new Set((data?.active_node_ids || []).map(String).filter(id => ids.has(id)));
     }
 
@@ -205,22 +205,28 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             const a = golden * i;
             return [n.id, rotate({ x:Math.cos(a)*r, y, z:Math.sin(a)*r },rotation,tilt)];
         }));
-        // Memory links are hidden at rest. During a real graph interaction,
-        // show only connected active edges as barely visible threads with a travelling pulse.
+        // Draw only persisted SQLite edges explicitly returned by the memory pipeline.
+        // No node-to-node inference: an edge is visible only when its exact DB ID is active.
         if (Date.now() < activityUntil) {
             const now = Date.now();
             edges.forEach((edge, index) => {
-                if (!activeIds.has(edge.source) && !activeIds.has(edge.target)
-                    && !eventActiveIds.has(edge.source) && !eventActiveIds.has(edge.target)
-                    && !eventActiveEdgeIds.has(String(edge.id))) return;
+                if (!eventActiveEdgeIds.has(edge.id)) return;
                 const a = projected.get(edge.source), b = projected.get(edge.target);
                 if (!a || !b || (a.z < -.15 && b.z < -.15)) return;
+
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.strokeStyle = "rgba(125,195,255,.28)";
+                ctx.lineWidth = 0.75;
+                ctx.stroke();
+
                 const progress = ((now / 1050) + index * .173) % 1;
                 const px = a.x + (b.x - a.x) * progress;
                 const py = a.y + (b.y - a.y) * progress;
                 const pulse = ctx.createRadialGradient(px, py, 0, px, py, 5.5);
-                pulse.addColorStop(0, "rgba(205,235,255,.92)");
-                pulse.addColorStop(.22, "rgba(125,195,255,.48)");
+                pulse.addColorStop(0, "rgba(205,235,255,.96)");
+                pulse.addColorStop(.22, "rgba(125,195,255,.52)");
                 pulse.addColorStop(1, "rgba(105,165,255,0)");
                 ctx.beginPath();
                 ctx.arc(px, py, 5.5, 0, Math.PI * 2);
