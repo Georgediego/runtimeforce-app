@@ -212,13 +212,6 @@ if (canvas && widget && widgetToggle && widgetRestore) {
                 if (!activeIds.has(edge.source) && !activeIds.has(edge.target)) return;
                 const a = projected.get(edge.source), b = projected.get(edge.target);
                 if (!a || !b || (a.z < -.15 && b.z < -.15)) return;
-                ctx.beginPath();
-                ctx.moveTo(a.x, a.y);
-                ctx.lineTo(b.x, b.y);
-                ctx.strokeStyle = "rgba(125,165,235,.095)";
-                ctx.lineWidth = .42;
-                ctx.shadowBlur = 0;
-                ctx.stroke();
                 const progress = ((now / 1050) + index * .173) % 1;
                 const px = a.x + (b.x - a.x) * progress;
                 const py = a.y + (b.y - a.y) * progress;
@@ -244,10 +237,6 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             ctx.fillStyle=active?"rgba(225,235,255,.98)":(front?"rgba(145,175,255,.84)":"rgba(100,115,205,.30)");
             ctx.shadowBlur=active?18:(front?7:1);
             ctx.shadowColor="rgba(35,255,185,.9)"; ctx.fill();
-            if(active){
-                ctx.beginPath(); ctx.arc(p.x,p.y,size+4+Math.sin(rotation*6)*1.5,0,Math.PI*2);
-                ctx.strokeStyle="rgba(155,145,255,.48)"; ctx.lineWidth=.8; ctx.stroke();
-            }
         }
         ctx.shadowBlur=0;
 
