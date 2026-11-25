@@ -17,7 +17,8 @@ if (canvas && widget && widgetToggle && widgetRestore) {
     const token = () => String(authFrontendService.getToken?.() || "").replace(/^Bearer\\s+/i, "");
 
     let nodes = [], edges = [], activeIds = new Set();
-    let busy = false, rotation = 0, raf = 0, lastFetch = 0, activityUntil = 0;
+    let eventActiveIds = new Set(), eventActiveEdgeIds = new Set();
+    let busy = false, memoryQueryActive = false, rotation = 0, rotationSpeed = .00115, raf = 0, lastFetch = 0, activityUntil = 0;
     let width = 0, height = 0, dpr = 1;
     const particles = [];
     const isVisible = () => !widget.classList.contains("is-collapsed");
@@ -141,8 +142,8 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         nodes = raw.map(node => ({ ...node, id: String(node.id) }));
         const ids = new Set(nodes.map(n => n.id));
         edges = (Array.isArray(data?.edges) ? data.edges : []).filter(e =>
-            ids.has(String(e.source)) && ids.has(String(e.target))
-        ).map(e => ({ ...e, source: String(e.source), target: String(e.target) }));
+            e?.id != null && ids.has(String(e.source)) && ids.has(String(e.target))
+        ).map(e => ({ ...e, id: String(e.id), source: String(e.source), target: String(e.target) }));
         activeIds = new Set((data?.active_node_ids || []).map(String).filter(id => ids.has(id)));
     }
 
@@ -204,44 +205,51 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             const a = golden * i;
             return [n.id, rotate({ x:Math.cos(a)*r, y, z:Math.sin(a)*r },rotation,tilt)];
         }));
-        for (const edge of edges) {
-            const a=projected.get(edge.source), b=projected.get(edge.target);
-            if (!a || !b) continue;
-            const hot=activeIds.has(edge.source)||activeIds.has(edge.target);
-            const pulse=hot ? .65 + (Math.sin(rotation*5 + (Number(edge.weight)||1)*3)+1)*.16 : .10;
-            ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
-            ctx.strokeStyle=hot ? `rgba(110,180,255,${pulse})` : "rgba(100,130,220,.16)";
-            ctx.lineWidth=hot?1.35:.55;
-            ctx.shadowBlur=hot?14:0; ctx.shadowColor="rgba(105,145,255,.9)"; ctx.stroke();
+        // Draw only persisted SQLite edges explicitly returned by the memory pipeline.
+        // No node-to-node inference: an edge is visible only when its exact DB ID is active.
+        if (Date.now() < activityUntil) {
+            const now = Date.now();
+            edges.forEach((edge, index) => {
+                if (!eventActiveEdgeIds.has(edge.id)) return;
+                const a = projected.get(edge.source), b = projected.get(edge.target);
+                if (!a || !b || (a.z < -.15 && b.z < -.15)) return;
+
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.strokeStyle = "rgba(125,195,255,.28)";
+                ctx.lineWidth = 0.75;
+                ctx.stroke();
+
+                const progress = ((now / 1050) + index * .173) % 1;
+                const px = a.x + (b.x - a.x) * progress;
+                const py = a.y + (b.y - a.y) * progress;
+                const pulse = ctx.createRadialGradient(px, py, 0, px, py, 5.5);
+                pulse.addColorStop(0, "rgba(205,235,255,.96)");
+                pulse.addColorStop(.22, "rgba(125,195,255,.52)");
+                pulse.addColorStop(1, "rgba(105,165,255,0)");
+                ctx.beginPath();
+                ctx.arc(px, py, 5.5, 0, Math.PI * 2);
+                ctx.fillStyle = pulse;
+                ctx.fill();
+            });
         }
-        ctx.shadowBlur=0;
+        ctx.shadowBlur = 0;
 
         // Actual memory entities sit on the surface as brighter identifiable nodes.
         for (const node of nodes) {
             const p=projected.get(node.id); if(!p) continue;
-            const active=activeIds.has(node.id);
+            const active=activeIds.has(node.id) || eventActiveIds.has(node.id);
             const front=p.z>-.1;
             const size=(active?2.5:1.35)*p.scale;
             ctx.beginPath(); ctx.arc(p.x,p.y,size,0,Math.PI*2);
             ctx.fillStyle=active?"rgba(225,235,255,.98)":(front?"rgba(145,175,255,.84)":"rgba(100,115,205,.30)");
             ctx.shadowBlur=active?18:(front?7:1);
             ctx.shadowColor="rgba(35,255,185,.9)"; ctx.fill();
-            if(active){
-                ctx.beginPath(); ctx.arc(p.x,p.y,size+4+Math.sin(rotation*6)*1.5,0,Math.PI*2);
-                ctx.strokeStyle="rgba(155,145,255,.48)"; ctx.lineWidth=.8; ctx.stroke();
-            }
         }
         ctx.shadowBlur=0;
 
-        // Short orbital streaks give the shell a living, dimensional motion.
-        if (Date.now() < activityUntil) {
-            const sweep=(rotation*1.7)%(Math.PI*2);
-            ctx.beginPath(); ctx.ellipse(cx,cy,radius*1.02,radius*.34,sweep,Math.PI*1.12,Math.PI*1.72);
-            ctx.strokeStyle="rgba(115,145,255,.30)"; ctx.lineWidth=1.1;
-            ctx.shadowBlur=12; ctx.shadowColor="rgba(115,145,255,.8)"; ctx.stroke(); ctx.shadowBlur=0;
-        }
-        ctx.beginPath(); ctx.arc(cx,cy,radius,0,Math.PI*2);
-        ctx.strokeStyle="rgba(120,150,255,.26)"; ctx.lineWidth=.8; ctx.stroke();
+
 
 
         // Runtime topology: real modes, registered roles/tools and saved provider/model selections.
@@ -252,31 +260,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             const p = rotate(item, rotation * .72, .42);
             orbitPoints.set(item.id, p);
         }
-        // Three intersecting great-circle guides make the orbital structure read as a sphere.
-        // They are visual guides only; actual relationships remain in topology.edges.
-        for (let axis = 0; axis < 3; axis++) {
-            ctx.beginPath();
-            for (let i = 0; i <= 120; i++) {
-                const a = i / 120 * Math.PI * 2;
-                const base = axis === 0
-                    ? { x: Math.cos(a) * 1.16, y: Math.sin(a) * 1.16, z: 0 }
-                    : axis === 1
-                        ? { x: Math.cos(a) * 1.16, y: 0, z: Math.sin(a) * 1.16 }
-                        : { x: 0, y: Math.cos(a) * 1.16, z: Math.sin(a) * 1.16 };
-                const p = rotate(base, rotation * .72, .42);
-                if (!i) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-            }
-            ctx.strokeStyle = "rgba(130,155,255,.12)";
-            ctx.lineWidth = .7;
-            ctx.stroke();
-        }
-        // Provider -> model links represent the saved provider/model configuration.
-        for (const [from, to] of topology.edges) {
-            const a = orbitPoints.get(from), b = orbitPoints.get(to);
-            if (!a || !b) continue;
-            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = "rgba(103,234,255,.48)"; ctx.lineWidth = 1; ctx.stroke();
-        }
+        // No decorative orbit rails or configuration links: the shell is made of points only.
         for (const item of topology.nodes) {
             const p = orbitPoints.get(item.id);
             if (!p) continue;
@@ -297,38 +281,65 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             }
         }
         // Central coordinator: a visual anchor, not a synthetic memory node.
-        const corePulse = busy ? 1 : .45 + Math.sin(rotation * 2) * .08;
+        const corePulse = (busy || memoryQueryActive) ? 1 : .45 + Math.sin(rotation * 2) * .08;
         ctx.beginPath(); ctx.arc(width / 2, height / 2, 5.5 + corePulse * 2, 0, Math.PI * 2);
         ctx.fillStyle = "rgba(225,238,255,.95)"; ctx.shadowBlur = 22 * corePulse;
         ctx.shadowColor = "#6daeff"; ctx.fill(); ctx.shadowBlur = 0;
         ctx.font = "700 8px 'JetBrains Mono',monospace"; ctx.textAlign = "center";
         ctx.fillStyle = "rgba(225,238,255,.88)"; ctx.fillText("ORCHESTRATOR", width / 2, height / 2 + 19);
 
-        rotation += .0032;
+        const activeMotion = memoryQueryActive || Date.now() < activityUntil;
+        const targetRotationSpeed = activeMotion ? .0085 : .00115;
+        rotationSpeed += (targetRotationSpeed - rotationSpeed) * .035;
+        rotation += rotationSpeed;
         if (widgetStatus) widgetStatus.textContent = nodes.length + " nodes · " + edges.length + " links";
         raf=requestAnimationFrame(draw);
     }
 
-    // Subscribe to the real orchestrator event bus; no synthetic activity events.
+    // Subscribe to real orchestrator and SQLite memory-pipeline events.
     eventBus.on("agent:graph_event", event => {
         const e = event || {};
+        if (e.status === "memory_graph") {
+            const phase = String(e.phase || "");
+            const detail = e.event || {};
+            if (phase === "started") {
+                memoryQueryActive = true;
+                eventActiveIds.clear();
+                eventActiveEdgeIds.clear();
+                activityUntil = Date.now() + 4000;
+                if (isVisible()) loadGraph(true);
+            } else if (phase === "activity") {
+                (detail.active_node_ids || []).forEach(id => eventActiveIds.add(String(id)));
+                (detail.active_edge_ids || []).forEach(id => eventActiveEdgeIds.add(String(id)));
+                activityUntil = Date.now() + 4500;
+            } else if (phase === "completed") {
+                memoryQueryActive = false;
+                eventActiveIds = new Set((e.active_node_ids || []).map(String));
+                eventActiveEdgeIds = new Set((e.active_edge_ids || []).map(String));
+                activityUntil = Date.now() + 5500;
+                if (isVisible()) loadGraph(true);
+            } else if (phase === "failed") {
+                memoryQueryActive = false;
+                activityUntil = Date.now() + 1800;
+            }
+            return;
+        }
+
         liveContext = {
             role: String(e.role || liveContext.role || ""),
             tool: String(e.tool_name || liveContext.tool || ""),
             model: String(e.model || liveContext.model || ""),
             mode: String(e.mode || liveContext.mode || "")
         };
-        const phase=String(e.label||"").toLowerCase();
-        if (/memory|retriev|context/.test(phase) || ["tool_start","tool_end"].includes(e.status)) {
-            activityUntil=Date.now()+1800;
-            activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
+        const phase = String(e.label || "").toLowerCase();
+        if (/memory|retriev|context/.test(phase) || ["tool_start", "tool_end"].includes(e.status)) {
+            activityUntil = Date.now() + 4000;
             if (isVisible()) loadGraph(true);
         }
     });
     eventBus.on("agent:trace_event", event => {
-        if (/memory|retriev|context/i.test(String(event?.text||""))) {
-            activityUntil=Date.now()+2200;
-            activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
+        if (/memory|retriev|context/i.test(String(event?.text || ""))) {
+            activityUntil = Date.now() + 4000;
             if (isVisible()) loadGraph(true);
         }
     });
