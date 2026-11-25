@@ -17,7 +17,8 @@ if (canvas && widget && widgetToggle && widgetRestore) {
     const token = () => String(authFrontendService.getToken?.() || "").replace(/^Bearer\\s+/i, "");
 
     let nodes = [], edges = [], activeIds = new Set();
-    let busy = false, rotation = 0, raf = 0, lastFetch = 0, activityUntil = 0;
+    let eventActiveIds = new Set(), eventActiveEdgeIds = new Set();
+    let busy = false, memoryQueryActive = false, rotation = 0, raf = 0, lastFetch = 0, activityUntil = 0;
     let width = 0, height = 0, dpr = 1;
     const particles = [];
     const isVisible = () => !widget.classList.contains("is-collapsed");
@@ -209,7 +210,9 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         if (Date.now() < activityUntil) {
             const now = Date.now();
             edges.forEach((edge, index) => {
-                if (!activeIds.has(edge.source) && !activeIds.has(edge.target)) return;
+                if (!activeIds.has(edge.source) && !activeIds.has(edge.target)
+                    && !eventActiveIds.has(edge.source) && !eventActiveIds.has(edge.target)
+                    && !eventActiveEdgeIds.has(String(edge.id))) return;
                 const a = projected.get(edge.source), b = projected.get(edge.target);
                 if (!a || !b || (a.z < -.15 && b.z < -.15)) return;
                 const progress = ((now / 1050) + index * .173) % 1;
@@ -230,7 +233,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         // Actual memory entities sit on the surface as brighter identifiable nodes.
         for (const node of nodes) {
             const p=projected.get(node.id); if(!p) continue;
-            const active=activeIds.has(node.id);
+            const active=activeIds.has(node.id) || eventActiveIds.has(node.id);
             const front=p.z>-.1;
             const size=(active?2.5:1.35)*p.scale;
             ctx.beginPath(); ctx.arc(p.x,p.y,size,0,Math.PI*2);
@@ -272,7 +275,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             }
         }
         // Central coordinator: a visual anchor, not a synthetic memory node.
-        const corePulse = busy ? 1 : .45 + Math.sin(rotation * 2) * .08;
+        const corePulse = (busy || memoryQueryActive) ? 1 : .45 + Math.sin(rotation * 2) * .08;
         ctx.beginPath(); ctx.arc(width / 2, height / 2, 5.5 + corePulse * 2, 0, Math.PI * 2);
         ctx.fillStyle = "rgba(225,238,255,.95)"; ctx.shadowBlur = 22 * corePulse;
         ctx.shadowColor = "#6daeff"; ctx.fill(); ctx.shadowBlur = 0;
@@ -284,24 +287,50 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         raf=requestAnimationFrame(draw);
     }
 
-    // Subscribe to the real orchestrator event bus; no synthetic activity events.
+    // Subscribe to real orchestrator and SQLite memory-pipeline events.
     eventBus.on("agent:graph_event", event => {
         const e = event || {};
+        if (e.status === "memory_graph") {
+            const phase = String(e.phase || "");
+            const detail = e.event || {};
+            if (phase === "started") {
+                memoryQueryActive = true;
+                eventActiveIds.clear();
+                eventActiveEdgeIds.clear();
+                activityUntil = Date.now() + 1200;
+                if (isVisible()) loadGraph(true);
+            } else if (phase === "activity") {
+                (detail.active_node_ids || []).forEach(id => eventActiveIds.add(String(id)));
+                (detail.active_edge_ids || []).forEach(id => eventActiveEdgeIds.add(String(id)));
+                activityUntil = Date.now() + 1900;
+            } else if (phase === "completed") {
+                memoryQueryActive = false;
+                eventActiveIds = new Set((e.active_node_ids || []).map(String));
+                eventActiveEdgeIds = new Set((e.active_edge_ids || []).map(String));
+                activityUntil = Date.now() + 2800;
+                if (isVisible()) loadGraph(true);
+            } else if (phase === "failed") {
+                memoryQueryActive = false;
+                activityUntil = Date.now() + 700;
+            }
+            return;
+        }
+
         liveContext = {
             role: String(e.role || liveContext.role || ""),
             tool: String(e.tool_name || liveContext.tool || ""),
             model: String(e.model || liveContext.model || ""),
             mode: String(e.mode || liveContext.mode || "")
         };
-        const phase=String(e.label||"").toLowerCase();
-        if (/memory|retriev|context/.test(phase) || ["tool_start","tool_end"].includes(e.status)) {
-            activityUntil=Date.now()+1800;
+        const phase = String(e.label || "").toLowerCase();
+        if (/memory|retriev|context/.test(phase) || ["tool_start", "tool_end"].includes(e.status)) {
+            activityUntil = Date.now() + 1800;
             if (isVisible()) loadGraph(true);
         }
     });
     eventBus.on("agent:trace_event", event => {
-        if (/memory|retriev|context/i.test(String(event?.text||""))) {
-            activityUntil=Date.now()+2200;
+        if (/memory|retriev|context/i.test(String(event?.text || ""))) {
+            activityUntil = Date.now() + 2200;
             if (isVisible()) loadGraph(true);
         }
     });
