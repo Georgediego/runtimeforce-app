@@ -1,3 +1,9 @@
+## [1.1.27] - 2026-11-26
+
+### Changed
+- Keep real Memory Graph activity pulses visible longer and smoothly accelerate sphere rotation during activity while slowing it during idle periods.
+- Show only real active SQLite memory relationships during graph activity.
+
 ## [1.1.26] - 2026-11-23
 
 ### Changed
