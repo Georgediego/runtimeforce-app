@@ -204,17 +204,35 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             const a = golden * i;
             return [n.id, rotate({ x:Math.cos(a)*r, y, z:Math.sin(a)*r },rotation,tilt)];
         }));
-        for (const edge of edges) {
-            const a=projected.get(edge.source), b=projected.get(edge.target);
-            if (!a || !b) continue;
-            const hot=activeIds.has(edge.source)||activeIds.has(edge.target);
-            const pulse=hot ? .65 + (Math.sin(rotation*5 + (Number(edge.weight)||1)*3)+1)*.16 : .10;
-            ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
-            ctx.strokeStyle=hot ? `rgba(110,180,255,${pulse})` : "rgba(100,130,220,.16)";
-            ctx.lineWidth=hot?1.35:.55;
-            ctx.shadowBlur=hot?14:0; ctx.shadowColor="rgba(105,145,255,.9)"; ctx.stroke();
+        // Memory links are hidden at rest. During a real graph interaction,
+        // show only connected active edges as barely visible threads with a travelling pulse.
+        if (Date.now() < activityUntil) {
+            const now = Date.now();
+            edges.forEach((edge, index) => {
+                if (!activeIds.has(edge.source) && !activeIds.has(edge.target)) return;
+                const a = projected.get(edge.source), b = projected.get(edge.target);
+                if (!a || !b || (a.z < -.15 && b.z < -.15)) return;
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.strokeStyle = "rgba(125,165,235,.095)";
+                ctx.lineWidth = .42;
+                ctx.shadowBlur = 0;
+                ctx.stroke();
+                const progress = ((now / 1050) + index * .173) % 1;
+                const px = a.x + (b.x - a.x) * progress;
+                const py = a.y + (b.y - a.y) * progress;
+                const pulse = ctx.createRadialGradient(px, py, 0, px, py, 5.5);
+                pulse.addColorStop(0, "rgba(205,235,255,.92)");
+                pulse.addColorStop(.22, "rgba(125,195,255,.48)");
+                pulse.addColorStop(1, "rgba(105,165,255,0)");
+                ctx.beginPath();
+                ctx.arc(px, py, 5.5, 0, Math.PI * 2);
+                ctx.fillStyle = pulse;
+                ctx.fill();
+            });
         }
-        ctx.shadowBlur=0;
+        ctx.shadowBlur = 0;
 
         // Actual memory entities sit on the surface as brighter identifiable nodes.
         for (const node of nodes) {
@@ -233,15 +251,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         }
         ctx.shadowBlur=0;
 
-        // Short orbital streaks give the shell a living, dimensional motion.
-        if (Date.now() < activityUntil) {
-            const sweep=(rotation*1.7)%(Math.PI*2);
-            ctx.beginPath(); ctx.ellipse(cx,cy,radius*1.02,radius*.34,sweep,Math.PI*1.12,Math.PI*1.72);
-            ctx.strokeStyle="rgba(115,145,255,.30)"; ctx.lineWidth=1.1;
-            ctx.shadowBlur=12; ctx.shadowColor="rgba(115,145,255,.8)"; ctx.stroke(); ctx.shadowBlur=0;
-        }
-        ctx.beginPath(); ctx.arc(cx,cy,radius,0,Math.PI*2);
-        ctx.strokeStyle="rgba(120,150,255,.26)"; ctx.lineWidth=.8; ctx.stroke();
+
 
 
         // Runtime topology: real modes, registered roles/tools and saved provider/model selections.
@@ -252,31 +262,7 @@ if (canvas && widget && widgetToggle && widgetRestore) {
             const p = rotate(item, rotation * .72, .42);
             orbitPoints.set(item.id, p);
         }
-        // Three intersecting great-circle guides make the orbital structure read as a sphere.
-        // They are visual guides only; actual relationships remain in topology.edges.
-        for (let axis = 0; axis < 3; axis++) {
-            ctx.beginPath();
-            for (let i = 0; i <= 120; i++) {
-                const a = i / 120 * Math.PI * 2;
-                const base = axis === 0
-                    ? { x: Math.cos(a) * 1.16, y: Math.sin(a) * 1.16, z: 0 }
-                    : axis === 1
-                        ? { x: Math.cos(a) * 1.16, y: 0, z: Math.sin(a) * 1.16 }
-                        : { x: 0, y: Math.cos(a) * 1.16, z: Math.sin(a) * 1.16 };
-                const p = rotate(base, rotation * .72, .42);
-                if (!i) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-            }
-            ctx.strokeStyle = "rgba(130,155,255,.12)";
-            ctx.lineWidth = .7;
-            ctx.stroke();
-        }
-        // Provider -> model links represent the saved provider/model configuration.
-        for (const [from, to] of topology.edges) {
-            const a = orbitPoints.get(from), b = orbitPoints.get(to);
-            if (!a || !b) continue;
-            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = "rgba(103,234,255,.48)"; ctx.lineWidth = 1; ctx.stroke();
-        }
+        // No decorative orbit rails or configuration links: the shell is made of points only.
         for (const item of topology.nodes) {
             const p = orbitPoints.get(item.id);
             if (!p) continue;
@@ -321,14 +307,12 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         const phase=String(e.label||"").toLowerCase();
         if (/memory|retriev|context/.test(phase) || ["tool_start","tool_end"].includes(e.status)) {
             activityUntil=Date.now()+1800;
-            activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
             if (isVisible()) loadGraph(true);
         }
     });
     eventBus.on("agent:trace_event", event => {
         if (/memory|retriev|context/i.test(String(event?.text||""))) {
             activityUntil=Date.now()+2200;
-            activeIds = new Set(edges.flatMap(edge => [edge.source,edge.target]));
             if (isVisible()) loadGraph(true);
         }
     });
