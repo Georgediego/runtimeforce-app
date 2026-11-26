@@ -769,6 +769,14 @@ export const chatUIController = {
             if (!token) throw new Error("Authentication token is missing. Please sign in again.");
             const clientInstanceId = localStorage.getItem("rf_client_instance_id") || (crypto.randomUUID ? crypto.randomUUID() : "rf-" + Date.now() + "-" + Math.random().toString(36).slice(2));
             localStorage.setItem("rf_client_instance_id", clientInstanceId);
+            let appVersion = "unknown";
+            try {
+                const versionResponse = await fetch("/api/v1/version", { cache: "no-store" });
+                if (versionResponse.ok) {
+                    const versionData = await versionResponse.json();
+                    appVersion = versionData.version || appVersion;
+                }
+            } catch (_) {}
             const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports", {
                 method: "POST",
                 credentials: "include",
@@ -786,7 +794,7 @@ export const chatUIController = {
                         partial_response: String(fullResponseText || "").slice(0, 4000),
                         model: currentAgentModel || "",
                         strategy: document.getElementById("strategy-select")?.value || "",
-                        app_version: document.getElementById("active-project-ver-display")?.textContent?.trim() || "",
+                        app_version: appVersion,
                         user_agent: navigator.userAgent || "",
                         occurred_at: new Date().toISOString(),
                         client_instance_id: clientInstanceId
