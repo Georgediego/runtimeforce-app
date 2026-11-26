@@ -115,10 +115,15 @@ class CommandApprovalService:
             raise ValueError("Invalid approval choice.")
         async with self._lock:
             item = self._pending.get(pending_id)
-            if not item or item["user_id"] != user_id:
+            if item is None:
+                # Approval may expire or be cancelled while its dialog is open.
+                # Treat a stale decision as an idempotent no-op; never execute it.
+                return {"status": "expired"}
+            if item["user_id"] != user_id:
                 raise KeyError("Pending command approval not found.")
             if item["future"].done():
-                raise KeyError("This command approval has already been decided.")
+                self._pending.pop(pending_id, None)
+                return {"status": "expired"}
             if choice == "session":
                 if not item["session_id"]:
                     raise ValueError("Session scope is unavailable for this command.")
