@@ -531,6 +531,8 @@ class AgentLoopCoordinator:
 
         final_text = ""
         active_specialist_index = 0
+        cooldown_providers = set()
+        provider_failures = {}
         force_no_tools = False
         # Advertise the complete tool catalogue so the model can identify the
         # requested capability. Every invocation is still checked against the
@@ -552,6 +554,10 @@ class AgentLoopCoordinator:
                 specialist_model = active_candidates[active_specialist_index]
                 model_id = specialist_model["model_id"]
                 provider = specialist_model.get("provider", "unknown").lower()
+
+                if not is_manual_override and provider in cooldown_providers:
+                    active_specialist_index += 1
+                    continue
 
                 if not is_manual_override and model_id in self._cooldown_models:
                     if time.time() < self._cooldown_models[model_id]:
@@ -584,6 +590,8 @@ class AgentLoopCoordinator:
                     self._conversation_repo.append_trace(session_id, "TRY", f"Attempting: {model_id}")
 
                 has_chunk_error, error_details = False, ""
+                error_code = ""
+                error_retry_after = 0
                 is_stream_dropped = False
                 partial_output_failure = False
 
@@ -611,6 +619,8 @@ class AgentLoopCoordinator:
                     elif status == "error":
                         has_chunk_error = True
                         error_details = chunk.get("error", "Unknown")
+                        error_code = chunk.get("error_code", "")
+                        error_retry_after = chunk.get("retry_after", 0) or 0
                         logger.warning(
                             "[AgentCoordinator] MODEL ERROR session=%s model=%s provider=%s code=%s error=%s",
                             session_id, model_id, provider, chunk.get("error_code", "unknown"), str(error_details)[:500]
@@ -633,6 +643,17 @@ class AgentLoopCoordinator:
                     if parsed_tools:
                         tool_calls = parsed_tools
                         iteration_text = clean_text
+
+                if error_code in ("PROVIDER_COOLDOWN", "PROVIDER_AUTH_FAILURE"):
+                    cooldown_providers.add(provider)
+                    provider_failures[provider] = error_details
+                    logger.warning(
+                        "[AgentCoordinator] Skipping remaining models for unavailable provider=%s retry_after=%ss",
+                        provider,
+                        error_retry_after,
+                    )
+                    active_specialist_index += 1
+                    continue
 
                 if is_stream_dropped:
                     logger.warning(f"[AgentCoordinator] Model {model_id} failed: {error_details}. Failing over.")
@@ -664,7 +685,16 @@ class AgentLoopCoordinator:
                 active_specialist_index += 1
 
             if not iteration_success:
-                err_msg = f"All candidate models failed: {error_details or 'No model returned a response.'}"
+                if provider_failures and all(
+                    str(model.get("provider", "unknown")).lower() in provider_failures
+                    for model in active_candidates
+                ):
+                    provider_summary = "; ".join(
+                        f"{provider}: {message}" for provider, message in sorted(provider_failures.items())
+                    )
+                    err_msg = f"No enabled provider is currently available. {provider_summary}"
+                else:
+                    err_msg = f"All candidate models failed: {error_details or 'No model returned a response.'}"
                 logger.error(
                     "[AgentCoordinator] ALL MODELS FAILED session=%s strategy=%s candidates=%s error=%s",
                     session_id, strategy_upper, len(active_candidates), str(error_details)[:1000]
