@@ -122,12 +122,31 @@ class LLMOrchestratorService:
             provider = "gemini"
 
         if self.rotation_service and not self.rotation_service.is_provider_available(provider):
+            rotation_status = {}
+            try:
+                rotation_status = self.rotation_service.get_status() or {}
+            except Exception:
+                pass
+            permanent_failure = provider in (rotation_status.get("permanent_failures") or [])
+            retry_after = (rotation_status.get("provider_cooldowns") or {}).get(provider, 60)
+            if permanent_failure:
+                error_code = "PROVIDER_AUTH_FAILURE"
+                error_message = (
+                    f"Provider '{provider}' is unavailable after an authentication failure. "
+                    "Update its API key in Settings -> Providers."
+                )
+            else:
+                error_code = "PROVIDER_COOLDOWN"
+                error_message = (
+                    f"Provider '{provider}' is temporarily unavailable due to a rate limit or billing cooldown."
+                )
             yield {
                 "status": "error",
-                "error_code": "PROVIDER_PERMANENT_FAILURE",
-                "error": f"Provider '{provider}' in cooldown/rate-limited",
-                "permanent": False,
-                "retry_after": 60,
+                "error_code": error_code,
+                "error": error_message,
+                "provider": provider,
+                "permanent": permanent_failure,
+                "retry_after": max(0, int(retry_after or 0)),
             }
             return
 
