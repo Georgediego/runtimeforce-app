@@ -142,6 +142,8 @@ def get_app_version() -> str:
     return _cached_app_version
 
 templates.env.globals["app_version"] = get_app_version()
+# Keep FastAPI metadata aligned with the branch's CHANGELOG version.
+app.version = get_app_version().lstrip("v")
 
 # Read the stable IDE version from the public GitHub main changelog.
 IDE_CHANGELOG_URLS = (
