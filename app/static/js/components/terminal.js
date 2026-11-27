@@ -126,7 +126,11 @@ export const terminalUIController = {
                             projectAvailable: !!item.project_id,
                         });
                         if (choice === "cancelled") return;
-                        await approvalsApi.decide(item.pending_id, choice || "deny");
+                        const decision = await approvalsApi.decide(item.pending_id, choice || "deny");
+                        if (decision?.status === "expired") {
+                            showToast("This approval request expired. The command was not executed.", "warning");
+                            return;
+                        }
                         if (choice === "deny") showToast("Command denied. It was not executed.", "warning");
                     } catch (error) {
                         console.error("Command approval decision failed:", error);
