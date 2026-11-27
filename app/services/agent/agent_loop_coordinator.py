@@ -106,6 +106,63 @@ class AgentLoopCoordinator:
         self._llm_router = llm_router
         self._cooldown_models: Dict[str, float] = {}
 
+        self._model_request_limits: Dict[str, int] = {}
+
+    @staticmethod
+    def _estimate_request_tokens(messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> int:
+        """Conservative full-request estimate, including message framing and tool schemas."""
+        payload = json.dumps(
+            {"messages": messages, "tools": tools or []},
+            ensure_ascii=False, separators=(",", ":"), default=str,
+        )
+        return int(len(payload) / 3.5) + (len(messages) * 12) + (len(tools or []) * 24)
+
+    def _request_limit_for_model(self, model_id: str, provider: str) -> int:
+        metadata = self._llm_router.registry.get_model(model_id) if self._llm_router else None
+        context_window = int(getattr(metadata, "context_window", 0) or 0)
+        max_output = int(getattr(metadata, "max_output_tokens", 0) or 0)
+        context_limit = max(0, context_window - max(1024, min(max_output, 4096))) if context_window else 0
+        provider_limits = {
+            "groq": 7000, "cerebras": 7000, "sambanova": 9000,
+            "openrouter": 14000, "gemini": 24000,
+        }
+        model_limit = int(getattr(metadata, "max_input_tokens", 0) or 0)
+        provider_limit = self._model_request_limits.get(
+            model_id, model_limit or provider_limits.get(provider, 8000)
+        )
+        limits = [value for value in (context_limit, provider_limit) if value > 0]
+        return min(limits) if limits else provider_limit
+
+    def _prepare_messages_for_model(
+        self, messages: List[Dict[str, Any]], model_id: str, provider: str,
+        tools: Optional[List[Dict[str, Any]]],
+    ) -> tuple[List[Dict[str, Any]], int, int, int]:
+        """Prune only obsolete chat history; never truncate the active task or tool results."""
+        prepared = [dict(message) for message in messages]
+        limit = self._request_limit_for_model(model_id, provider)
+        estimate = self._estimate_request_tokens(prepared, tools)
+        removed = 0
+        if estimate <= limit:
+            return prepared, estimate, limit, removed
+
+        latest_user_index = next(
+            (index for index in range(len(prepared) - 1, -1, -1)
+             if prepared[index].get("role") == "user"), -1,
+        )
+        while estimate > limit:
+            removable = next(
+                (index for index in range(1, max(1, latest_user_index))
+                 if prepared[index].get("role") in ("user", "assistant")),
+                None,
+            )
+            if removable is None:
+                break
+            prepared.pop(removable)
+            latest_user_index -= 1
+            removed += 1
+            estimate = self._estimate_request_tokens(prepared, tools)
+        return prepared, estimate, limit, removed
+
     def _resolve_strict_whitelist(self, enabled_models: Optional[List[str]], user_id: str) -> Optional[List[str]]:
         db_allowed = []
         has_global_models = False
@@ -531,6 +588,8 @@ class AgentLoopCoordinator:
 
         final_text = ""
         active_specialist_index = 0
+        cooldown_providers = set()
+        provider_failures = {}
         force_no_tools = False
         # Advertise the complete tool catalogue so the model can identify the
         # requested capability. Every invocation is still checked against the
@@ -553,6 +612,10 @@ class AgentLoopCoordinator:
                 model_id = specialist_model["model_id"]
                 provider = specialist_model.get("provider", "unknown").lower()
 
+                if not is_manual_override and provider in cooldown_providers:
+                    active_specialist_index += 1
+                    continue
+
                 if not is_manual_override and model_id in self._cooldown_models:
                     if time.time() < self._cooldown_models[model_id]:
                         active_specialist_index += 1
@@ -569,6 +632,37 @@ class AgentLoopCoordinator:
                 else:
                     current_step_role = "Agent"
 
+                request_messages, request_tokens, request_limit, removed_history = self._prepare_messages_for_model(
+                    agent_messages, model_id, provider, effective_tools
+                )
+                if request_tokens > request_limit:
+                    error_details = (
+                        f"Prompt exceeds model request budget: estimated {request_tokens} tokens, "
+                        f"limit {request_limit}. Active task and system instructions were preserved."
+                    )
+                    error_code = "PROMPT_TOO_LARGE"
+                    logger.info(
+                        "[AgentCoordinator] MODEL SKIP session=%s model=%s estimated_tokens=%s limit=%s",
+                        session_id, model_id, request_tokens, request_limit,
+                    )
+                    if self._conversation_repo:
+                        self._conversation_repo.append_trace(
+                            session_id, "SKIP",
+                            f"{model_id}: prompt {request_tokens} tokens exceeds safe limit {request_limit}",
+                        )
+                    active_specialist_index += 1
+                    continue
+                if removed_history:
+                    logger.info(
+                        "[AgentCoordinator] Prompt compacted for %s: removed %s obsolete history messages (%s/%s tokens)",
+                        model_id, removed_history, request_tokens, request_limit,
+                    )
+                    yield {
+                        "status": "phase", "label": f"Adapting context for {model_id}",
+                        "role": "Router",
+                        "detail": f"Removed {removed_history} older chat messages; active task preserved",
+                    }
+
                 logger.info(
                     "[AgentCoordinator] MODEL TRY session=%s iteration=%s model=%s provider=%s strategy=%s",
                     session_id, iteration, model_id, provider, strategy_upper
@@ -584,11 +678,13 @@ class AgentLoopCoordinator:
                     self._conversation_repo.append_trace(session_id, "TRY", f"Attempting: {model_id}")
 
                 has_chunk_error, error_details = False, ""
+                error_code = ""
+                error_retry_after = 0
                 is_stream_dropped = False
                 partial_output_failure = False
 
                 stream_kwargs = {
-                    "messages": agent_messages,
+                    "messages": request_messages,
                     "model_id": model_id,
                     "provider": provider,
                     "temperature": temperature,
@@ -611,6 +707,20 @@ class AgentLoopCoordinator:
                     elif status == "error":
                         has_chunk_error = True
                         error_details = chunk.get("error", "Unknown")
+                        error_code = chunk.get("error_code", "")
+                        # Learn provider-reported request/TPM ceilings for subsequent turns.
+                        limit_match = re.search(
+                            r"(?:limit|maximum)[^0-9]{0,24}(\\d+).*?(?:requested|used)[^0-9]{0,24}(\\d+)|"
+                            r"(?:requested|used)[^0-9]{0,24}(\\d+).*?(?:limit|maximum)[^0-9]{0,24}(\\d+)",
+                            str(error_details), re.IGNORECASE | re.DOTALL,
+                        )
+                        if limit_match:
+                            values = [int(value) for value in limit_match.groups() if value]
+                            reported_limit = min(values) if values else 0
+                            if reported_limit >= 512:
+                                self._model_request_limits[model_id] = max(512, int(reported_limit * 0.85))
+
+                        error_retry_after = chunk.get("retry_after", 0) or 0
                         logger.warning(
                             "[AgentCoordinator] MODEL ERROR session=%s model=%s provider=%s code=%s error=%s",
                             session_id, model_id, provider, chunk.get("error_code", "unknown"), str(error_details)[:500]
@@ -633,6 +743,17 @@ class AgentLoopCoordinator:
                     if parsed_tools:
                         tool_calls = parsed_tools
                         iteration_text = clean_text
+
+                if error_code in ("PROVIDER_COOLDOWN", "PROVIDER_AUTH_FAILURE"):
+                    cooldown_providers.add(provider)
+                    provider_failures[provider] = error_details
+                    logger.warning(
+                        "[AgentCoordinator] Skipping remaining models for unavailable provider=%s retry_after=%ss",
+                        provider,
+                        error_retry_after,
+                    )
+                    active_specialist_index += 1
+                    continue
 
                 if is_stream_dropped:
                     logger.warning(f"[AgentCoordinator] Model {model_id} failed: {error_details}. Failing over.")
@@ -664,7 +785,16 @@ class AgentLoopCoordinator:
                 active_specialist_index += 1
 
             if not iteration_success:
-                err_msg = f"All candidate models failed: {error_details or 'No model returned a response.'}"
+                if provider_failures and all(
+                    str(model.get("provider", "unknown")).lower() in provider_failures
+                    for model in active_candidates
+                ):
+                    provider_summary = "; ".join(
+                        f"{provider}: {message}" for provider, message in sorted(provider_failures.items())
+                    )
+                    err_msg = f"No enabled provider is currently available. {provider_summary}"
+                else:
+                    err_msg = f"All candidate models failed: {error_details or 'No model returned a response.'}"
                 logger.error(
                     "[AgentCoordinator] ALL MODELS FAILED session=%s strategy=%s candidates=%s error=%s",
                     session_id, strategy_upper, len(active_candidates), str(error_details)[:1000]
