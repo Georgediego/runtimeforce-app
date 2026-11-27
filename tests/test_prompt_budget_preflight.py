@@ -44,7 +44,7 @@ def test_preflight_counts_tool_schemas_as_part_of_full_request():
 
 
 def test_compaction_removes_old_chat_history_but_preserves_active_task_and_tool_results():
-    coordinator = _coordinator(max_input_tokens=1800)
+    coordinator = _coordinator(max_input_tokens=1200)
     messages = [
         {"role": "system", "content": "system rules"},
         {"role": "user", "content": "old task " + ("x" * 3000)},
