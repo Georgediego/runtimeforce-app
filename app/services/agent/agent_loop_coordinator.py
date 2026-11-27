@@ -104,6 +104,7 @@ class AgentLoopCoordinator:
         self._provider_keys_repo = provider_keys_repo
         self._role_router = role_router
         self._llm_router = llm_router
+        self._cooldown_models: Dict[str, float] = {}
 
         self._model_request_limits: Dict[str, int] = {}
 
