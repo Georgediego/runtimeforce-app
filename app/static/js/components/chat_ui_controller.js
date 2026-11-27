@@ -187,8 +187,13 @@ export const chatUIController = {
     },
 
     async getEnabledModelsList() {
+        const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
+        const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
+        const freeProviders = new Set(["gemini", "groq", "ollama", "lm_studio"]);
+        const localProviders = new Set(["ollama", "lm_studio"]);
         const enabled = [];
         let hasAnySavedConfig = false;
+
         try {
             const data = await keysApi.getSelectedModels();
             const selectedMap = data.selected_models || {};
@@ -197,14 +202,38 @@ export const chatUIController = {
             );
             hasAnySavedConfig = selectedEntries.length > 0;
 
-            // UI tier filters only control catalog visibility. They must never
-            // remove explicitly saved models from the backend routing allow-list;
-            // plan entitlements are enforced by the backend.
-            selectedEntries.forEach(([, modelIds]) => {
+            // Use the same registry metadata as the model picker so AUTO obeys
+            // the visible Free/Pro filters. Unknown cloud tiers are treated as
+            // Pro by default; they must never silently enter a Free-only route.
+            const modelMetadata = new Map();
+            try {
+                const catalog = await modelsApi.list();
+                Object.entries(catalog.models || {}).forEach(([provider, models]) => {
+                    (models || []).forEach((model) => {
+                        if (model?.id) {
+                            modelMetadata.set(model.id, {
+                                provider: String(model.provider || provider).toLowerCase(),
+                                tier: String(model.tier || "").toLowerCase(),
+                            });
+                        }
+                    });
+                });
+            } catch (catalogError) {
+                console.warn("Model tier catalog unavailable; using conservative provider fallback:", catalogError);
+            }
+
+            selectedEntries.forEach(([providerId, modelIds]) => {
                 modelIds.forEach((modelId) => {
-                    if (typeof modelId === "string" && modelId.trim() && !enabled.includes(modelId)) {
-                        enabled.push(modelId);
-                    }
+                    if (typeof modelId !== "string" || !modelId.trim()) return;
+                    const metadata = modelMetadata.get(modelId);
+                    const provider = metadata?.provider || String(providerId).toLowerCase();
+                    const tier = metadata?.tier || "";
+                    const isFree = tier === "free"
+                        || modelId.toLowerCase().endsWith(":free")
+                        || freeProviders.has(provider)
+                        || localProviders.has(provider);
+                    if (isFree ? !allowFree : !allowPro) return;
+                    if (!enabled.includes(modelId)) enabled.push(modelId);
                 });
             });
         } catch (e) {
