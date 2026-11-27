@@ -28,6 +28,11 @@ def _coordinator(model_id="groq/test-model", context_window=0, max_input_tokens=
     return instance
 
 
+def test_coordinator_initializes_model_cooldown_state():
+    coordinator = AgentLoopCoordinator(orchestrator_service=object())
+    assert coordinator._cooldown_models == {}
+
+
 def test_groq_request_budget_is_below_observed_tpm_limit():
     coordinator = _coordinator()
     assert coordinator._request_limit_for_model("groq/test-model", "groq") == 7000
