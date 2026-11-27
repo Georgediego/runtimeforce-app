@@ -17,6 +17,7 @@ class ModelMetadata:
     name: str
     context_window: int = 0
     max_output_tokens: int = 4096
+    max_input_tokens: Optional[int] = None
     pricing: Dict[str, float] = field(default_factory=lambda: {"input": 0.0, "output": 0.0})
     capabilities: List[str] = field(default_factory=lambda: list(DEFAULT_CAPABILITIES))
     tier: str = "free"
