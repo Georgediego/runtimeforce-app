@@ -1,3 +1,15 @@
+## [1.1.28] - 2026-11-27
+
+### Added
+- Preflight full LLM requests, including tool schemas, against model input and provider request budgets before generation.
+- Compact older conversation history when needed while preserving the active task and tool results.
+
+### Fixed
+- Fall back to another eligible model when the current model cannot fit the request; respect model availability and plan filters.
+- Restore model cooldown state initialization and prevent AUTO generation from failing before model selection.
+- Harden command approval state handling and provider cooldown fallback.
+- Improve real Memory Graph activity rendering and reduce background rendering cost.
+
 ## [1.1.27] - 2026-11-26
 
 ### Changed
@@ -10,15 +22,6 @@
 - Use the RuntimeForce server as the single authentication authority for the local IDE.
 - Replace local provider sign-in choices with one secure handoff to the central server session.
 - Refresh the local sign-in overlay to match the unified RuntimeForce account card.
-
-## [1.1.24] - 2026-11-23
-
-### Added
-- Move the live Memory Graph into a collapsible card at the bottom of the left sidebar, with rendering paused while hidden.
-- Distribute topology nodes across a rotating 3D sphere and show spatial guide circles while preserving real memory and provider-model relationships.
-
-### Changed
-- Center the Memory Graph in its sidebar card and provide a compact restore control when collapsed.
 
 ## [1.1.23] - 2026-11-22
 

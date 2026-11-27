@@ -19,9 +19,9 @@ if (canvas && widget && widgetToggle && widgetRestore) {
     let nodes = [], edges = [], activeIds = new Set();
     let eventActiveIds = new Set(), eventActiveEdgeIds = new Set();
     let busy = false, memoryQueryActive = false, rotation = 0, rotationSpeed = .00115, raf = 0, lastFetch = 0, activityUntil = 0;
-    let width = 0, height = 0, dpr = 1;
+    let width = 0, height = 0, dpr = 1, lastFrameAt = 0, backgroundGlow = null;
     const particles = [];
-    const isVisible = () => !widget.classList.contains("is-collapsed");
+    const isVisible = () => !document.hidden && !widget.classList.contains("is-collapsed");
     const stopRendering = () => { if (raf) cancelAnimationFrame(raf); raf = 0; };
     const startRendering = () => {
         if (!isVisible() || raf) return;
@@ -112,19 +112,25 @@ if (canvas && widget && widgetToggle && widgetRestore) {
 
     function resize() {
         const rect = canvas.getBoundingClientRect();
-        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        dpr = Math.min(window.devicePixelRatio || 1, 1.5);
         width = Math.max(1, rect.width); height = Math.max(1, rect.height);
         canvas.width = Math.round(width * dpr);
         canvas.height = Math.round(height * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         buildParticles();
+        const radius = Math.min(width, height) * .435;
+        backgroundGlow = ctx.createRadialGradient(width / 2, height / 2, radius * .05, width / 2, height / 2, radius * 1.2);
+        backgroundGlow.addColorStop(0, "rgba(90,120,255,.13)");
+        backgroundGlow.addColorStop(.48, "rgba(110,95,220,.065)");
+        backgroundGlow.addColorStop(1, "rgba(0,0,0,0)");
+        lastFrameAt = 0;
     }
 
     // Fine-grained points form the continuous spherical silhouette even when
     // a new project has only a handful of stored memory entities.
     function buildParticles() {
         particles.length = 0;
-        const count = Math.max(240, Math.min(520, Math.round(Math.min(width, height) * .82)));
+        const count = Math.max(180, Math.min(320, Math.round(Math.min(width, height) * .52)));
         for (let i = 0; i < count; i++) {
             const y = 1 - (i / (count - 1)) * 2;
             const r = Math.sqrt(1 - y * y);
@@ -174,17 +180,21 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         return { x: width/2 + x*radius*perspective, y: height/2 + y*radius*perspective, z: depth, scale: perspective };
     }
 
-    function draw() {
+    function draw(timestamp = 0) {
         if (!isVisible()) { raf = 0; return; }
         if (!width || !height) { raf = requestAnimationFrame(draw); return; }
+        const activeMotion = memoryQueryActive || Date.now() < activityUntil;
+        const frameInterval = activeMotion ? (1000 / 30) : (1000 / 18);
+        if (timestamp - lastFrameAt < frameInterval) {
+            raf = requestAnimationFrame(draw);
+            return;
+        }
+        lastFrameAt = timestamp;
         ctx.clearRect(0, 0, width, height);
         const tilt = .30 + Math.sin(rotation * .23) * .075;
         const cx = width/2, cy = height/2, radius = Math.min(width,height)*.435;
-        const glow = ctx.createRadialGradient(cx,cy,radius*.05,cx,cy,radius*1.2);
-        glow.addColorStop(0,"rgba(90,120,255,.13)");
-        glow.addColorStop(.48,"rgba(110,95,220,.065)");
-        glow.addColorStop(1,"rgba(0,0,0,0)");
-        ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(cx,cy,radius*1.2,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = backgroundGlow;
+        ctx.beginPath(); ctx.arc(cx,cy,radius*1.2,0,Math.PI*2); ctx.fill();
 
         // Fine point cloud, all points remain on the rotating 3D shell.
         for (const particle of particles) {
@@ -288,7 +298,6 @@ if (canvas && widget && widgetToggle && widgetRestore) {
         ctx.font = "700 8px 'JetBrains Mono',monospace"; ctx.textAlign = "center";
         ctx.fillStyle = "rgba(225,238,255,.88)"; ctx.fillText("ORCHESTRATOR", width / 2, height / 2 + 19);
 
-        const activeMotion = memoryQueryActive || Date.now() < activityUntil;
         const targetRotationSpeed = activeMotion ? .0085 : .00115;
         rotationSpeed += (targetRotationSpeed - rotationSpeed) * .035;
         rotation += rotationSpeed;
@@ -345,6 +354,10 @@ if (canvas && widget && widgetToggle && widgetRestore) {
     });
     eventBus.on("session:selected", () => { activeIds.clear(); if (isVisible()) loadGraph(true); });
     window.addEventListener("storage", e => { if(e.key==="rf_active_project_id" && isVisible()) loadGraph(true); });
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stopRendering();
+        else if (!widget.classList.contains("is-collapsed")) startRendering();
+    });
     window.addEventListener("resize", () => { if (isVisible()) resize(); });
     const observer=new ResizeObserver(() => { if (isVisible()) resize(); }); observer.observe(canvas);
     widgetToggle.addEventListener("click", () => setCollapsed(true));

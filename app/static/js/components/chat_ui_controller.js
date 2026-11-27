@@ -189,10 +189,11 @@ export const chatUIController = {
     async getEnabledModelsList() {
         const allowFree = localStorage.getItem("rf_filter_tier_free") !== "false";
         const allowPro = localStorage.getItem("rf_filter_tier_pro") !== "false";
+        const freeProviders = new Set(["gemini", "groq", "ollama", "lm_studio"]);
         const localProviders = new Set(["ollama", "lm_studio"]);
-
         const enabled = [];
         let hasAnySavedConfig = false;
+
         try {
             const data = await keysApi.getSelectedModels();
             const selectedMap = data.selected_models || {};
@@ -201,10 +202,10 @@ export const chatUIController = {
             );
             hasAnySavedConfig = selectedEntries.length > 0;
 
-            // Classify each saved model by its actual registry tier. Provider-level
-            // classification is incorrect for OpenRouter, which can expose both
-            // free and paid models under the same provider.
-            let modelMetadata = new Map();
+            // Use the same registry metadata as the model picker so AUTO obeys
+            // the visible Free/Pro filters. Unknown cloud tiers are treated as
+            // Pro by default; they must never silently enter a Free-only route.
+            const modelMetadata = new Map();
             try {
                 const catalog = await modelsApi.list();
                 Object.entries(catalog.models || {}).forEach(([provider, models]) => {
@@ -218,19 +219,21 @@ export const chatUIController = {
                     });
                 });
             } catch (catalogError) {
-                console.warn("Model tier catalog unavailable; using provider fallback:", catalogError);
+                console.warn("Model tier catalog unavailable; using conservative provider fallback:", catalogError);
             }
 
             selectedEntries.forEach(([providerId, modelIds]) => {
                 modelIds.forEach((modelId) => {
+                    if (typeof modelId !== "string" || !modelId.trim()) return;
                     const metadata = modelMetadata.get(modelId);
                     const provider = metadata?.provider || String(providerId).toLowerCase();
                     const tier = metadata?.tier || "";
-                    const isFree = tier === "free" || localProviders.has(provider)
-                        || (!tier && FREE_PROVIDERS_SET.has(provider));
-                    if (isFree && !allowFree) return;
-                    if (!isFree && !allowPro) return;
-                    enabled.push(modelId);
+                    const isFree = tier === "free"
+                        || modelId.toLowerCase().endsWith(":free")
+                        || freeProviders.has(provider)
+                        || localProviders.has(provider);
+                    if (isFree ? !allowFree : !allowPro) return;
+                    if (!enabled.includes(modelId)) enabled.push(modelId);
                 });
             });
         } catch (e) {
@@ -769,6 +772,14 @@ export const chatUIController = {
             if (!token) throw new Error("Authentication token is missing. Please sign in again.");
             const clientInstanceId = localStorage.getItem("rf_client_instance_id") || (crypto.randomUUID ? crypto.randomUUID() : "rf-" + Date.now() + "-" + Math.random().toString(36).slice(2));
             localStorage.setItem("rf_client_instance_id", clientInstanceId);
+            let appVersion = "unknown";
+            try {
+                const versionResponse = await fetch("/api/v1/version", { cache: "no-store" });
+                if (versionResponse.ok) {
+                    const versionData = await versionResponse.json();
+                    appVersion = versionData.version || appVersion;
+                }
+            } catch (_) {}
             const response = await fetch("https://runtimeforce.dev/api/v1/bug-reports", {
                 method: "POST",
                 credentials: "include",
@@ -786,7 +797,7 @@ export const chatUIController = {
                         partial_response: String(fullResponseText || "").slice(0, 4000),
                         model: currentAgentModel || "",
                         strategy: document.getElementById("strategy-select")?.value || "",
-                        app_version: document.getElementById("active-project-ver-display")?.textContent?.trim() || "",
+                        app_version: appVersion,
                         user_agent: navigator.userAgent || "",
                         occurred_at: new Date().toISOString(),
                         client_instance_id: clientInstanceId

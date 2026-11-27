@@ -257,8 +257,17 @@ class LLMDiscoveryService:
             if any(x in mid_lower for x in ["reason", "think", "r1", "o1", "o3", "70b"]):
                 caps.append("reasoning")
 
+            reported_context = (
+                item.get("context_window") or item.get("context_length")
+                or item.get("max_context_length") or 0
+            )
+            reported_input = item.get("max_input_tokens") or item.get("input_token_limit")
+            # Groq model metadata does not consistently expose TPM limits.
+            safe_input = int(reported_input) if reported_input else (7000 if provider == "groq" else None)
             meta = ModelMetadata(
                 id=model_id, provider=provider, name=mid,
+                context_window=int(reported_context or 0),
+                max_input_tokens=safe_input,
                 tier=("free" if provider in FREE_PROVIDERS else "pro" if provider in {"sambanova", "cerebras"} else "standard"),
                 capabilities=caps,
                 supports_function_calling=True
